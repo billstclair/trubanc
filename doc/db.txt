@@ -196,7 +196,7 @@ Process Inbox
 
 Bank compares all balances and the outboxhash. If correct, bank
 removes the listed transactions from /account/<id>/inbox/,
-corresponding transactions from /account/<id>/outbox, updates
+corresponding transactions from /account/<id>/outbox/, updates
 the /account/<id>/balance/<nameN>/<assetN#> with the balances the
 customer sent, updates /account/<id>/outboxhash with the outboxhash
 item the customer sent, and sends back:
