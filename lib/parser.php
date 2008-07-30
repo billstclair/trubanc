@@ -39,11 +39,13 @@ class parser {
     $substr = false;
     $key = false;
     $value = false;
+    $needsig = false;
     $stack = array();
     $this->errstr = $str;
     $this->errmsg = false;
     foreach ($tokens as $pos => $tok) {
       if ($tok == '(') {
+        $needsig = true;
         if ($dict && $state && $state != ':' && $state != ',') {
           $this->errmsg = "Open paren not after colon or comma at $pos";
           return false;
@@ -149,9 +151,11 @@ class parser {
             $key = $pop[3];
             if ($key) $dict[$key] = $value;
             else $dict[] = $value;
+            $needsig = true;
           } else {
             $res[] = $dict;
             $dict = false;
+            $needsig = false;
           }
           $state = false;
         } else {
@@ -160,6 +164,10 @@ class parser {
         }
       }
     }
+    if ($needsig) {
+      $this->errmsg = "Premature end of message";
+      return false;
+    }
     $this->errstr = false;
     return $res;    
   }
@@ -167,19 +175,34 @@ class parser {
   function tokenize($str) {
     $res = array();
     $i = 0;
+    $realstart = false;
     $start = false;
     $delims = array('(',':',',',')','.');
+    $escaped = false;
+    $substr = '';
     for ($i=0; $i<strlen($str); $i++) {
       $chr = $str[$i];
-      if (in_array($chr, $delims)) {
-        if ($start) $res[$start] = substr($str, $start, $i - $start);
+      if (!$escaped && in_array($chr, $delims)) {
+        if ($start) $res[$realstart] = $substr . substr($str, $start, $i - $start);
         $start = false;
+        $realstart = false;
+        $substr = '';
         $res[$i] = $chr;
-      } elseif (!$start) {
-        $start = $i;
+      } elseif (!$escaped && $chr == "\\") {
+        $escaped = true;
+        if ($start) {
+          $substr .= substr($str, $start, $i - $start);
+          $start = $i+1;
+        }
+      } else {
+        if (!$start) {
+          $start = $i;
+          $realstart = $i;
+        }
+        $escaped = false;
       }
     }
-    if ($start) $res[$start] = substr($str, $start, $i-$start);
+    if ($start) $res[$realstart] = $substr . substr($str, $start, $i-$start);
     //print_r($res);
     return $res;
   }
@@ -195,7 +218,7 @@ $privkey = $ssl->make_privkey(512);
 $pubkey = $ssl->privkey_to_pubkey($privkey);
 $id = $ssl->pubkey_id($pubkey);
 $keydb->put($id, $pubkey);
-$msg = "($id,1,2,x:foo)";
+$msg = "($id,\(1\,2\:3\\\\4\.5\),2,x:foo)";
 $sig = $ssl->sign($msg, $privkey);
 if (!$sig) {
   echo "No signature generated for $msg\n";
