@@ -1,0 +1,65 @@
+Secure Banking: Summary
+
+I talked for an hour last night with Patrick Chkeroff, the creator of loom.cc. We came up with a scheme for doing secure banking and trading, where both the bank and the customer can prove at all times what the customer's balances are and what outstanding spends he has, and to whom. That's all that either party needs to keep track of.
+
+It uses public key signing on every exchanged message.
+
+Users and banks are identified by the 160-bit fingerprint of their public key ID.
+
+I intend to write a longer article, explaining the notation below, but I wanted to post this, so it's not just on my computer.
+
+Create account: (id_a, public_key_a, random): signature_a
+(This requires that somebody has pre-funded account id_a with tokens. Token balances need to be worked into the transactions below)
+
+Sequence request: (id_a, "getsequence", random): signature_a
+Sequence response: (id_bank, "sequence", sequence1): signature_bank
+
+Spend order: (id_a, "spendto", id_b, sequence1, type, amount, comment1): signature_a
+Balance: (id_bank, "balance", id_a, sequence1, type, balance): signature_bank
+Confirm balance: (id_a, "confirmbalance", sequence1, type, balance): signature_a
+Outstanding spends: (id_bank, "outstandingspends", id_a, sequence1, [sequences...]): signature_bank
+Confirm outstanding spends: (id_a, "confirmoutstandingspends" , sequence1, [sequences...]): signature_a
+
+Cancel Spend: (id_a, "cancelspend", id_b, sequence1, type, amount): signature_a
+Balance: ... sequence2 ...
+Confirm balance: ... sequence2 ...
+Outstanding spends: ... sequence2 ...
+Confirm outstanding spends: ... sequence2 ...
+
+Get queue entry: (id_b, "getq", random): signature_b
+Receipt: (id_bank, "receipt", (id_a, "sellto", id_b, sequence1, type, amount, comment1): signature_a): signature_bank
+Confirm receipt: (id_b, "confirmreceipt", id_a, sequence1, type, amount): signature_b
+Balance: (id_bank, "balance", id_b, sequence3, type, balance): signature_bank
+Confirm balance: (id_b, "confirmbalance", sequence3, type, balance): signature_b
+
+Get queue entry: (id_a, "getq", random): signature_a
+Closed spend: (id_bank, "closedspend", ((id_b, "confirmedreceipt", id_a, sequence1, type, amount): signature_b)): signature_bank
+Confirm closed spend: (id_a, "confirmclosedspend", id_b, sequence1, type, amount): signature_a
+Outstanding spends: ... sequence4 ...
+Confirm outstanding spends: ... sequence4 ...
+
+Deny receipt: (id_b, "denyreceipt", id_a, sequence1, type, amount, comment2): signature_b
+
+Get queue entry: id_a ...
+Denied spend: (id_bank, "deniedspend", (id_b, "denyreceipt", id_a, sequence1, type, amount, comment2): signature_b): signature_bank
+Confirm denied spend: (id_a, "confirmdeniedspend", id_b, sequence1, type, amount): signature_a
+Balance: ... sequence5 ...
+Confirm Balance: ... sequence5 ...
+Outstanding spends: ... sequence5 ...
+Confirm outstanding spends: ... sequence5 ...
+
+Get confirmed balance: (id_a, "getconfirmedbalance", type, random): signature_a
+Confirmed balance: (id_bank, "confirmedbalance", (id_a, "confirmbalance", sequence1, type, balance): signature_a): signature_bank
+
+Get confirmed outstanding spends: (id_a, "getconfirmedoutstandingspends", random): signature_a
+Confirmed outstanding spends: (id_bank, "confirmedoutstandingspends", (id_a, "confirmoutstandingspends" , sequence1, [sequences...]): signature_a): signature_bank
+
+add new comment | quote | 21 reads
+( categories: Digital Money | Loom )
+
+Checks & Bearer Certificates
+Submitted by Bill St. Clair on Mon, 2008-07-28 07:17.
+
+Checks and bearer certificates fall out of this, too. A check is just a spend with 0 for the amount and the recipient. The customer signs the check, with value filled in, over to a recipient later. If he signs the same check to two different recipients, the first one to cash it wins, and the other has a verifiable claim against the customer. If his balance won't cover the check when it first comes in, the recipient has a verifiable claim against him. A bearer certificate is a spend with 0 for the recipient. Its value is removed from the customer's account right away, so there's never an account balance shortfall. It has to be signed over to someone before it can be cashed. Or it can be returned to credit the account. A certificate can accumulate a signature chain when passed from hand to hand, if every recipient trusts that nobody in the existing chain will fraudulently cash it. The first person to turn in a bearer certificate signed to him gets the value. If a second person turns one in, the bank can prove who spent it, but it isn't the bank's responsibility to make good the second or subsequent time. If the redeemer has the value, though, the bank can transfer it. If he doesn't, then the bank can ignore the second demand, or put a lien on the redeemer's account. There's room for policy differences here.
+
+Note that check and bearer certificate records need to be kept for all time, so banks will likely charge extra for them. Or they could have expiration dates.
