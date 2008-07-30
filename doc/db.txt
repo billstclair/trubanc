@@ -50,10 +50,11 @@ $dbdir/
       outbox/
         <tran#>=(<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,from:<name>)
         <re#>=(<id>,note,<re#>,<id2>,re:<re2#>,note:<note>)
+      outboxhash=(<id>,outboxhash,<tran#>,<hash>)
       inbox/
         <tran#>=(<id2>,spend|accept,<tran2#>,note:<note2>,to:<name2>)
         <tran#>=(<id3>,spend|reject,<tran3#>,note:<note3>)
-        <re#>=(<id4>,note,<tran4#>,<id>,<re#>,note:<note4>)
+        <re2#>=(<id4>,note,<re2#>,<id>,<re#>,note:<note4>)
 
 
 === Transactions ===
@@ -67,9 +68,9 @@ Create account
 (<id>,id,<id>,<pubkey>)
 
   If the id is new, matches the pubkey, the signature is OK, and the
-  user has enough usage tokens in his inbox (spending usage tokens to
-  a new <id> is how the account directory is actually created), bank
-  responds with:
+  customer has enough usage tokens in his inbox (spending usage tokens
+  to a new <id> is how the account directory is actually created),
+  bank responds with:
 
 (<id>,id,<pubkey>)
 
@@ -154,9 +155,13 @@ Spend
   transaction number) match what the user sent. If they match, bank
   updtes /account/<id>/last to <tran#>, adds the spend to
   /account/<id>/outbox/, sets /account/<id>/balance/<name>/<asset#> to
-  the user's balance item, and sends:
+  the user's balance item, updates /account/<id>/outboxhash with the
+  customer's outboxhash item, and sends:
 
 (<bankid>,balance,<tran#>,<asset#>,<amount>,name=<name>).
+  (<bankid>,balance,<tran#>,<asset2#>,<amount2>,name=<name>).
+  ...
+  (<bankid>,balance,<tran#>,<assetN#>,<amountN>,name=<name>).
   (<bankid>,outboxhash,<tran#>,<asset#>,<amount>)
 
 If they don't match, bank sends:
@@ -186,14 +191,18 @@ Process Inbox
   (<id>,balance,<tran4#>,<asset#>,<amount>,name=<name>).
   (<id>,balance,<tran4#>,<asset2#>,<amount2>,name=<name2>).
   ...
-  (<id>,balance,<tran4#>,<assetN#>,<amount3>,name=<nameN>)
+  (<id>,balance,<tran4#>,<assetN#>,<amount3>,name=<nameN>).
+  (<id>,outboxhash,<tran#>,<hash>)
 
 Bank compares all balances and the outboxhash. If correct, bank
-removes the listed transactions from /account/<id>/inbox/, updates
+removes the listed transactions from /account/<id>/inbox/,
+corresponding transactions from /account/<id>/outbox, updates
 the /account/<id>/balance/<nameN>/<assetN#> with the balances the
-customer sent, and sends back:
+customer sent, updates /account/<id>/outboxhash with the outboxhash
+item the customer sent, and sends back:
 
-(<idbank>,balance,<tran4#>,<asset#>,<amount>,name=<name>).
-  (<idbank>,balance,<tran4#>,<asset2#>,<amount2>,name=<name2>).
+(<bankid>,balance,<tran4#>,<asset#>,<amount>,name=<name>).
+  (<bankid>,balance,<tran4#>,<asset2#>,<amount2>,name=<name2>).
   ...
-  (<idbank>,balance,<tran4#>,<assetN#>,<amount3>,name=<nameN>)
+  (<bankid>,balance,<tran4#>,<assetN#>,<amount3>,name=<nameN>).
+  (<bankid>,outboxhash,<tran#>,<hash>)
