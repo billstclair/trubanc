@@ -17,6 +17,8 @@ class parser {
 
   var $keydb = false;
   var $ssl = false;
+  var $errstr = false;
+  var $errmsg = false;
 
   function parser($keydb, $ssl=false) {
     $this->keydb = $keydb;
@@ -158,6 +160,7 @@ class parser {
         }
       }
     }
+    $this->errstr = false;
     return $res;    
   }
 
@@ -184,8 +187,8 @@ class parser {
 }
 
 // Test code
-require_once "dictdb.php";
 /*
+require_once "dictdb.php";
 $keydb = new dictdb();
 $ssl = new ssl();
 $privkey = $ssl->make_privkey(512);
