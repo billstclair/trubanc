@@ -11,24 +11,24 @@ name:<item> denotes an optional item, passed by position or name
 Items in parens are signed. Signature omitted here.
 
 $dbdir/
-  sequence: <sequence#>  -- The transaction sequence number
-  privkey: <privkey>   -- the private key. Maybe this shouldn't be in
-                       -- the database, so it doesn't get backed up.
-  privkeyid: <bankid>  -- The id of the private key
-  regfee: <regfee>  -- Usage tokens paid for registration
-                    -- default: 10 (2 each for /pubkey & /pubkeysig,
-                    --              <id>, last, balance, outbox, inbox,
-                    --              and one bonus token)
+  sequence=<sequence#>  -- The transaction sequence number
+  privkey=<privkey>   -- the private key. Maybe this shouldn't be in
+                      -- the database, so it doesn't get backed up.
+  privkeyid=<bankid>  -- The id of the private key
+  regfee=<regfee>  -- Usage tokens paid for registration
+                   -- default: 10 (2 each for /pubkey & /pubkeysig,
+                   --              <id>, last, balance, outbox, inbox,
+                   --              and one bonus token)
   )
-  regfeesig: (<bankid>,regfee,<fee#>,0,<amount>)
-  tranfee: <tranfee>  -- Usage tokens paid for a transaction.
+  regfeesig=(<bankid>,regfee,<fee#>,0,<amount>)
+  tranfee=<tranfee>  -- Usage tokens paid for a transaction.
                       -- Returned when the transaction completes.
                       -- Default: 2 (inbox & outbox entry)
-  tranfeesig: (<bankid>,tranfee,<fee#>,0,<amount>)
+  tranfeesig=(<bankid>,tranfee,<fee#>,0,<amount>)
   fee/  -- permanent fees, paid for transactions of the given type
         -- Default: none
-    spend: <asset#>:<amount>[.<asset#>:<amount>...]
-    note: <asset#>:<amount>[.<asset#>:<amount>...]
+    spend=<asset#>:<amount>[.<asset#>:<amount>...]
+    note=<asset#>:<amount>[.<asset#>:<amount>...]
   feesig/
     spend=(<bankid>,fee|spend,<fee#>,<asset#>,<amount>)[...]
     note=(<bankid>,fee|note,<fee#>,<asset#>,<amount>)[...]
@@ -38,12 +38,12 @@ $dbdir/
     <id>=(<bankid>,pubkey,<pubkey>,name>)
   asset/ -- <asset#> 0 is "usage tokens"
     last=<asset#>  -- new <asset#> must be greater than this
-    <asset#>: (<id>,asset,<asset#>,<name>)
+    <asset#>=(<id>,asset,<asset#>,<name>)
   assetname/
     <name>=<asset#>
   account/
     <id>/
-      last: <sequence#>  -- new transactions must have higher sequence
+      last=<sequence#>  -- new transactions must have higher sequence
       balance/
         <name>/  -- "main" is the default balance name
           <asset#>=(<id>,balance,<tran#>,<asset#>,<amount>,name=<name>)
