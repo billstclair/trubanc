@@ -185,7 +185,7 @@ class parser {
 
 // Test code
 require_once "dictdb.php";
-
+/*
 $keydb = new dictdb();
 $ssl = new ssl();
 $privkey = $ssl->make_privkey(512);
@@ -210,3 +210,4 @@ else {
   echo $parser->errmsg;
 }
 echo "\n";
+*/
