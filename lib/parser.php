@@ -66,7 +66,7 @@ class parser {
       } elseif ($tok == ')') {
         if ($state == ',') {
           if ($key) {
-            $self->errstr = "Missing key at $pos";
+            $self->errmsg = "Missing key at $pos";
             return false;
           }
           if (!$dict) $dict = array();
@@ -96,8 +96,8 @@ class parser {
           $state = ':';
         }
       } elseif ($tok == ',') {
-        if ($state && $state != ',') {
-          $this->errstr = "Misplaced comma at $pos";
+        if ($state && $state != ',' && $state != '(') {
+          $this->errmsg = "Misplaced comma at $pos, state: $state";
           return false;
         }
         if (!$dict) $dict = array();
@@ -116,12 +116,11 @@ class parser {
       } else {
         if ($state == '(' || $state == ',') {
           $value = $tok;
-          $state = false;
         } elseif ($state == ':') {
           if (!$dict) $dict = array();
           $dict[$key] = $tok;
           //print_r($dict);
-          $state = false;
+          $value = false;
         } elseif ($state == 'sig') {
           $id = $dict ? $dict[0] : false;
           if (!$id) {
@@ -130,7 +129,20 @@ class parser {
           }
           $keydb = $this->keydb;
           $pubkey = $keydb->get($id);
-          if (!$key) {
+          if (!$pubkey && $dict[1] == 'id') {
+            // May be the first time we've seen this ID.
+            // If it's a key definition message, we've got all we need.
+            $pubkey = $dict[2];
+            $pubkeyid = $ssl->pubkey_id($pubkey);
+            if ($id != $pubkeyid) {
+              $pubkey = false;
+            } else {
+              $keydb->put($id, $pubkey);
+            }
+          }
+          // Eventually, we'll need to look up the pubkey from the server here.
+          // That will require init parms for the server & my <id>
+          if (!$pubkey) {
             $this->errmsg = "No key for id: $id at $pos";
             return false;
           }
@@ -210,14 +222,19 @@ class parser {
 }
 
 // Test code
-/*
+///*
 require_once "dictdb.php";
 $keydb = new dictdb();
 $ssl = new ssl();
+
 $privkey = $ssl->make_privkey(512);
 $pubkey = $ssl->privkey_to_pubkey($privkey);
 $id = $ssl->pubkey_id($pubkey);
+$privkey2 = $ssl->make_privkey(512);
+$pubkey2 = $ssl->privkey_to_pubkey($privkey2);
+$id2 = $ssl->pubkey_id($pubkey2);
 $keydb->put($id, $pubkey);
+
 $msg = "($id,\(1\,2\:3\\\\4\.5\),2,x:foo)";
 $sig = $ssl->sign($msg, $privkey);
 if (!$sig) {
@@ -225,9 +242,17 @@ if (!$sig) {
   return;
 }
 $msg = "$msg:$sig";
+
 $msg2 = "($id,$msg,y:$msg)";
 $sig2 = $ssl->sign($msg2, $privkey);
-$msg = "$msg2:$sig2.$msg";
+$msg .= ".$msg2:$sig2";
+
+$msg3 = "($id2,id,$pubkey2)";
+$sig3 = $ssl->sign($msg3, $privkey2);
+$msg4 = "($id2,foo,bar)";
+$sig4 = $ssl->sign($msg4, $privkey2);
+$msg .= ".$msg3:$sig3.$msg4:$sig4.";
+
 echo "$msg\n";
 $parser = new parser($keydb, $ssl);
 $res = $parser->parse($msg);
@@ -236,6 +261,6 @@ else {
   echo $parser->errmsg;
 }
 echo "\n";
-*/
+//*/
 
 ?>

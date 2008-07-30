@@ -27,7 +27,7 @@ class ssl {
   // The key should be a PEM-encoded string, just as returned from
   // privkey_to_pubkey
   function pubkey_id($pubkey) {
-    return sha1($pubkey);
+    return sha1(trim($pubkey));
   }
 
   // Sign a message with a private key.
