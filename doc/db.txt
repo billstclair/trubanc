@@ -1,35 +1,147 @@
-setup.php defines the $dbdir, which is the base of the datbase in the
-file system. Here's how that directory is structured.
+setup.php defines the $dbdir, which is the base of the database in the
+file system. Here's how the bank directory is structured.
 
 Items in angle brackets are variables
 Items not in angle brackets are literals
 "--" comment to the end of the line
-Items followed by "/" are directories
-Items whose name end with "#" are sequence numbers.
+<dir>/ is a directory
+<key>=<value> is a file named <key> with contents <value>
+Items whose names end with "#" are sequence numbers.
 name:<item> denotes an optional item, passed by position or name
+Items in parens are signed. Signature omitted here.
 
 $dbdir/
   sequence: <sequence#>  -- The transaction sequence number
   privkey: <privkey>  -- the private key
-  privkeyid: <id>     -- and its id
+  privkeyid: <bankid>     -- and its id
+  tranfee: <tranfee>  -- Usage tokens paid for a transaction.
+                      -- Returned when the transaction completes.
+                      -- Default: 2 (inbox & outbox entry)
+  tranfeesig: (<bankid>,tranfee,<fee#>,0,<amount>)
+  fee/  -- permanent fees, paid for transactions of the given type
+        -- Default: none
+    spend: <asset#>:<amount>[.<asset#>:<amount>...]
+    note: <asset#>:<amount>[.<asset#>:<amount>...]
+  feesig/
+    spend=(<bankid>,fee,<fee#>,<asset#>,<amount>)[.(<bankid>,fee,<fee#>,<asset#>,<amount>)]
+    note=(<bankid>,fee,<fee#>,<asset#>,<amount>)
   pubkey/
-    <id>: <pubkey>
-  pubkeysig:
-    <id>: (<id>,pubkey,<pubkey>,name>)
+    <bankid>=<pubkey>
+  pubkeysig/
+    <bankid>=(<bankid>,pubkey,<pubkey>,name>)
   asset/ -- <asset#> 0 is "usage tokens"
-    last: <asset#>  -- new <asset#> must be greater than this
+    last=<asset#>  -- new <asset#> must be greater than this
     <asset#>: (<id>,asset,<asset#>,<name>)
   assetname/
-    <name>: <asset#>
+    <name>=<asset#>
   account/
     <id>/
+      last: <sequence#>  -- new transactions must have higher sequence
       balance/
         <name>/  -- "main" is the default balance name
-          <asset#>: (<id>,balance,<tran#>,<asset#>,<amount>)
+          <asset#>=(<id>,balance,<tran#>,<asset#>,<amount>,name=<name>)
       outbox/
-        <tran#>: (<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,from:<name>)
-        <re#>: (<id>,note,<re#>,<id2>,re:<re2#>,note:<note>)
+        <tran#>=(<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,from:<name>)
+        <re#>=(<id>,note,<re#>,<id2>,re:<re2#>,note:<note>)
       inbox/
-        <tran#>: (<id2>,spend|accept,<tran#>,<id>,<asset#>,note:<note2>,to:<name2>)
-        <tran#>: (<id2>,spend|reject,<tran#>,<id>,<asset#>,note:<note2>)
-        <re#>: (<id2>,note,<tran#>,<id>,<re#>,note:<note3>)
+        <tran#>=(<id2>,spend|accept,<tran2#>,note:<note2>,to:<name2>)
+        <tran#>=(<id3>,spend|reject,<tran3#>,note:<note3>)
+        <re#>=(<id4>,note,<tran4#>,<id>,<re#>,note:<note4>)
+
+
+=== Transactions ===
+
+
+Get sequence number
+-------------------
+
+  Customer sends:
+
+(<id>,sequence,<random>)
+
+  Bank increments /sequence, then returns:
+
+(<bankid>,sequence,<sequence#>)
+
+
+Get fees
+--------
+
+  Customer sends:
+
+(<id>,getfees,<operation>,<random>)
+
+  Bank sends back /tranfeesig and /feesig/<operation>:
+
+(<bankid>,tranfee,<fee#>,0,<amount>).
+  (<bankid>,fee,<fee#>,<asset#>,<amount>).
+  (<bankid>,fee,<fee2#>,<asset2#>,<amount2>).
+  ...
+  (<bankid>,fee,<feeN#>,<assetN#>,<amountN>)
+
+Spend
+-----
+
+  Customer sends the following. Second and subsequent balance items
+  are for the fee assets. Fees always come from the same account
+  <name> as the spend. This allows limitations on licensed spends (not
+  defined yet) from a particular account <name>. Or maybe we should
+  have a particular account name, assigned by the user, defaulting to
+  "main" for all fees.
+
+(<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,from:<name>).
+  (<id>,balance,<tran#>,<asset#>,<amount>,name=<name>).
+  (<id>,balance,<tran#>,<asset2#>,<amount2>,name=<name>).
+  ...
+  (<id>,balance,<tran#>,<assetN#>,<amountN>,name=<name>).
+  (<id>,outboxhash,<tran#>,<hash>)
+
+  Bank checks that the <tran#> is greater than /account/<id>/last,
+  that the balance (after subtracting the spend amount) and hash of
+  list of outbox transaction numbers (including the new spend
+  transaction number) match what the user sent. If they match, bank
+  updtes /account/<id>/last to <tran#>, adds the spend to
+  /account/<id>/outbox/, sets /account/<id>/balance/<name>/<asset#> to
+  the user's balance item, and sends:
+
+(<bankid>,balance,<tran#>,<asset#>,<amount>,name=<name>).
+  (<bankid>,outboxhash,<tran#>,<asset#>,<amount>)
+
+If they don't match, bank sends:
+
+(<bankid>,spend|reject,<tran#>).
+  (<id>,balance,<tran#>,<asset#>,<amount>,name=<name>).
+  (<id>,outboxhash,<tran#>,<hash>)
+
+
+Process Inbox
+-------------
+
+  Customer sends:
+
+(<id>,inbox,<random>)
+
+  Bank responds with contents of /account/<id>/inbox/, separated by
+  periods:
+
+(<id2>,spend|accept,<tran2#>,note:<note2>,to:<name2>).
+  (<id3>,spend|reject,<tran3#>,note:<note3>).
+  (<id4>,note,<tran4#>,<id>,<re#>,note:<note4>)
+
+  Customer sends:
+
+(<id>,removeinbox,<tran2#>|<tran3#>|<tran4#>).
+  (<id>,balance,<tran4#>,<asset#>,<amount>,name=<name>).
+  (<id>,balance,<tran4#>,<asset2#>,<amount2>,name=<name2>).
+  ...
+  (<id>,balance,<tran4#>,<assetN#>,<amount3>,name=<nameN>)
+
+Bank compares all balances and the outboxhash. If correct, bank
+removes the listed transactions from /account/<id>/inbox/, updates
+the /account/<id>/balance/<nameN>/<assetN#> with the balances the
+customer sent, and sends back:
+
+(<idbank>,balance,<tran4#>,<asset#>,<amount>,name=<name>).
+  (<idbank>,balance,<tran4#>,<asset2#>,<amount2>,name=<name2>).
+  ...
+  (<idbank>,balance,<tran4#>,<assetN#>,<amount3>,name=<nameN>)
