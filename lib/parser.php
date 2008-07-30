@@ -1,7 +1,15 @@
 <?PHP
 
   // parser.php
-  // Parse "(id, [key:]value, ...): signature" into an array
+  // Parse "(id,[key:]value,...):signature" into an array, verifying signatures
+  // Can separate multiple top-level forms with periods.
+  // Values can be (id,...):signature forms.
+  // Returns an array of top-level forms, each of which is an array.
+  // Each of the form arrays has three distinguished keys:
+  //  0 => The public key id
+  //  'message' => The string of the message decoded in the array,
+  //               including the open and close paren.
+  //  'signature' => The signature
 
 require_once "ssl.php";
 
