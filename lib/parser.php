@@ -18,9 +18,10 @@ class parser {
   var $keydb = false;
   var $ssl = false;
 
-  function parser($keydb) {
+  function parser($keydb, $ssl=false) {
     $this->keydb = $keydb;
-    $this->ssl = new ssl();
+    if (!$ssl) $ssl = new ssl();
+    $this->ssl = $ssl;
   }
 
   // Return an array or false if the parse could not be done,
@@ -202,7 +203,7 @@ $msg2 = "($id,$msg,y:$msg)";
 $sig2 = $ssl->sign($msg2, $privkey);
 $msg = "$msg2:$sig2.$msg";
 echo "$msg\n";
-$parser = new parser($keydb);
+$parser = new parser($keydb, $ssl);
 $res = $parser->parse($msg);
 if ($res) print_r($res);
 else {
