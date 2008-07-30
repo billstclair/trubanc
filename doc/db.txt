@@ -48,7 +48,7 @@ $dbdir/
       last=<sequence#>  -- new transactions must have higher sequence
       balance/
         <name>/  -- "main" is the default balance name
-          <asset#>=(<id>,balance,<tran#>,<asset#>,<amount>,acct=<acct>)
+          <asset#>=(<id>,balance,<tran#>,<asset#>,<amount>,acct:<acct>)
       outbox/
         <tran#>=(<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,acct:<name>)
         <re#>=(<id>,note,<re#>,<id2>,re:<re2#>,note:<note>)
@@ -90,7 +90,7 @@ Create account
   the balance, and responds with:
 
 (<bankid>,id,<pubkey>).
-  (<bankid>,failed,(<id>,id,<pubkey>),reason=<reason>).
+  (<bankid>,failed,(<id>,id,<pubkey>),reason:<reason>).
 
 
 Look up pubkey
@@ -106,7 +106,7 @@ Look up pubkey
 
   If there is no such id, bank responds with:
 
-(<bankid>,failed,(<id>,id,<id2>),reason=<reason>)
+(<bankid>,failed,(<id>,id,<id2>),reason:<reason>)
 
   Hence, to look up the bank id and public key, send (<id>,id,0)
 
@@ -124,7 +124,7 @@ Get sequence number
 
   Or returns:
 
-(<bankid>,failed,(<id>,sequence,<random>),reason=<reason>)
+(<bankid>,failed,(<id>,sequence,<random>),reason:<reason>)
 
 Get fees
 --------
@@ -145,7 +145,7 @@ Get fees
 
   Or returns:
 
-(<bankid>,failed,(<id>,getfees,<operation>,<random>),reason=<reason>)
+(<bankid>,failed,(<id>,getfees,<operation>,<random>),reason:<reason>)
 
 
 Spend
@@ -159,10 +159,10 @@ Spend
   to "main" for all fees.
 
 (<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,acct:<name>).
-  (<id>,balance,<tran#>,<asset#>,<amount>,acct=<acct>).
-  (<id>,balance,<tran#>,<asset2#>,<amount2>,acct=<acct2>).
+  (<id>,balance,<tran#>,<asset#>,<amount>,acct:<acct>).
+  (<id>,balance,<tran#>,<asset2#>,<amount2>,acct:<acct2>).
   ...
-  (<id>,balance,<tran#>,<assetN#>,<amountN>,acct=<acctN>).
+  (<id>,balance,<tran#>,<assetN#>,<amountN>,acct:<acctN>).
   (<id>,outboxhash,<tran#>,<hash>)
 
   Bank checks that the <tran#> is greater than /account/<id>/last,
@@ -175,16 +175,16 @@ Spend
   the customer's outboxhash item, and sends:
 
 (<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,acct:<name>).
-  (<bankid>,balance,<tran#>,<asset#>,<amount>,acct=<acct>).
-  (<bankid>,balance,<tran#>,<asset2#>,<amount2>,acct=<acct2>).
+  (<bankid>,balance,<tran#>,<asset#>,<amount>,acct:<acct>).
+  (<bankid>,balance,<tran#>,<asset2#>,<amount2>,acct:<acct2>).
   ...
-  (<bankid>,balance,<tran#>,<assetN#>,<amountN>,acct=<acctN>).
+  (<bankid>,balance,<tran#>,<assetN#>,<amountN>,acct:<acctN>).
   (<bankid>,outboxhash,<tran#>,<asset#>,<amount>)
 
 If they don't match, bank returns:
 
-(<bankid>,failed,(<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,acct:<name>),reason=<reason>.
-  (<id>,balance,<tran#>,<asset#>,<amount>,acct=<acct>).
+(<bankid>,failed,(<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,acct:<name>),reason:<reason>.
+  (<id>,balance,<tran#>,<asset#>,<amount>,acct:<acct>).
   (<id>,outboxhash,<tran#>,<hash>)
 
 
@@ -205,10 +205,10 @@ Process Inbox
   Customer sends:
 
 (<id>,removeinbox,<tran2#>|<tran3#>|<tran4#>).
-  (<id>,balance,<tran4#>,<asset#>,<amount>,acct=<acct>).
-  (<id>,balance,<tran4#>,<asset2#>,<amount2>,acct=<acct2>).
+  (<id>,balance,<tran4#>,<asset#>,<amount>,acct:<acct>).
+  (<id>,balance,<tran4#>,<asset2#>,<amount2>,acct:<acct2>).
   ...
-  (<id>,balance,<tran4#>,<assetN#>,<amount3>,acct=<acctN>).
+  (<id>,balance,<tran4#>,<assetN#>,<amount3>,acct:<acctN>).
   (<id>,outboxhash,<tran#>,<hash>)
 
 Bank compares all balances and the outboxhash. If correct, bank
@@ -219,10 +219,10 @@ sent, updates /account/<id>/outboxhash with the outboxhash item the
 customer sent, and sends back:
 
 (<bankid,success,(<id>,removeinbox,<tran2#>|<tran3#>|<tran4#>)).
-  (<bankid>,balance,<tran4#>,<asset#>,<amount>,acct=<acct>).
-  (<bankid>,balance,<tran4#>,<asset2#>,<amount2>,acct=<acct2>).
+  (<bankid>,balance,<tran4#>,<asset#>,<amount>,acct:<acct>).
+  (<bankid>,balance,<tran4#>,<asset2#>,<amount2>,acct:<acct2>).
   ...
-  (<bankid>,balance,<tran4#>,<assetN#>,<amount3>,acct=<acctN>).
+  (<bankid>,balance,<tran4#>,<assetN#>,<amount3>,acct:<acctN>).
   (<bankid>,outboxhash,<tran#>,<hash>)
 
   Otherwise, bank returns:
@@ -243,7 +243,7 @@ Lookup asset
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,getasset,<asset#>,<random>),reason=<reason>)
+(<bankid>,failed,(<id>,getasset,<asset#>,<random>),reason:<reason>)
 
 
 Create asset
@@ -252,10 +252,10 @@ Create asset
   Customer sends:
 
 (<id>,asset,<asset#>,<scale>,<precision>,<assetname>).
-  (<id>,balance,<tran4#>,<asset#>,<amount>,acct=<acct1>).
-  (<id>,balance,<tran4#>,<asset2#>,<amount2>acct=<acct2>).
+  (<id>,balance,<tran4#>,<asset#>,<amount>,acct:<acct1>).
+  (<id>,balance,<tran4#>,<asset2#>,<amount2>acct:<acct2>).
   ...
-  (<id>,balance,<tran4#>,<assetN#>,<amountN>,acct=<acctN>).
+  (<id>,balance,<tran4#>,<assetN#>,<amountN>,acct:<acctN>).
   
   If the <asset#> is greater than /asset/last, /asset/<asset#> does
   not exist, /assetname/<assetname> does not exist, and the customer
@@ -266,14 +266,14 @@ Create asset
   /asset/, adds <assetname>=<asset#> to /assetname/, and returns:
 
 (<bankid>,affirm,(<id>,asset,<asset#>,<assetname>)).
-  (<bankid>,balance,<tran4#>,<asset#>,<amount>,acct=<acct1>).
-  (<bankid>,balance,<tran4#>,<asset2#>,<amount2>acct=<acct2>).
+  (<bankid>,balance,<tran4#>,<asset#>,<amount>,acct:<acct1>).
+  (<bankid>,balance,<tran4#>,<asset2#>,<amount2>acct:<acct2>).
   ...
-  (<bankid>,balance,<tran4#>,<assetN#>,<amountN>,acct=<acctN>)
+  (<bankid>,balance,<tran4#>,<assetN#>,<amountN>,acct:<acctN>)
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,asset,<asset#>,<assetname>),reason=<reason>)
+(<bankid>,failed,(<id>,asset,<asset#>,<assetname>),reason:<reason>)
 
 
 Get outbox
@@ -293,7 +293,7 @@ Get outbox
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,getoutbox,<random>),reason=<reason>)
+(<bankid>,failed,(<id>,getoutbox,<random>),reason:<reason>)
 
 
 Get balance
@@ -301,13 +301,13 @@ Get balance
 
   If the customer loses track of a balance, customer can send:
 
-(<id>,getbalance,<random>,acct=<acct>)
+(<id>,getbalance,<random>,acct:<acct>)
 
   <acct> can be "*" to return balances of all accounts.
   If the <id> exists, bank returns:
 
-(<id>,balance,<tran#>,<asset#>,<amount>,acct=<acct>)...
+(<id>,balance,<tran#>,<asset#>,<amount>,acct:<acct>)...
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,getbalance,<random>,acct=<acct>),reason=<reason>)
+(<bankid>,failed,(<id>,getbalance,<random>,acct:<acct>),reason:<reason>)
