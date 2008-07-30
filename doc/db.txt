@@ -27,9 +27,9 @@ $dbdir/
         <name>/  -- "main" is the default balance name
           <asset#>: (<id>,balance,<tran#>,<asset#>,<amount>)
       outbox/
-        <tran#>: (<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,name:<name>)
+        <tran#>: (<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,from:<name>)
         <re#>: (<id>,note,<re#>,<id2>,re:<re2#>,note:<note>)
      inbox/
-       <tran#>: (<id2>,spend|accept,<tran#>,<id>,<asset#>,note:<note2>,name:<name2>)
+       <tran#>: (<id2>,spend|accept,<tran#>,<id>,<asset#>,note:<note2>,to:<name2>)
        <tran#>: (<id2>,spend|reject,<tran#>,<id>,<asset#>,note:<note2>)
        <re#>: (<id2>,note,<tran#>,<id>,<re#>,note:<note3>)
