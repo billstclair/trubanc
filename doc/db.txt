@@ -12,8 +12,9 @@ Items in parens are signed. Signature omitted here.
 
 $dbdir/
   sequence: <sequence#>  -- The transaction sequence number
-  privkey: <privkey>   -- the private key
-  privkeyid: <bankid>  -- and its id
+  privkey: <privkey>   -- the private key. Maybe this shouldn't be in
+                       -- the database, so it doesn't get backed up.
+  privkeyid: <bankid>  -- The id of the private key
   regfee: <regfee>  -- Usage tokens paid for registration
                     -- default: 10 (2 each for /pubkey & /pubkeysig,
                     --              <id>, last, balance, outbox, inbox,
