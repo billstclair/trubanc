@@ -222,7 +222,7 @@ class parser {
 }
 
 // Test code
-///*
+/*
 require_once "dictdb.php";
 $keydb = new dictdb();
 $ssl = new ssl();
@@ -261,6 +261,6 @@ else {
   echo $parser->errmsg;
 }
 echo "\n";
-//*/
+*/
 
 ?>
