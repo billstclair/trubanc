@@ -252,11 +252,17 @@ Create asset
   Customer sends:
 
 (<id>,asset,<asset#>,<scale>,<precision>,<assetname>).
-  (<id>,balance,<tran4#>,<asset#>,<amount>,acct:<acct1>).
+  (<id>,balance,<tran4#>,<asset#>,-1,acct:<acct1>).
   (<id>,balance,<tran4#>,<asset2#>,<amount2>acct:<acct2>).
   ...
   (<id>,balance,<tran4#>,<assetN#>,<amountN>,acct:<acctN>).
   
+  Note that the balance for the new asset is "-1". Like loom, the sum
+  of all balances for an <asset#> add up to -1. A negative balance
+  means that the owner is the issuer (except negative balances in the
+  usage token can exist during registration). I haven't worked out the
+  process to switch issuer ownership.
+
   If the <asset#> is greater than /asset/last, /asset/<asset#> does
   not exist, /assetname/<assetname> does not exist, and the customer
   has properly subtracted the createasset fees from the balances in
