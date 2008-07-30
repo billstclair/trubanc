@@ -73,6 +73,11 @@ class fsdb {
   function unlock($fp) {
     fclose($fp);
   }
+
+  function subdir($key) {
+    $key = normalize_key($key);
+    return new fsdb($this->dir . '/' . $key);
+  }
 }
 
 // Testing code
