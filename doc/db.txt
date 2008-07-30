@@ -12,8 +12,14 @@ Items in parens are signed. Signature omitted here.
 
 $dbdir/
   sequence: <sequence#>  -- The transaction sequence number
-  privkey: <privkey>  -- the private key
-  privkeyid: <bankid>     -- and its id
+  privkey: <privkey>   -- the private key
+  privkeyid: <bankid>  -- and its id
+  regfee: <regfee>  -- Usage tokens paid for registration
+                    -- default: 10 (2 each for /pubkey & /pubkeysig,
+                    --              <id>, last, balance, outbox, inbox,
+                    --              and one bonus token)
+  )
+  regfeesig: (<bankid>,regfee,<fee#>,0,<amount>)
   tranfee: <tranfee>  -- Usage tokens paid for a transaction.
                       -- Returned when the transaction completes.
                       -- Default: 2 (inbox & outbox entry)
@@ -23,12 +29,12 @@ $dbdir/
     spend: <asset#>:<amount>[.<asset#>:<amount>...]
     note: <asset#>:<amount>[.<asset#>:<amount>...]
   feesig/
-    spend=(<bankid>,fee,<fee#>,<asset#>,<amount>)[.(<bankid>,fee,<fee#>,<asset#>,<amount>)]
-    note=(<bankid>,fee,<fee#>,<asset#>,<amount>)
+    spend=(<bankid>,fee|spend,<fee#>,<asset#>,<amount>)[...]
+    note=(<bankid>,fee|note,<fee#>,<asset#>,<amount>)[...]
   pubkey/
-    <bankid>=<pubkey>
+    <id>=<pubkey>
   pubkeysig/
-    <bankid>=(<bankid>,pubkey,<pubkey>,name>)
+    <id>=(<bankid>,pubkey,<pubkey>,name>)
   asset/ -- <asset#> 0 is "usage tokens"
     last=<asset#>  -- new <asset#> must be greater than this
     <asset#>: (<id>,asset,<asset#>,<name>)
@@ -52,6 +58,50 @@ $dbdir/
 === Transactions ===
 
 
+Create account
+--------------
+
+  Customer sends:
+
+(<id>,id,<id>,<pubkey>)
+
+  If the id is new, matches the pubkey, the signature is OK, and the
+  user has enough usage tokens in his inbox (spending usage tokens to
+  a new <id> is how the account directory is actually created), bank
+  responds with:
+
+(<id>,id,<pubkey>)
+
+  Customer will need to do process his inbox to transfer his
+  introduction tokens to his balance. No spend|cancel operations will
+  be allowed for usage token spends to an account with a negative
+  usage token balance. This ensures that the usage token balance will
+  be positive after the new customer processes his inbox.
+
+  Otherwise, bank puts a negative balance (/regee) of usage tokens in
+  the balance, and responds with:
+
+(<bankid>,id,<pubkey>)
+
+
+Look up pubkey
+--------------
+
+  Customer sends:
+
+(<id>,id,<id2>)
+
+  If there is such an id registered, bank responds with:
+
+(<id>,id,<pubkey>)
+
+  If there is no such id, bank responds with:
+
+(<bankid>,id,<pubkey>)
+
+  Hence, to look up the bank id and public key, send (<id>,id,0)
+
+
 Get sequence number
 -------------------
 
@@ -71,13 +121,14 @@ Get fees
 
 (<id>,getfees,<operation>,<random>)
 
-  Bank sends back /tranfeesig and /feesig/<operation>:
+  Bank sends back /regfeesig, /tranfeesig, and /feesig/<operation>:
 
-(<bankid>,tranfee,<fee#>,0,<amount>).
-  (<bankid>,fee,<fee#>,<asset#>,<amount>).
-  (<bankid>,fee,<fee2#>,<asset2#>,<amount2>).
+(<bankid>regfee,0,<fee#>,<amount>).
+  (<bankid>,tranfee,<fee#>,0,<amount>).
+  (<bankid>,fee|<operation>,<fee#>,<asset#>,<amount>).
+  (<bankid>,fee|<operation2>,<fee2#>,<asset2#>,<amount2>).
   ...
-  (<bankid>,fee,<feeN#>,<assetN#>,<amountN>)
+  (<bankid>,fee|<operationN>,<feeN#>,<assetN#>,<amountN>)
 
 Spend
 -----
