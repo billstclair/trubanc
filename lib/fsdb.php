@@ -33,17 +33,24 @@ class fsdb {
   }
 
   function put($key, $value) {
+    if (!$value) $value == '';
+    $blank = ($value == '');
     $key = $this->normalize_key($key);
     $dir = $this->dir;
     $filename = "$dir/$key";
-    $fp = @fopen($filename, 'w');
+    $fp = @fopen($filename, $blank ? 'r' : 'w');
     if (!$fp) {
+      if ($blank) return '';
       if (!$this->rmkdir(dirname($filename))) return false;
       $fp = fopen($filename, 'w');
-      if (!$fp) return false;
+      if (!$fp) return $blank ? '' : false;
     }
     flock($fp, LOCK_EX);
-    fwrite($fp, $value);
+    if ($blank) {
+      unlink($filename);
+      // Should delete the empty directories in the path, too.
+    }
+    else fwrite($fp, $value);
     fclose($fp);
     return $value;
   }
@@ -86,6 +93,9 @@ $value = $argv[$argc-1];
 $db = new fsdb("./db");
 if ($db->put("/foo/bar", $value)) {
   echo $db->get("/foo/bar") . "\n";
+}
+if ($db->put("/foo/delete-me", "you'll never see this")) {
+  $db->put("foo/delete-me", '');
 }
 $fp = $db->lock("/foo/bar");
 if ($fp) {

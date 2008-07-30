@@ -40,7 +40,7 @@ $dbdir/
     <id>=(<bankid>,pubkey,<pubkey>,name>)
   asset/ -- <asset#> 0 is "usage tokens"
     last=<asset#>  -- new <asset#> must be greater than this
-    <asset#>=(<id>,asset,<asset#>,<name>)
+    <asset#>=(<id>,asset,<asset#>,<scale>,<precision>,<assetname>)
   assetname/
     <name>=<asset#>
   account/
@@ -50,11 +50,11 @@ $dbdir/
         <name>/  -- "main" is the default balance name
           <asset#>=(<id>,balance,<tran#>,<asset#>,<amount>,acct:<acct>)
       outbox/
-        <tran#>=(<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,acct:<name>)
+        <tran#>=(<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,acct:<acct>)
         <re#>=(<id>,note,<re#>,<id2>,re:<re2#>,note:<note>)
       outboxhash=(<id>,outboxhash,<tran#>,<hash>)
       inbox/
-        <tran#>=(<id2>,spend|accept,<tran2#>,note:<note2>,to:<name2>)
+        <tran#>=(<id2>,spend|accept,<tran2#>,note:<note2>,acct:<acct2>)
         <tran#>=(<id3>,spend|reject,<tran3#>,note:<note3>)
         <re2#>=(<id4>,note,<re2#>,<id>,<re#>,note:<note4>)
 
@@ -169,7 +169,7 @@ Spend
   that the balance (after subtracting the spend amount) and hash of
   list of outbox transaction numbers (including the new spend
   transaction number) match what the customer sent. If they match,
-  bank updtes /account/<id>/last to <tran#>, adds the spend to
+  bank updates /account/<id>/last to <tran#>, adds the spend to
   /account/<id>/outbox/, sets /account/<id>/balance/<name>/<asset#> to
   the customer's balance item, updates /account/<id>/outboxhash with
   the customer's outboxhash item, and sends:
@@ -198,7 +198,7 @@ Process Inbox
   Bank responds with contents of /account/<id>/inbox/, separated by
   periods:
 
-(<id2>,spend|accept,<tran2#>,note:<note2>,to:<name2>).
+(<id2>,spend|accept,<tran2#>,note:<note2>,acct:<acct2>).
   (<id3>,spend|reject,<tran3#>,note:<note3>).
   (<id4>,note,<tran4#>,<id>,<re#>,note:<note4>)
 
@@ -218,7 +218,7 @@ corresponding transactions from /account/<id>/outbox/, updates the
 sent, updates /account/<id>/outboxhash with the outboxhash item the
 customer sent, and sends back:
 
-(<bankid,success,(<id>,removeinbox,<tran2#>|<tran3#>|<tran4#>)).
+(<bankid,affirm,(<id>,removeinbox,<tran2#>|<tran3#>|<tran4#>)).
   (<bankid>,balance,<tran4#>,<asset#>,<amount>,acct:<acct>).
   (<bankid>,balance,<tran4#>,<asset2#>,<amount2>,acct:<acct2>).
   ...
@@ -291,7 +291,7 @@ Get outbox
 
   If the <id> exists, bank returns:
 
-(<bankid>,success,(<id>,outbox,<random>)).
+(<bankid>,affirm,(<id>,outbox,<random>)).
   (<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,acct:<name>).
   (<id>,note,<re#>,<id2>,re:<re2#>,note:<note>).
   ...
