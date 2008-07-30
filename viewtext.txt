@@ -1,4 +1,5 @@
 index.html
+doc.txt
 lib/dictdb.php
 lib/fsdb.php
 lib/parser.php
