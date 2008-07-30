@@ -1,5 +1,6 @@
 index.html
-doc.txt
+doc/idea.txt
+doc/db.txt
 lib/dictdb.php
 lib/fsdb.php
 lib/parser.php

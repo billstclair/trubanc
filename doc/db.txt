@@ -1,0 +1,35 @@
+setup.php defines the $dbdir, which is the base of the datbase in the
+file system. Here's how that directory is structured.
+
+Items in angle brackets are variables
+Items not in angle brackets are literals
+"--" comment to the end of the line
+Items followed by "/" are directories
+Items whose name end with "#" are sequence numbers.
+name:<item> denotes an optional item, passed by position or name
+
+$dbdir/
+  sequence: <sequence#>  -- The transaction sequence number
+  privkey: <privkey>  -- the private key
+  privkeyid: <id>     -- and its id
+  pubkey/
+    <id>: <pubkey>
+  pubkeysig:
+    <id>: (<id>,pubkey,<pubkey>,name>)
+  asset/ -- <asset#> 0 is "usage tokens"
+    last: <asset#>  -- new <asset#> must be greater than this
+    <asset#>: (<id>,asset,<asset#>,<name>)
+  assetname/
+    <name>: <asset#>
+  account/
+    <id>/
+      balance/
+        <name>/  -- "main" is the default balance name
+          <asset#>: (<id>,balance,<tran#>,<asset#>,<amount>)
+      outbox/
+        <tran#>: (<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,name:<name>)
+        <re#>: (<id>,note,<re#>,<id2>,re:<re2#>,note:<note>)
+     inbox/
+       <tran#>: (<id2>,spend|accept,<tran#>,<id>,<asset#>,note:<note2>,name:<name2>)
+       <tran#>: (<id2>,spend|reject,<tran#>,<id>,<asset#>,note:<note2>)
+       <re#>: (<id2>,note,<tran#>,<id>,<re#>,note:<note3>)
