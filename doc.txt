@@ -19,6 +19,7 @@ Balance: (id_bank, "balance", id_a, sequence1, type, balance): signature_bank
 Confirm balance: (id_a, "confirmbalance", sequence1, type, balance): signature_a
 Outstanding spends: (id_bank, "outstandingspends", id_a, sequence1, [sequences...]): signature_bank
 Confirm outstanding spends: (id_a, "confirmoutstandingspends" , sequence1, [sequences...]): signature_a
+  (A hash of the spends can be sent instead of the whole list to save bandwidth)
 
 Cancel Spend: (id_a, "cancelspend", id_b, sequence1, type, amount): signature_a
 Balance: ... sequence2 ...

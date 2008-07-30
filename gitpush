@@ -1,0 +1,2 @@
+# Push the HEAD to the shared repository
+git push git+ssh://$TRUEBANC/home/private/truebanc.git --tags HEAD
