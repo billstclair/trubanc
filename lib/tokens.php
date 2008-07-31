@@ -20,6 +20,7 @@ class tokens {
   var $ACCOUNT = 'account';
   var $LAST = 'last';
   var $BALANCE = 'balance';
+  var $MAIN = 'main';
   var $OUTBOX = 'outbox';
   var $OUTBOXHASH = 'outboxhash';
   var $INBOX = 'inbox';

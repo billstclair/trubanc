@@ -81,6 +81,22 @@ class fsdb {
     fclose($fp);
   }
 
+  // Return an array of the names of the contents of the directory,
+  // sorted alphabetically.
+  // File names beginning with "." are ignored.
+  function contents($key) {
+    $key = $this->normalize_key($key);
+    $dir = $this->dir;
+    $dirs = @scandir("$dir/$key");
+    $res = array();
+    if ($dirs) {
+      foreach ($dirs as $dir) {
+        if (substr($dir, 0, 1) != ".") $res[] = $dir;
+      }
+    }
+    return $res;
+  }
+
   function subdir($key) {
     $key = normalize_key($key);
     return new fsdb($this->dir . '/' . $key);
