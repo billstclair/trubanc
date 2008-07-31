@@ -51,11 +51,15 @@ class server {
     return $res;
   }
 
+  function getacctlast($id) {
+    return $this->db->get($this->acctlastkey($id));
+  }
+
   function accountdir($id) {
     return $this->t->ACCOUNT . "/$id" . '/';
   }
 
-  function accountlastkey($id) {
+  function acctlastkey($id) {
     return $this->accountdir($id) . $this->t->LAST;
   }
 
@@ -79,9 +83,11 @@ class server {
     return $this->accountdir($id) . $this->t->INBOX;
   }
 
-  function outboxhash($id, $privkey) {
+  function outboxhash($id) {
+    $bankid = $this->bankid();
     $tranlist = implode(',', $this->db->contents($this->outboxkey($id)));
-    return sha1($tranlist);
+    $hash = sha1($tranlist);
+    return $this->bankmsg(array($bankid, $this->t->OUTBOXHASH, $this->getacctlast($id), $hash));
   }
 
   // Create a bankid and password
@@ -112,12 +118,11 @@ class server {
       $db->put($t->ASSET . '/0', $asset);
       $db->put($t->ASSETNAME . "/$assetname", 0);
       $accountdir = $t->ACCOUNT . "/$bankid";
-      $db->put($this->accountlastkey($bankid), 0);
+      $seq = $this->getsequence();
+      $db->put($this->acctlastkey($bankid), $seq);
       $mainkey = $this->acctbalancekey($bankid);
-      $db->put("$mainkey/0", $this->bankmsg(array($bankid, $t->BALANCE, $this->getsequence(), 0, -1)));
-      $hash = $this->outboxhash($bankid, $privkey);
-      $msg = $this->bankmsg(array($bankid, $t->OUTBOXHASH, 0, $hash));
-      $db->put($this->outboxhashkey($bankid), $msg);
+      $db->put("$mainkey/0", $this->bankmsg(array($bankid, $t->BALANCE, $seq, 0, -1)));
+      $db->put($this->outboxhashkey($bankid), $this->outboxhash($bankid));
     }
   }
 

@@ -179,7 +179,7 @@ Spend
   (<bankid>,balance,<tran#>,<asset2#>,<amount2>,acct:<acct2>).
   ...
   (<bankid>,balance,<tran#>,<assetN#>,<amountN>,acct:<acctN>).
-  (<bankid>,outboxhash,<tran#>,<asset#>,<amount>)
+  (<bankid>,outboxhash,<tran#>,<hash>)
 
 If they don't match, bank returns:
 

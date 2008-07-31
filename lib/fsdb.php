@@ -34,8 +34,8 @@ class fsdb {
   }
 
   function put($key, $value) {
-    if (!$value) $value == '';
-    $blank = ($value == '');
+    if (!$value) $value = '';
+    $blank = ($value === '');
     $key = $this->normalize_key($key);
     $dir = $this->dir;
     $filename = "$dir/$key";
@@ -80,8 +80,10 @@ class fsdb {
   }
 
   function unlock($lock) {
-    fclose($lock[0]);
-    unset($this->locks[$lock[1]]);
+    if ($lock) {
+      fclose($lock[0]);
+      unset($this->locks[$lock[1]]);
+    }
   }
 
   // Return an array of the names of the contents of the directory,
