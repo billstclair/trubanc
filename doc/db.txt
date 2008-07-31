@@ -268,7 +268,7 @@ Lookup asset
 
   Customer sends:
 
-(<id>,getasset,<asset#>,<request#>
+(<id>,getasset,<asset#>,<request#>)
 
   Bank compares <request#> to /account/<id>/lastrequest. If <request#>
   is greater, bank sets /account/<id>/lastrequest to <request#>. Then,
