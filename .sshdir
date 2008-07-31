@@ -1,2 +1,2 @@
 #!/bin/bash
-echo "$TRUEBANC:/home/htdocs"
+echo "$TRUBANC:/home/htdocs"
