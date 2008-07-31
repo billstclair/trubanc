@@ -10,7 +10,6 @@ class server {
   var $db;
   var $ssl;
   var $t;
-  var $passphrase;
   var $bankname;
 
   var $privkey;
@@ -23,16 +22,12 @@ class server {
     $this->db = $db;
     $this->ssl = $ssl;
     $this->t = new tokens();
-    $this->passphrase = $passphrase;
     $this->bankname = $bankname;
-    $this->setupDB();
-  }
-
-  function privkey() {
+    $this->setupDB($passphrase);
     if (!$this->privkey) {
-      $this->privkey = $this->db->get($this->t->PRIVKEY);
+      $privkey = $ssl->load_private_key($db->get($t->PRIVKEY), $passphrase);
+      $this->privkey = $privkey;
     }
-    return $this->privkey;
   }
 
   function bankid() {
@@ -85,13 +80,21 @@ class server {
 
   function outboxhash($id) {
     $bankid = $this->bankid();
-    $tranlist = implode(',', $this->db->contents($this->outboxkey($id)));
+    $contents = $this->db->contents($this->outboxkey($id));
+    // Change strings to integers
+    foreach ($contents as $key=>$value) {
+      # This needs to use bignum math and comparisons
+      $i = intval($value);
+      if ($i != $value) $i = $value;
+      $contents[$key] = $i;
+    }
+    $tranlist = implode(',', $contents);
     $hash = sha1($tranlist);
     return $this->bankmsg(array($bankid, $this->t->OUTBOXHASH, $this->getacctlast($id), $hash));
   }
 
   // Create a bankid and password
-  function setupDB() {
+  function setupDB($passphrase) {
     $db = $this->db;
     $ssl = $this->ssl;
     $t = $this->t;
@@ -100,7 +103,9 @@ class server {
       // http://www.rsa.com/rsalabs/node.asp?id=2004 recommends that 3072-bit
       // RSA keys are equivalent to 128-bit symmetric keys, and they should be
       // secure past 2031.
-      $privkey = $ssl->make_privkey(3072, $this->passphrase);
+      $privkey = $ssl->make_privkey(3072, $passphrase);
+      $privkey = $ssl->load_private_key($privkey, $passphrase);
+      $this->privkey = $privkey;
       $pubkey = $ssl->privkey_to_pubkey($privkey);
       $bankid = $ssl->pubkey_id($pubkey);
       $db->put($t->PRIVKEY, $privkey);
@@ -157,7 +162,7 @@ class server {
 
   // Bank sign a message
   function banksign($msg) {
-    $sig = $this->ssl->sign($msg, $this->privkey(), $this->passphrase);
+    $sig = $this->ssl->sign($msg, $this->privkey);
     return "$msg:$sig";
   }
 

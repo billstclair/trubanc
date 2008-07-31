@@ -13,13 +13,22 @@ class ssl {
     return $res;
   }
 
+  // Load a private key into a resource for faster signing
+  function load_private_key($privkey, $passphrase=false) {
+    if ($passphrase) return openssl_get_privatekey($privkey, $passphrase);
+    else return openssl_get_privatekey($privkey);
+  }
+
   // Return the public key for a private key, as a PEM-encoded string
   function privkey_to_pubkey($privkey, $passphrase=false) {
-    if ($passphrase) $privkey = openssl_get_privatekey($privkey, $passphrase);
-    else $privkey = openssl_get_privatekey($privkey);
+    $free = false;
+    if (is_string($privkey)) {
+      $privkey = $this->load_private_key($privkey, $passphrase);
+      $free = true;
+    }
     if (!$privkey) return false;
     $keydata = openssl_pkey_get_details($privkey);
-    openssl_free_key($privkey);
+    if ($free) openssl_free_key($privkey);
     return $keydata['key'];
   }
 
@@ -33,10 +42,13 @@ class ssl {
   // Sign a message with a private key.
   // Return the signature, base64-encoded
   function sign($msg, $privkey, $passphrase=false) {
-    if ($passphrase) $privkey = openssl_get_privatekey($privkey, $passphrase);
-    else $privkey = openssl_get_privatekey($privkey);
+    $free = false;
+    if (is_string($privkey)) {
+      $privkey = $this->load_private_key($privkey, $passphrase);
+      $free= true;
+    }
     openssl_sign($msg, $signature, $privkey);
-    openssl_free_key($privkey);
+    if ($free) openssl_free_key($privkey);
     return chunk_split(base64_encode($signature), 64, "\n");
   }
 
