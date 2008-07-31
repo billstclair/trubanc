@@ -34,7 +34,7 @@ class fsdb {
   }
 
   function put($key, $value) {
-    if (!$value) $value = '';
+    if (value === false) $value = '';
     $blank = ($value === '');
     $key = $this->normalize_key($key);
     $dir = $this->dir;

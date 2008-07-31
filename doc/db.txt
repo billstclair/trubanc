@@ -39,13 +39,13 @@ $dbdir/
   pubkeysig/
     <id>=(<bankid>,pubkey,<pubkey>,name>)
   asset/ -- <asset#> 0 is "usage tokens"
-    last=<asset#>  -- new <asset#> must be greater than this
     <asset#>=(<id>,asset,<asset#>,<scale>,<precision>,<assetname>)
   assetname/
     <name>=<asset#>
   account/
     <id>/
       last=<sequence#>  -- new transactions must have higher sequence
+      lastrequest=<request#>  -- new requests must have a higher number
       balance/
         <name>/  -- "main" is the default balance name
           <asset#>=(<id>,balance,<tran#>,<asset#>,<amount>,acct:<acct>)
@@ -111,18 +111,37 @@ Look up pubkey
   Hence, to look up the bank id and public key, send (<id>,id,0)
 
 
+Get last request
+----------------
+
+  Customer sends:
+
+(<id>,getlastrequest,<random>)
+
+  Bank sends:
+
+(<bankid>, lastrequest, <request#>)
+
+  Note that this request can be replayed. The customer needs to have
+  some way of getting back in sync for requests. This is it.
+  It makes no changes to the server database, just returns the
+  customer's most recent request <request#>.
+
+
 Get sequence number
 -------------------
 
   Customer sends:
 
-(<id>,sequence,<random>)
+(<id>,sequence,<request#>)
 
-  Bank increments /sequence, then returns:
+  Bank compares <request#> to /accounts/<id>/lastrequest. If
+  <request#> is greater, bank sets /account/<id>/lastrequest to
+  <request#>, increments /sequence to <sequence#>, and returns:
 
 (<bankid>,sequence,<sequence#>)
 
-  Or returns:
+  Otherwise, bank returns
 
 (<bankid>,failed,(<id>,sequence,<random>),reason:<reason>)
 
@@ -131,10 +150,13 @@ Get fees
 
   Customer sends:
 
-(<id>,getfees,<operation>,<random>)
+(<id>,getfees,<operation>,<request#>)
 
   <operation> can be "*" to return all fees.
-  Bank returns /regfeesig, /tranfeesig, and /feesig/<operation>:
+  Bank compares <request#> to /account/<id>/lastrequest. If <request#>
+  is greater, bank sets /account/<id>/lastrequest to <request#>,
+  increments /sequence to <sequence#>, and returns /regfeesig,
+  /tranfeesig, and /feesig/<operation>:
 
 (<bankid>regfee,0,<fee#>,<amount>).
   (<bankid>,tranfee,<fee#>,0,<amount>).
@@ -143,9 +165,9 @@ Get fees
   ...
   (<bankid>,fee|<operationN>,<feeN#>,<assetN#>,<amountN>)
 
-  Or returns:
+  Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,getfees,<operation>,<random>),reason:<reason>)
+(<bankid>,failed,(<id>,getfees,<operation>,<request#>),reason:<reason>)
 
 
 Spend
@@ -188,19 +210,29 @@ If they don't match, bank returns:
   (<id>,outboxhash,<tran#>,<hash>)
 
 
-Process Inbox
--------------
+Query Inbox
+------------
 
   Customer sends:
 
-(<id>,inbox,<random>)
+(<id>,inbox,<request#>)
 
-  Bank responds with contents of /account/<id>/inbox/, separated by
-  periods:
+  Bank compares <request#> to /account/<id>/lastrequest. If <request#>
+  customer's most recent request. If <request#> is greater, bank sets
+  /account/<id>/lastrequest to <request#> and responds with contents
+  of /account/<id>/inbox/, separated by periods:
 
 (<id2>,spend|accept,<tran2#>,note:<note2>,acct:<acct2>).
   (<id3>,spend|reject,<tran3#>,note:<note3>).
   (<id4>,note,<tran4#>,<id>,<re#>,note:<note4>)
+
+  Otherwise, bank sends:
+
+(<bankid>,failed,(<id>,inbox,<request#>),reason=<reason>)
+
+
+Process Inbox
+-------------
 
   Customer sends:
 
@@ -211,8 +243,9 @@ Process Inbox
   (<id>,balance,<tran4#>,<assetN#>,<amount3>,acct:<acctN>).
   (<id>,outboxhash,<tran#>,<hash>)
 
-Bank compares all balances and the outboxhash. If correct, bank
-removes the listed transactions from /account/<id>/inbox/,
+Bank processes the requested inbox transaction, and compares the
+result to the balances and outboxhash sent by customer. If correct,
+bank removes the listed transactions from /account/<id>/inbox/,
 corresponding transactions from /account/<id>/outbox/, updates the
 /account/<id>/balance/<nameN>/<assetN#> with the balances the customer
 sent, updates /account/<id>/outboxhash with the outboxhash item the
@@ -227,7 +260,7 @@ customer sent, and sends back:
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,removeinbox,<tran2#>|<tran3#>|<tran4#>))
+(<bankid>,failed,(<id>,removeinbox,<tran2#>|<tran3#>|<tran4#>),reason=<reason>)
 
 
 Lookup asset
@@ -235,9 +268,12 @@ Lookup asset
 
   Customer sends:
 
-(<id>,getasset,<asset#>,<random>)
+(<id>,getasset,<asset#>,<request#>
 
-  If <asset#> exists in /asset, bank returns:
+  Bank compares <request#> to /account/<id>/lastrequest. If <request#>
+  customer's most recent request. If <request#> is greater, bank sets
+  /account/<id>/lastrequest to <request#>. Then, if <asset#> exists in
+  /asset, bank returns:
 
 (<bankid>,affirm,(<issuerid>,asset,<asset#>,<assetname>))
 
@@ -263,11 +299,10 @@ Create asset
   usage token can exist during registration). I haven't worked out the
   process to switch issuer ownership.
 
-  If the <asset#> is greater than /asset/last, /asset/<asset#> does
-  not exist, /assetname/<assetname> does not exist, and the customer
-  has properly subtracted the createasset fees from the balances in
-  /account/<id>/balance/<acctN>, then bank changes /asset/last to
-  <asset#>, adds
+  If the /asset/<asset#> does not exist, /assetname/<assetname> does
+  not exist, <tran4#> is greater than /account/<id>/last, and the
+  customer has properly subtracted the createasset fees from the
+  balances in /account/<id>/balance/<acctN>, then bank adds
   <asset#>=(<id>,asset,<asset#>,<scale>,<precision>,<assetname>) to
   /asset/, adds <assetname>=<asset#> to /assetname/, and returns:
 

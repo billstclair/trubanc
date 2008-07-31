@@ -50,12 +50,20 @@ class server {
     return $this->db->get($this->acctlastkey($id));
   }
 
+  function getacctlastrequest($id) {
+    return $this->db->get($this->acctlastrequestkey($id));
+  }
+
   function accountdir($id) {
     return $this->t->ACCOUNT . "/$id" . '/';
   }
 
   function acctlastkey($id) {
     return $this->accountdir($id) . $this->t->LAST;
+  }
+
+  function acctlastrequestkey($id) {
+    return $this->accountdir($id) . $this->t->LASTREQUEST;
   }
 
   function balancekey($id) {
@@ -104,11 +112,11 @@ class server {
       // RSA keys are equivalent to 128-bit symmetric keys, and they should be
       // secure past 2031.
       $privkey = $ssl->make_privkey(3072, $passphrase);
+      $db->put($t->PRIVKEY, $privkey);
       $privkey = $ssl->load_private_key($privkey, $passphrase);
       $this->privkey = $privkey;
       $pubkey = $ssl->privkey_to_pubkey($privkey);
       $bankid = $ssl->pubkey_id($pubkey);
-      $db->put($t->PRIVKEY, $privkey);
       $db->put($t->PRIVKEYID, $bankid);
       $idmsg = $this->bankmsg(array($bankid, $t->PUBKEY, $pubkey, $this->bankname));
       $db->put($t->PUBKEY . "/$bankid", $pubkey);
@@ -117,7 +125,6 @@ class server {
       $db->put($t->REGFEESIG, $this->bankmsg(array($bankid, $t->REGFEE, $this->getsequence(), 0, 10)));
       $db->put($t->TRANFEE, 2);
       $db->put($t->TRANFEESIG, $this->bankmsg(array($bankid, $t->TRANFEE, $this->getsequence(), 0, 2)));
-      $db->put($t->ASSET . '/' . $t->LAST, 0);
       $assetname = "Usage Tokens";
       $asset = $this->bankmsg(array($bankid, $t->ASSET, 0, 0, 0, $assetname));
       $db->put($t->ASSET . '/0', $asset);
@@ -125,6 +132,7 @@ class server {
       $accountdir = $t->ACCOUNT . "/$bankid";
       $seq = $this->getsequence();
       $db->put($this->acctlastkey($bankid), $seq);
+      $db->put($this->acctlastrequestkey($bankid), 0);
       $mainkey = $this->acctbalancekey($bankid);
       $db->put("$mainkey/0", $this->bankmsg(array($bankid, $t->BALANCE, $seq, 0, -1)));
       $db->put($this->outboxhashkey($bankid), $this->outboxhash($bankid));

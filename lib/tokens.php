@@ -19,6 +19,7 @@ class tokens {
   var $ASSETNAME = 'assetname';
   var $ACCOUNT = 'account';
   var $LAST = 'last';
+  var $LASTREQUEST = 'lastrequest';
   var $BALANCE = 'balance';
   var $MAIN = 'main';
   var $OUTBOX = 'outbox';
