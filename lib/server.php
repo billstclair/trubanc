@@ -44,10 +44,10 @@ class server {
   function getsequence() {
     $db = $this->db;
     $t = $this->t;
-    $fp = $db->lock($t->SEQUENCE);
+    $lock = $db->lock($t->SEQUENCE);
     $res = $db->get($t->SEQUENCE) + 1;
     $db->put($t->SEQUENCE, $res);
-    $db->unlock($fp);
+    $db->unlock($lock);
     return $res;
   }
 
@@ -64,7 +64,7 @@ class server {
   }
 
   function acctbalancekey($id, $acct='main') {
-    return $this->balancekey() . "/$acct");
+    return $this->balancekey($id) . "/$acct";
   }
 
   function outboxkey($id) {
@@ -80,8 +80,7 @@ class server {
   }
 
   function outboxhash($id, $privkey) {
-    $db = $this->db;
-    $tranlist = implode(',', $db->contents($this->outboxkey()));
+    $tranlist = implode(',', $this->db->contents($this->outboxkey($id)));
     return sha1($tranlist);
   }
 
@@ -90,9 +89,12 @@ class server {
     $db = $this->db;
     $ssl = $this->ssl;
     $t = $this->t;
-    if (!$db->get($t->SEQUENCE)) $db->put($t->SEQUENCE) = '0';
+    if (!$db->get($t->SEQUENCE)) $db->put($t->SEQUENCE, '0');
     if (!$db->get($t->PRIVKEY)) {
-      $privkey = $ssl->make_privkey(4096, $this->passphrase);
+      // http://www.rsa.com/rsalabs/node.asp?id=2004 recommends that 3072-bit
+      // RSA keys are equivalent to 128-bit symmetric keys, and they should be
+      // secure past 2031.
+      $privkey = $ssl->make_privkey(3072, $this->passphrase);
       $pubkey = $ssl->privkey_to_pubkey($privkey);
       $bankid = $ssl->pubkey_id($pubkey);
       $db->put($t->PRIVKEY, $privkey);
@@ -101,19 +103,21 @@ class server {
       $db->put($t->PUBKEY . "/$bankid", $pubkey);
       $db->put($t->PUBKEYSIG . "/$bankid", $idmsg);
       $db->put($t->REGFEE, 10);
-      $db->put($t->REGFEESIG, $bankmsg(array($bankid, $t->REGFEE, $this->getsequence(), 0, 10)));
+      $db->put($t->REGFEESIG, $this->bankmsg(array($bankid, $t->REGFEE, $this->getsequence(), 0, 10)));
       $db->put($t->TRANFEE, 2);
-      $db->put($t->TRANFEESIG, $bankmsg(array($bankid, $t->TRANFEE, $this->getsequence(), 0, 2)));
+      $db->put($t->TRANFEESIG, $this->bankmsg(array($bankid, $t->TRANFEE, $this->getsequence(), 0, 2)));
       $db->put($t->ASSET . '/' . $t->LAST, 0);
       $assetname = "Usage Tokens";
       $asset = $this->bankmsg(array($bankid, $t->ASSET, 0, 0, 0, $assetname));
       $db->put($t->ASSET . '/0', $asset);
-      $db->put($t->ASSETNAME, $assetname);
+      $db->put($t->ASSETNAME . "/$assetname", 0);
       $accountdir = $t->ACCOUNT . "/$bankid";
       $db->put($this->accountlastkey($bankid), 0);
       $mainkey = $this->acctbalancekey($bankid);
-      $db->put("$mainkey/0", $bankmsg(array($bankid, $t->BALANCE, $this->getsequence(), 0, -1)));
-      $db->put($this->outboxhashkey($bankid), $this->outboxhash($bankid);
+      $db->put("$mainkey/0", $this->bankmsg(array($bankid, $t->BALANCE, $this->getsequence(), 0, -1)));
+      $hash = $this->outboxhash($bankid, $privkey);
+      $msg = $this->bankmsg(array($bankid, $t->OUTBOXHASH, 0, $hash));
+      $db->put($this->outboxhashkey($bankid), $msg);
     }
   }
 
@@ -136,14 +140,14 @@ class server {
   function makemsg($array) {
     $msg = "(";
     $i = 0;
-    foreach ($array as $key->$value) {
+    foreach ($array as $key=>$value) {
       if ($i != 0) $msg .= ',';
       if ($key != $i) $msg .= "$key:";
       $msg .= $this->escape($value);
       $i++;
     }
     $msg .= ')';
-    return $this->banksign($msg);
+    return $msg;
   }
 
   // Bank sign a message
@@ -159,5 +163,14 @@ class server {
 
 
 }
+
+// Test code
+
+require_once "fsdb.php";
+require_once "ssl.php";
+
+$db = new fsdb("../trubancdb");
+$ssl = new ssl();
+$server = new server($db, $ssl, false, 'Trubanc');
 
 ?>

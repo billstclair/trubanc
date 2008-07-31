@@ -5,6 +5,7 @@
 class fsdb {
 
   var $dir = false;
+  var $locks = array();
 
   function fsdb($dir) {
     $this->dir = $dir;
@@ -45,7 +46,7 @@ class fsdb {
       $fp = fopen($filename, 'w');
       if (!$fp) return $blank ? '' : false;
     }
-    flock($fp, LOCK_EX);
+    if (!$this->locks[$key]) flock($fp, LOCK_EX);
     if ($blank) {
       unlink($filename);
       // Should delete the empty directories in the path, too.
@@ -61,7 +62,7 @@ class fsdb {
     $filename = "$dir/$key";
     $fp = @fopen($filename, 'r');
     if (!$fp) return false;
-    flock($fp, LOCK_SH);
+    if (!$this->locks[$key]) flock($fp, LOCK_SH);
     $value = fread($fp, filesize($filename));
     fclose($fp);
     return $value;
@@ -74,11 +75,13 @@ class fsdb {
     $fp = @fopen($filename, 'r');
     if (!$fp) return false;
     flock($fp, LOCK_EX);
-    return $fp;
+    $this->locks[$key] = true;
+    return array($fp, $key);
   }
 
-  function unlock($fp) {
-    fclose($fp);
+  function unlock($lock) {
+    fclose($lock[0]);
+    unset($this->locks[$lock[1]]);
   }
 
   // Return an array of the names of the contents of the directory,
