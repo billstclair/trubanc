@@ -7,6 +7,7 @@ class tokens {
 
   var $SEQUENCE = 'sequence';
   var $PRIVKEY = 'privkey';
+  var $PRIVKEYID = 'privkeyid';
   var $REGFEE = 'regfee';
   var $REGFEESIG = 'regfeesig';
   var $TRANFEE = 'tranfee';
@@ -29,8 +30,10 @@ class tokens {
   var $ID = 'id';
   var $FAILED = 'failed';
   var $REASON = 'reason';
+  var $GETLASTREQUEST = 'getlastrequest';
   var $GETFEES = 'getfees';
   var $SPEND = 'spend';
+  var $REMOVEINBOX = 'removeinbox';
   var $NOTE = 'note';
   var $ACCT = 'acct';
   var $SPENDACCEPT = 'spend|accept';

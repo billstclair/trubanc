@@ -80,7 +80,7 @@ Create account
   This is the first time the customer will have seen the bank's
   pubkey.  The parsing code notices these "id" messages, and verifies
   and stores the new key, if unknown, before using it to verify the
-  messages themselves.  Customer will need to do process his inbox to
+  messages themselves.  Customer will need to process his inbox to
   transfer his introduction tokens to his balance. No spend|cancel
   operations will be allowed for usage token spends to an account with
   a negative usage token balance. This ensures that the usage token

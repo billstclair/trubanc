@@ -6,5 +6,6 @@ lib/fsdb.php
 lib/parser.php
 lib/ssl.php
 lib/tokens.php
+lib/utility.php
 lib/server.php
 viewtext.php

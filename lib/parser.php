@@ -43,7 +43,13 @@ class parser {
     $stack = array();
     $this->errstr = $str;
     $this->errmsg = false;
+    $first = true;
     foreach ($tokens as $pos => $tok) {
+      if ($first && $tok != '(') {
+        $this->errmsg = "Message does not begin with left paren";
+        return false;
+      }
+      $first = false;
       if ($tok == '(') {
         $needsig = true;
         if ($dict && $state && $state != ':' && $state != ',') {

@@ -103,7 +103,7 @@ class fsdb {
   }
 
   function subdir($key) {
-    $key = normalize_key($key);
+    $key = $this->normalize_key($key);
     return new fsdb($this->dir . '/' . $key);
   }
 }
