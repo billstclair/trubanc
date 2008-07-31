@@ -218,9 +218,9 @@ Query Inbox
 (<id>,inbox,<request#>)
 
   Bank compares <request#> to /account/<id>/lastrequest. If <request#>
-  customer's most recent request. If <request#> is greater, bank sets
-  /account/<id>/lastrequest to <request#> and responds with contents
-  of /account/<id>/inbox/, separated by periods:
+  is greater, bank sets /account/<id>/lastrequest to <request#> and
+  responds with contents of /account/<id>/inbox/, separated by
+  periods:
 
 (<id2>,spend|accept,<tran2#>,note:<note2>,acct:<acct2>).
   (<id3>,spend|reject,<tran3#>,note:<note3>).
@@ -271,9 +271,8 @@ Lookup asset
 (<id>,getasset,<asset#>,<request#>
 
   Bank compares <request#> to /account/<id>/lastrequest. If <request#>
-  customer's most recent request. If <request#> is greater, bank sets
-  /account/<id>/lastrequest to <request#>. Then, if <asset#> exists in
-  /asset, bank returns:
+  is greater, bank sets /account/<id>/lastrequest to <request#>. Then,
+  if <asset#> exists in /asset, bank returns:
 
 (<bankid>,affirm,(<issuerid>,asset,<asset#>,<assetname>))
 
