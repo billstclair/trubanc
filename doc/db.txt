@@ -66,14 +66,14 @@ Create account
 
   Customer sends:
 
-(<id>,id,<id>,<pubkey>,name=<name>)
+(<id>,id,<id>,<id><pubkey>,name=<name>)
 
   If the id is new, matches the pubkey, the signature is OK, and the
   customer has enough usage tokens in his inbox (spending usage tokens
   to a new <id> is how the account directory is actually created),
   bank responds with:
 
-(<id>,id,<pubkey>,name=<name>)
+(<id>,id,<id><pubkey>,name=<name>)
 
   This is the first time the customer will have seen the bank's
   pubkey.  The parsing code notices these "id" messages, and verifies
@@ -87,7 +87,7 @@ Create account
   Otherwise, bank puts a negative balance (/regfee) of usage tokens in
   the balance, and responds with:
 
-(<bankid>,failed,(<id>,id,<pubkey>),reason:<reason>)
+(<bankid>,failed,(<id>,id,<id>,<pubkey>),reason:<reason>)
 
 
 Look up pubkey

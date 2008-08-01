@@ -73,12 +73,12 @@ class parser {
             return false;
           }
           if (!$dict) $dict = array();
-          $dict[] = $value ? $value : '';
+          $dict[] = ($value === FALSE) ? '' : $value;
           //print_r($dict);
           $value = false;
         } elseif ($state == ':') {
           if (!$dict) $dict = array();
-          $dict[$key] = $value ? $value : '';
+          $dict[$key] = ($value === FALSE) ? '' : $value;
           //print_r($dict);
           $value = false;
         } elseif ($state) {
@@ -104,7 +104,7 @@ class parser {
           return false;
         }
         if (!$dict) $dict = array();
-        $dict[] = $value ? $value : '';
+        $dict[] = ($value === FALSE) ? '' : $value;
         //print_r($dict);
         $value = false;
         $state = ',';

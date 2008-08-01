@@ -111,7 +111,7 @@ class server {
       $bankid = $ssl->pubkey_id($pubkey);
       $this->bankid = $bankid;
       $db->put($t->BANKID, $bankid);
-      $idmsg = $this->bankmsg($t->ID, $pubkey, $this->bankname);
+      $idmsg = $this->bankmsg($t->ID, $bankid, $pubkey, $this->bankname);
       $db->put($t->PUBKEY . "/$bankid", $pubkey);
       $db->put($t->PUBKEYSIG . "/$bankid", $idmsg);
       $db->put($t->REGFEE, 10);
@@ -314,5 +314,6 @@ function custmsg() {
 }
 
 echo $server->process(custmsg("id",$id,$pubkey,"George Jetson"));
+echo $server->process(custmsg('id',0));
 
 ?>
