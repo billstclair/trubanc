@@ -64,3 +64,17 @@ Submitted by Bill St. Clair on Mon, 2008-07-28 07:17.
 Checks and bearer certificates fall out of this, too. A check is just a spend with 0 for the amount and the recipient. The customer signs the check, with value filled in, over to a recipient later. If he signs the same check to two different recipients, the first one to cash it wins, and the other has a verifiable claim against the customer. If his balance won't cover the check when it first comes in, the recipient has a verifiable claim against him. A bearer certificate is a spend with 0 for the recipient. Its value is removed from the customer's account right away, so there's never an account balance shortfall. It has to be signed over to someone before it can be cashed. Or it can be returned to credit the account. A certificate can accumulate a signature chain when passed from hand to hand, if every recipient trusts that nobody in the existing chain will fraudulently cash it. The first person to turn in a bearer certificate signed to him gets the value. If a second person turns one in, the bank can prove who spent it, but it isn't the bank's responsibility to make good the second or subsequent time. If the redeemer has the value, though, the bank can transfer it. If he doesn't, then the bank can ignore the second demand, or put a lien on the redeemer's account. There's room for policy differences here.
 
 Note that check and bearer certificate records need to be kept for all time, so banks will likely charge extra for them. Or they could have expiration dates.
+
+// Copyright 2008 Bill St. Clair
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions
+// and limitations under the License.
