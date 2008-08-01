@@ -214,9 +214,49 @@ Spend
 
 If they don't match, bank returns:
 
-(<bankid>,failed,(<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,acct:<name>),reason:<reason>.
+(<bankid>,failed,(<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,acct:<name>),reason:<reason>).
   (<id>,balance,<tran#>,<asset#>,<amount>,acct:<acct>).
   (<id>,outboxhash,<tran#>,<hash>)
+
+
+Send Note
+---------
+
+  Customer sends:
+
+(<id>,note,<tran4#>,<id2>,<note4>,re:<re#>).
+  (<bankid>,balance,<tran#>,<asset#>,<amount>,acct:<acct>).
+  (<bankid>,balance,<tran#>,<asset2#>,<amount2>,acct:<acct2>).
+  ...
+  (<bankid>,balance,<tran#>,<assetN#>,<amountN>,acct:<acctN>).
+  (<bankid>,outboxhash,<tran#>,<hash>)
+
+  Bank checks that the <tran#> is greater than /account/<id>/last,
+  that the balance (after subtracting the spend amount) and hash of
+  list of outbox transaction numbers (including the new note
+  transaction number) match what the customer sent. If they match,
+  bank updates /account/<id>/last to <tran#>, stores the note in
+  /account/<id2>/inbox/ (after finding a unique <in#> bigger than all
+  the others there), sets /account/<id>/balance/<name>/<assetN#> to the
+  customer's balance items, updates /account/<id>/outboxhash with the
+  customer's outboxhash item, and sends:
+
+(<id>,note,<tran#>).
+  (<bankid>,balance,<tran#>,<asset#>,<amount>,acct:<acct>).
+  (<bankid>,balance,<tran#>,<asset2#>,<amount2>,acct:<acct2>).
+  ...
+  (<bankid>,balance,<tran#>,<assetN#>,<amountN>,acct:<acctN>).
+  (<bankid>,outboxhash,<tran#>,<hash>)
+
+  Otherwise, bank sends:
+
+(<bankid>,failed,(<bankid>,note,<tran4#>))
+
+  Note that the note failure message doesn't quote the request. Notes
+  may be big (probably, there will be a limit), and sending it back
+  doesn't help anything, since the customer will have to have stored
+  all the expected balances and outboxhash, to compare with what the
+  bank sends back.
 
 
 Query Inbox
@@ -231,13 +271,20 @@ Query Inbox
   responds with contents of /account/<id>/inbox/, separated by
   periods:
 
-(<id2>,spend|accept,<tran2#>,note:<note2>,acct:<acct2>).
-  (<id3>,spend|reject,<tran3#>,note:<note3>).
-  (<id4>,note,<tran4#>,<id>,<re#>,note:<note4>)
+(<bankid>,inbox,<in1#>,(<id2>,spend,<tran2#>,note:<note2>)).
+  (<bankid>,inbox,<in2#>,(<id3>,spend,<tran3#>,note:<note3>)).
+  (<bankid>,inbox,<in3#>,(<id4>,note,<tran4#>,<id>,<note4>,re:<re#>))
 
   Otherwise, bank sends:
 
 (<bankid>,failed,(<id>,inbox,<request#>),reason=<reason>)
+
+Note that the bank needs to wrap each inbox item with a message
+holding the name of the item in the customer's inbox. Since customers
+can number their own transactions, instead of asking the bank to
+allocate them, there may be two messages in the inbox at the same time
+with the same sending customer's transaction number. So the bank picks
+a unique <in#> for each.
 
 
 Process Inbox
@@ -245,14 +292,16 @@ Process Inbox
 
   Customer sends:
 
-(<id>,processinbox,<tran2#>|<tran3#>|<tran4#>).
+(<id>,processinbox,in1#|in2#|in3#,accts=<acct>|<acct2>).
+  (<id>,spend|accept,<id2>,<tran2#>,note:<note5>).
+  (<id>,spend|reject,<id3>,<tran3#>,note:<note6>).
   (<id>,balance,<tran4#>,<asset#>,<amount>,acct:<acct>).
   (<id>,balance,<tran4#>,<asset2#>,<amount2>,acct:<acct2>).
   ...
   (<id>,balance,<tran4#>,<assetN#>,<amount3>,acct:<acctN>).
-  (<id>,outboxhash,<tran#>,<hash>)
+  (<id>,outboxhash,<tran4#>,<hash>)
 
-Bank processes the requested inbox transaction, and compares the
+Bank processes the requested inbox transaction2, and compares the
 result to the balances and outboxhash sent by customer. If correct,
 bank removes the listed transactions from /account/<id>/inbox/,
 removes the corresponding transactions from /account/<id>/outbox/,
@@ -260,7 +309,7 @@ updates the /account/<id>/balance/<nameN>/<assetN#> with the balances
 the customer sent, updates /account/<id>/outboxhash with the
 outboxhash item the customer sent, and sends back:
 
-(<bankid,affirm,(<id>,removeinbox,<tran2#>|<tran3#>|<tran4#>)).
+(<bankid,affirm,(<id>,removeinbox,<inbox1#>|<inbox2#>|<inbox3#>)).
   (<bankid>,balance,<tran4#>,<asset#>,<amount>,acct:<acct>).
   (<bankid>,balance,<tran4#>,<asset2#>,<amount2>,acct:<acct2>).
   ...
@@ -270,6 +319,15 @@ outboxhash item the customer sent, and sends back:
   Otherwise, bank returns:
 
 (<bankid>,failed,(<id>,removeinbox,<tran2#>|<tran3#>|<tran4#>),reason=<reason>)
+
+Note that this doesn't automatically send notice of delivery of
+notes. Maybe it should, but probably better to preserve people's
+privacy. If you want to know if they saw your note, give them a small
+spend. They have to accept or reject it to get it out of their inbox.
+
+Note that <acct2> is included in the "processinbox" message above only
+to illustreate the syntax. A destination account for a rejected
+spend makes no sense.
 
 
 Lookup asset
