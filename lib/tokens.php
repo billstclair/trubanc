@@ -30,6 +30,7 @@ class tokens {
 
   // request names
   var $ID = 'id';
+  var $REGISTER = 'register';
   var $FAILED = 'failed';
   var $REASON = 'reason';
   var $GETLASTREQUEST = 'getlastrequest';

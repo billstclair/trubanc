@@ -111,9 +111,9 @@ class server {
       $bankid = $ssl->pubkey_id($pubkey);
       $this->bankid = $bankid;
       $db->put($t->BANKID, $bankid);
-      $idmsg = $this->bankmsg($t->ID, $bankid, $pubkey, $this->bankname);
+      $regmsg = $this->bankmsg($t->REGISTER, $pubkey, $this->bankname);
       $db->put($t->PUBKEY . "/$bankid", $pubkey);
-      $db->put($t->PUBKEYSIG . "/$bankid", $idmsg);
+      $db->put($t->PUBKEYSIG . "/$bankid", $regmsg);
       $db->put($t->REGFEE, 10);
       $db->put($t->REGFEESIG, $this->bankmsg($t->REGFEE, $this->getsequence(), 0, 10));
       $db->put($t->TRANFEE, 2);
@@ -177,57 +177,55 @@ class server {
 
   /*** Request processing ***/
  
-  // Register a new ID, or lookup a public key
+  // Lookup a public key
   function do_id($args, $reqs, $msg) {
     $t = $this->t;
     $db = $this->db;
     $customer = $args[$t->CUSTOMER];
     $id = $args[$t->ID];
     if ($id == '0') $id = $this->bankid;
+    $key = $db->get($t->PUBKEYSIG . "/$id");
+    if ($key) return $key;
+    else return $this->failmsg($msg, 'No such public key');
+  }
+
+  // Register a new account
+  function do_register($args, $reqs, $msg) {
+    $t = $this->t;
+    $db = $this->db;
+    $id = $args[$t->CUSTOMER];
     $pubkey = $args[$t->PUBKEY];
-    $existingkey = $db->get($t->PUBKEYSIG . "/$id");
-    if (!$pubkey) {
-      // Lookup request
-      if ($existingkey) return $existingkey;
-      else return $this->failmsg($msg, 'No such public key');
-    } else {
-      // Registration request
-      if ($customer != $id) {
-        return $this->failmsg($msg, "Can only register your own ID");
-      }
-      // The parser will have added an entry in $t->PUBKEY
-      if ($this->pubkeydb->get($id)) {
-        return $this->failmsg($msg, "Already registered");
-      }
-      if ($this->ssl->pubkey_id($pubkey) != $id) {
-        return $this->failmsg($msg, "Pubkey doesn't match ID");
-      }
-      $regfee = $db->get($t->REGFEE);
-      $success = false;
-      if ($regfee > 0) {
-        $inbox = $this->scaninbox($id);
-        foreach ($inbox as $msg) {
-          $parse = $this->parser->parse($msg);
-          if ($parse[1] == $t->SPEND) {
-            $asset = $parse[4];
-            $amount = $parse[5];
-            if ($amount > $regfee) {
-              $success = true;
-              break;
-            }
+    if ($this->pubkeydb->get($id)) {
+      return $this->failmsg($msg, "Already registered");
+    }
+    if ($this->ssl->pubkey_id($pubkey) != $id) {
+      return $this->failmsg($msg, "Pubkey doesn't match ID");
+    }
+    $regfee = $db->get($t->REGFEE);
+    $success = false;
+    if ($regfee > 0) {
+      $inbox = $this->scaninbox($id);
+      foreach ($inbox as $msg) {
+        $parse = $this->parser->parse($msg);
+        if ($parse[1] == $t->SPEND) {
+          $asset = $parse[4];
+          $amount = $parse[5];
+          if ($amount > $regfee) {
+            $success = true;
+            break;
           }
         }
-        if (!$success) {
-          return $this->failmsg($msg, "Insufficient usage tokens for registration fee");
-        }
       }
-      $db->put($t->PUBKEY . "/$id", $pubkey);
-      $db->put($t->PUBKEYSIG . "/$id", $msg);
-      $db->put($this->acctbalancekey($id) . "/0", $this->signed_balance(0, 0, -$regfee));
-      $db->put($this->acctlastkey($id), 0);
-      $db->put($this->acctlastrequestkey($id), 0);
-      return $msg;
+      if (!$success) {
+        return $this->failmsg($msg, "Insufficient usage tokens for registration fee");
+      }
     }
+    $db->put($t->PUBKEY . "/$id", $pubkey);
+    $db->put($t->PUBKEYSIG . "/$id", $msg);
+    $db->put($this->acctbalancekey($id) . "/0", $this->signed_balance(0, 0, -$regfee));
+    $db->put($this->acctlastkey($id), 0);
+    $db->put($this->acctlastrequestkey($id), 0);
+    return $msg;
   }
 
   /*** End request processing ***/
@@ -235,7 +233,8 @@ class server {
   function commands() {
     $t = $this->t;
     if (!$this->commands) {
-      $names = array($t->ID => array($t->ID,$t->PUBKEY=>1,$t->NAME=>1),
+      $names = array($t->ID => array($t->ID),
+                     $t->REGISTER => array($t->PUBKEY,$t->NAME=>1),
                      $t->GETLASTREQUEST => array($t->RANDOM),
                      $t->SEQUENCE => array($t->REQUEST),
                      $t->GETFEES => array($t->OPERATION,$t->REQUEST),
@@ -315,8 +314,16 @@ function custmsg() {
   return "$msg:$sig";
 }
 
-//echo $server->process(custmsg("id",$id,$pubkey,"George Jetson"));
-echo $server->process(custmsg('id',0));
-echo $server->process(custmsg('id',$id));
+function process($msg) {
+  global $server;
+
+  echo "\n=== Msg ===\n$msg\n";
+  echo "=== Response ===\n";
+  echo $server->process($msg);
+}
+
+echo process(custmsg("register",$pubkey,"George Jetson"));
+echo process(custmsg('id',0));
+echo process(custmsg('id',$id));
 
 ?>
