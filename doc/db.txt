@@ -263,7 +263,7 @@ Query Inbox
 
   Customer sends:
 
-(<id>,inbox,<request#>)
+(<id>,inbox,<request#>,omit="inX#|inY#")
 
   Bank compares <request#> to /account/<id>/lastrequest. If <request#>
   is greater, bank sets /account/<id>/lastrequest to <request#> and
@@ -284,6 +284,11 @@ can number their own transactions, instead of asking the bank to
 allocate them, there may be two messages in the inbox at the same time
 with the same sending customer's transaction number. So the bank picks
 a unique <in#> for each.
+
+Note that inclusion of the "omit" list, will cause those inbox items
+to be omitted from the list sent back. This allows bandwidth reduction
+when the customer knows he's not ready to deal with some inbox items,
+e.g. notes that he wants to leave on the server.
 
 
 Process Inbox
