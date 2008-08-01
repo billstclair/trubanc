@@ -228,29 +228,28 @@ Send Note
   (<bankid>,balance,<tran#>,<asset#>,<amount>,acct:<acct>).
   (<bankid>,balance,<tran#>,<asset2#>,<amount2>,acct:<acct2>).
   ...
-  (<bankid>,balance,<tran#>,<assetN#>,<amountN>,acct:<acctN>).
-  (<bankid>,outboxhash,<tran#>,<hash>)
+  (<bankid>,balance,<tran#>,<assetN#>,<amountN>,acct:<acctN>)
 
-  Bank checks that the <tran#> is greater than /account/<id>/last,
-  that the balance (after subtracting the spend amount) and hash of
-  list of outbox transaction numbers (including the new note
-  transaction number) match what the customer sent. If they match,
-  bank updates /account/<id>/last to <tran#>, stores the note in
-  /account/<id2>/inbox/ (after finding a unique <in#> bigger than all
-  the others there), sets /account/<id>/balance/<name>/<assetN#> to the
-  customer's balance items, updates /account/<id>/outboxhash with the
-  customer's outboxhash item, and sends:
+  Bank checks that the <tran#> is greater than /account/<id>/last and
+  that the balances (after subtracting the fees) match what the
+  customer sent. If they match, bank updates /account/<id>/last to
+  <tran#>, stores the note in /account/<id2>/inbox/ (after finding a
+  unique <in#> bigger than all the others there), sets
+  /account/<id>/balance/<name>/<assetN#> to the customer's balance
+  items, and sends:
 
 (<id>,note,<tran#>).
   (<bankid>,balance,<tran#>,<asset#>,<amount>,acct:<acct>).
   (<bankid>,balance,<tran#>,<asset2#>,<amount2>,acct:<acct2>).
   ...
-  (<bankid>,balance,<tran#>,<assetN#>,<amountN>,acct:<acctN>).
-  (<bankid>,outboxhash,<tran#>,<hash>)
+  (<bankid>,balance,<tran#>,<assetN#>,<amountN>,acct:<acctN>)
 
   Otherwise, bank sends:
 
 (<bankid>,failed,(<bankid>,note,<tran4#>))
+
+  Note that no outboxhash is sent because outgoing notes are not
+  stored in the outbox. They're only stored in the recipients inbox.
 
   Note that the note failure message doesn't quote the request. Notes
   may be big (probably, there will be a limit), and sending it back
