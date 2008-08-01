@@ -7,9 +7,6 @@
   // Returns an array of top-level forms, each of which is an array.
   // Each of the form arrays has three distinguished keys:
   //  0 => The public key id
-  //  'message' => The string of the message decoded in the array,
-  //               including the open and close paren.
-  //  'signature' => The signature
 
 require_once "ssl.php";
 
@@ -157,8 +154,6 @@ class parser {
             $this->errmsg = "Failure to verify signature at $pos for $msg";
             return false;
           }
-          $dict['message'] = $msg;
-          $dict['signature'] = $tok;
           if (count($stack) > 0) {
             //echo "Popping\n";
             $value = $dict;
@@ -225,9 +220,92 @@ class parser {
     return $res;
   }
 
+  // $parse is an array with numeric and string keys
+  // $pattern is an array with numeric keys with string value, and
+  // non-numeric keys with non-false values.
+  // A numeric key in $pattern must match a numeric key in $parse.
+  // A non-numeric key in $pattern must correspond to a numeric key in $parse
+  // at the element number in $pattern or the same non-numeric key in $parse.
+  // The result maps the non-numeric keys and values in $pattern and
+  // their positions, to the matching values in $parse.
+  // See the test code below for examples.
+  function matchargs($parse, $pattern) {
+    $i = 0;
+    $res = array();
+    foreach ($pattern as $key => $value) {
+      if (is_numeric($key)) {
+        $name = $value;
+        $optional = false;
+      } else {
+        $name = $key;
+        $optional = true;
+      }
+      $val = $parse[$i];
+      if ($val === NULL) $val = $parse[$name];
+      if (!$optional && $val === NULL) return false;
+      if (!($val === NULL)) {
+        $res[$name] = $val;
+        $res[$i] = $val;
+      }
+      $i++;
+    }
+    foreach ($parse as $key => $value) {
+      if ($res[$key] === NULL) return false;
+    }
+    return $res;
+  }
+
+  function formatpattern($pattern) {
+    $res = '(';
+    $comma = false;
+    foreach($pattern as $key => $value) {
+      if ($comma) $res .= ',';
+      $comma = true;
+      if (is_numeric($key)) $res .= "<$value>";
+      else $res .= "$key=<$key>";
+    }
+    $res .= ')';
+    return $res;
+  }
+
 }
 
 // Test code
+/*
+$parser = new parser(false);
+$pattern = array('x', 'y', 'bletch'=>1);
+echo $parser->formatpattern($pattern) . "\n";
+$args = $parser->matchargs(array('foo','bar','3'), $pattern);
+echo "1: ";
+if ($args) print_r($args);
+else echo "Didn't match, and I expected it to\n";
+$args = $parser->matchargs(array('foo','bar','bletch'=>2), $pattern);
+echo "2: ";
+if ($args) print_r($args);
+else echo "Didn't match, and I expected it to\n";
+$args = $parser->matchargs(array('foo','bar','nomatch'=>2), $pattern);
+echo "3: ";
+if ($args) {
+  echo "Didn't expect this match:\n";
+  print_r($args);
+}
+else echo "Didn't match, as expected\n";
+$args = $parser->matchargs(array('foo',''), $pattern);
+echo "4: ";
+if ($args) print_r($args);
+else echo "Didn't match, and I expected it to\n";
+$args = $parser->matchargs(array('foo','y'=>''), $pattern);
+echo "5: ";
+if ($args) print_r($args);
+else echo "Didn't match, and I expected it to\n";
+$args = $parser->matchargs(array('foo'), $pattern);
+echo "6: ";
+if ($args) {
+  echo "Didn't expect this match:\n";
+  print_r($args);
+}
+else echo "Didn't match, as expected\n";
+*/
 /*
 require_once "dictdb.php";
 $keydb = new dictdb();

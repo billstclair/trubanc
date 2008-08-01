@@ -107,8 +107,9 @@ class server {
       $this->privkey = $privkey;
       $pubkey = $ssl->privkey_to_pubkey($privkey);
       $bankid = $ssl->pubkey_id($pubkey);
-      $db->put($t->PRIVKEYID, $bankid);
-      $idmsg = $this->bankmsg($t->PUBKEY, $pubkey, $this->bankname);
+      $this->bankid = $bankid;
+      $db->put($t->BANKID, $bankid);
+      $idmsg = $this->bankmsg($t->ID, $pubkey, $this->bankname);
       $db->put($t->PUBKEY . "/$bankid", $pubkey);
       $db->put($t->PUBKEYSIG . "/$bankid", $idmsg);
       $db->put($t->REGFEE, 10);
@@ -129,8 +130,8 @@ class server {
     } else {
       $privkey = $ssl->load_private_key($db->get($t->PRIVKEY), $passphrase);
       $this->privkey = $privkey;
+      $this->bankid = $this->db->get($this->t->BANKID);
     }
-    $this->bankid = $this->db->get($this->t->PRIVKEYID);
   }
 
   // Bank sign a message
@@ -140,30 +141,51 @@ class server {
   }
 
   // Make a bank signed message from $array
-  // Takes multiple args
+  // Takes as many args as you care to pass.
   function bankmsg() {
     $args = func_get_args();
     $msg = array_merge(array($this->bankid), $args);
     return $this->banksign($this->utility->makemsg($msg));
   }
 
+  /*** Request processing ***/
+ 
+  // Register a new ID, or lookup a public key
+  function do_id($args, $reqs, $msg) {
+    $t = $this->t;
+    $customer = $args[$t->CUSTOMER];
+    $id = $args[$t->ID];
+    $pubkey = $args[$t->PUBKEY];
+    $name = $args[$t->NAME];
+    $existingkey = $this->db->get($t->PUBKEYSIG . "/$id");
+    if (!$pubkey) {
+      // Lookup request
+      if ($existingkey) return $existingkey;
+      else return $this->bankmsg($t->FAILED, $msg, 'No such public key');
+    } else {
+      // Registration request
+    }
+  }
+
+  /*** End request processing ***/
+
   function commands() {
     $t = $this->t;
     if (!$this->commands) {
-      $names = array($t->ID,
-                     $t->GETLASTREQUEST,
-                     $t->SEQUENCE,
-                     $t->GETFEES,
-                     $t->SPEND,
-                     $t->INBOX,
-                     $t->REMOVEINBOX,
-                     $t->GETASSET,
-                     $t->ASSET,
-                     $t->GETOUTBOX,
-                     $t->GETBALANCE);
+      $names = array($t->ID => array($t->ID,$t->PUBKEY=>1,$t->NAME=>1),
+                     $t->GETLASTREQUEST => array($t->RANDOM),
+                     $t->SEQUENCE => array($t->REQUEST),
+                     $t->GETFEES => array($t->OPERATION,$t->REQUEST),
+                     $t->SPEND => array($t->TRAN,$t->ID,$t->ASSET,$t->AMOUNT,$t->NOTE=>1,$t->ACCT=>1),
+                     $t->INBOX => array($t->REQUEST),
+                     $t->PROCESSINBOX => array($t->TRANLIST),
+                     $t->GETASSET => array($t->ASSET,$t->REQUEST),
+                     $t->ASSET => array($t->ASSET,$t->SCALE,$t->PRECISION,$t->ASSETNAME),
+                     $t->GETOUTBOX => array($t->REQUEST),
+                     $t->GETBALANCE => array($t->REQUEST,$t->ACCT));
       $commands = array();
-      foreach($names as $name) {
-        $commands[$name] = "do_$name";
+      foreach($names as $name => $pattern) {
+        $commands[$name] = array("do_$name", $pattern);
       }
       $this->commands = $commands;
     }
@@ -175,20 +197,26 @@ class server {
   function process($msg) {
     $parser = $this->parser;
     $t = $this->t;
-    $parse = $parser->parse($msg);
-    if (!$parse) {
+    $parses = $parser->parse($msg);
+    if (!$parses) {
       return $this->bankmsg($t->FAILED, $msg, $parser->errmsg);
     }
-    foreach ($parse as $request) {
-      $cmd = $request[1];
-      echo "cmd: $cmd\n";
-      $commands = $this->commands();
-      $method = $commands[$cmd];
-      if (!$method) {
-        return $this->bankmsg($t->FAILED, $msg, "Unknown request: $cmd");
-      }
-      $this->$method($cmd);
+    $req = $parses[0][1];
+    $commands = $this->commands();
+    $method_pattern = $commands[$req];
+    if (!$method_pattern) {
+      return $this->bankmsg($t->FAILED, $msg, "Unknown request: $req");
     }
+    $method = $method_pattern[0];
+    $pattern = array_merge(array($t->CUSTOMER,$t->REQ), $method_pattern[1]);
+    $args = $this->parser->matchargs($parses[0], $pattern);
+    if (!$args) {
+      echo "Request:"; print_r($parses[0]);
+      return $this->bankmsg($t->FAILED, $msg,
+                            "Request doesn't match pattern: " .
+                            $parser->formatpattern($pattern));
+    }
+    return $this->$method($args, $parses, $msg);
   }
 
 }
@@ -202,6 +230,6 @@ $db = new fsdb("../trubancdb");
 $ssl = new ssl();
 $server = new server($db, $ssl, false, 'Trubanc');
 
- echo $server->process($server->bankmsg("fuckme", "up", "the", "ass"))
+echo $server->process($server->bankmsg("id",'7603d46d350d47f92774eb22502c48a6bc044c82'));
 
 ?>

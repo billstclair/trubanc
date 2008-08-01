@@ -14,7 +14,7 @@ $dbdir/
   sequence=<sequence#>  -- The transaction sequence number
   privkey=<privkey>   -- the private key. Maybe this shouldn't be in
                       -- the database, so it doesn't get backed up.
-  privkeyid=<bankid>  -- The id of the private key
+  bankid=<bankid>  -- The id of the private key
   regfee=<regfee>  -- Usage tokens paid for registration
                    -- default: 10 (2 each for /pubkey & /pubkeysig,
                    --              <id>, last, balance, outbox, inbox,
@@ -236,7 +236,7 @@ Process Inbox
 
   Customer sends:
 
-(<id>,removeinbox,<tran2#>|<tran3#>|<tran4#>).
+(<id>,processinbox,<tran2#>|<tran3#>|<tran4#>).
   (<id>,balance,<tran4#>,<asset#>,<amount>,acct:<acct>).
   (<id>,balance,<tran4#>,<asset2#>,<amount2>,acct:<acct2>).
   ...
@@ -246,10 +246,10 @@ Process Inbox
 Bank processes the requested inbox transaction, and compares the
 result to the balances and outboxhash sent by customer. If correct,
 bank removes the listed transactions from /account/<id>/inbox/,
-corresponding transactions from /account/<id>/outbox/, updates the
-/account/<id>/balance/<nameN>/<assetN#> with the balances the customer
-sent, updates /account/<id>/outboxhash with the outboxhash item the
-customer sent, and sends back:
+removes the corresponding transactions from /account/<id>/outbox/,
+updates the /account/<id>/balance/<nameN>/<assetN#> with the balances
+the customer sent, updates /account/<id>/outboxhash with the
+outboxhash item the customer sent, and sends back:
 
 (<bankid,affirm,(<id>,removeinbox,<tran2#>|<tran3#>|<tran4#>)).
   (<bankid>,balance,<tran4#>,<asset#>,<amount>,acct:<acct>).
@@ -321,11 +321,13 @@ Get outbox
 
   If customer encounters an outbox hash mismatch, customer can send:
 
-(<id>,getoutbox,<random>)
+(<id>,getoutbox,<request#>)
 
-  If the <id> exists, bank returns:
+  Bank compares <request#> to /account/<id>/lastrequest. If <request#>
+  is greater, bank sets /account/<id>/lastrequest to <request#>. Then,
+  if the <id> exists, bank returns:
 
-(<bankid>,affirm,(<id>,outbox,<random>)).
+(<bankid>,affirm,(<id>,outbox,<request#>)).
   (<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,acct:<name>).
   (<id>,note,<re#>,<id2>,re:<re2#>,note:<note>).
   ...
@@ -333,7 +335,7 @@ Get outbox
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,getoutbox,<random>),reason:<reason>)
+(<bankid>,failed,(<id>,getoutbox,<request#>),reason:<reason>)
 
 
 Get balance
@@ -341,13 +343,15 @@ Get balance
 
   If the customer loses track of a balance, customer can send:
 
-(<id>,getbalance,<random>,acct:<acct>)
+(<id>,getbalance,<request#>,acct:<acct>)
 
   <acct> can be "*" to return balances of all accounts.
-  If the <id> exists, bank returns:
+  Bank compares <request#> to /account/<id>/lastrequest. If <request#>
+  is greater, bank sets /account/<id>/lastrequest to <request#>. Then,
+  if the <id> exists, bank returns:
 
 (<id>,balance,<tran#>,<asset#>,<amount>,acct:<acct>)...
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,getbalance,<random>,acct:<acct>),reason:<reason>)
+(<bankid>,failed,(<id>,getbalance,<request#>,acct:<acct>),reason:<reason>)

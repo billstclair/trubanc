@@ -5,9 +5,10 @@
 
 class tokens {
 
+  // db file & directory names
   var $SEQUENCE = 'sequence';
   var $PRIVKEY = 'privkey';
-  var $PRIVKEYID = 'privkeyid';
+  var $BANKID = 'bankid';
   var $REGFEE = 'regfee';
   var $REGFEESIG = 'regfeesig';
   var $TRANFEE = 'tranfee';
@@ -27,13 +28,14 @@ class tokens {
   var $OUTBOXHASH = 'outboxhash';
   var $INBOX = 'inbox';
 
+  // request names
   var $ID = 'id';
   var $FAILED = 'failed';
   var $REASON = 'reason';
   var $GETLASTREQUEST = 'getlastrequest';
   var $GETFEES = 'getfees';
   var $SPEND = 'spend';
-  var $REMOVEINBOX = 'removeinbox';
+  var $PROCESSINBOX = 'processinbox';
   var $NOTE = 'note';
   var $ACCT = 'acct';
   var $SPENDACCEPT = 'spend|accept';
@@ -43,6 +45,18 @@ class tokens {
   var $GETOUTBOX = 'getoutbox';
   var $GETBALANCE = 'getbalance';
 
+  // request parameter names
+  var $CUSTOMER = 'customer';
+  var $REQ = 'req';
+  var $NAME = 'name';
+  var $RANDOM = 'random';
+  var $REQUEST = 'request';
+  var $OPERATION = 'operation';
+  var $TRAN = 'tran';
+  var $AMOUNT = 'amount';
+  var $TRANLIST = 'tranlist';
+  var $SCALE = 'scale';
+  var $PRECISION = 'precision';
 }
 
 ?>
