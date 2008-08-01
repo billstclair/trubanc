@@ -4,6 +4,7 @@
   // Implement the server protocol
 
 require_once "tokens.php";
+require_once "ssl.php";
 require_once "utility.php";
 require_once "parser.php";
 
@@ -23,8 +24,9 @@ class server {
   // $db is an object that does put(key, value), get(key), and dir(key)
   // $ssl is an object that does the protocol of ssl.php
   // $bankname is used to initialize the bank name in a new database. Ignored otherwise.
-  function server($db, $ssl, $passphrase=false, $bankname='') {
+  function server($db, $ssl=false, $passphrase=false, $bankname='') {
     $this->db = $db;
+    if (!$ssl) $ssl = new ssl();
     $this->ssl = $ssl;
     $this->t = new tokens();
     $this->pubkeydb = $db->subdir($this->t->PUBKEY);
