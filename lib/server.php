@@ -223,7 +223,9 @@ class server {
       }
       $db->put($t->PUBKEY . "/$id", $pubkey);
       $db->put($t->PUBKEYSIG . "/$id", $msg);
-      $db->put($this->acctbalancekey($id), $this->signed_balance(0, 0, -$regfee));
+      $db->put($this->acctbalancekey($id) . "/0", $this->signed_balance(0, 0, -$regfee));
+      $db->put($this->acctlastkey($id), 0);
+      $db->put($this->acctlastrequestkey($id), 0);
       return $msg;
     }
   }
@@ -313,7 +315,8 @@ function custmsg() {
   return "$msg:$sig";
 }
 
-echo $server->process(custmsg("id",$id,$pubkey,"George Jetson"));
+//echo $server->process(custmsg("id",$id,$pubkey,"George Jetson"));
 echo $server->process(custmsg('id',0));
+echo $server->process(custmsg('id',$id));
 
 ?>
