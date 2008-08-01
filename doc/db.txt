@@ -61,7 +61,6 @@ $dbdir/
 
 === Transactions ===
 
-
 Create account
 --------------
 
@@ -74,23 +73,21 @@ Create account
   to a new <id> is how the account directory is actually created),
   bank responds with:
 
-(<bankid>,id,<pubkey>).
-  (<id>,id,<pubkey>,name=<name>)
+(<id>,id,<pubkey>,name=<name>)
 
   This is the first time the customer will have seen the bank's
   pubkey.  The parsing code notices these "id" messages, and verifies
-  and stores the new key, if unknown, before using it to verify the
-  messages themselves.  Customer will need to process his inbox to
-  transfer his introduction tokens to his balance. No spend|cancel
-  operations will be allowed for usage token spends to an account with
-  a negative usage token balance. This ensures that the usage token
-  balance will be positive after the new customer processes his inbox.
+  if unknown, before using it to verify the registration message itself.
+  Customer will need to process his inbox to transfer his introduction
+  tokens to his balance. No spend|cancel operations will be allowed
+  for usage token spends to an account with a negative usage token
+  balance. This ensures that the usage token balance will be positive
+  after the new customer processes his inbox.
 
   Otherwise, bank puts a negative balance (/regfee) of usage tokens in
   the balance, and responds with:
 
-(<bankid>,id,<pubkey>).
-  (<bankid>,failed,(<id>,id,<pubkey>),reason:<reason>).
+(<bankid>,failed,(<id>,id,<pubkey>),reason:<reason>)
 
 
 Look up pubkey
@@ -100,9 +97,10 @@ Look up pubkey
 
 (<id>,id,<id2>)
 
+  Use 0 for <id2> to look up the bank's key.
   If there is such an id registered, bank responds with:
 
-(<id>,id,<pubkey>)
+(<id2>,id,<pubkey>)
 
   If there is no such id, bank responds with:
 

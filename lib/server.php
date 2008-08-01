@@ -14,6 +14,7 @@ class server {
   var $t;
   var $parser;
   var $utility;
+  var $pubkeydb;
   var $bankname;
 
   var $privkey;
@@ -26,7 +27,8 @@ class server {
     $this->db = $db;
     $this->ssl = $ssl;
     $this->t = new tokens();
-    $this->parser = new parser($db->subdir($this->t->PUBKEY));
+    $this->pubkeydb = $db->subdir($this->t->PUBKEY);
+    $this->parser = new parser($this->pubkeydb);
     $this->utility = new utility();
     $this->bankname = $bankname;
     $this->setupDB($passphrase);
@@ -148,22 +150,81 @@ class server {
     return $this->banksign($this->utility->makemsg($msg));
   }
 
+  // Takes as many args as you care to pass
+  function failmsg() {
+    $args = func_get_args();
+    $msg = array_merge(array($this->bankid, $this->t->FAILED), $args);
+    return $this->banksign($this->utility->makemsg($msg));
+  }
+
+  function scaninbox($id) {
+    $inboxkey = $this->inboxkey($id);
+    $trans = $this->db->contents($inboxkey);
+    $res = array();
+    foreach ($trans as $tran) {
+      $res[] = $this->db->get("$inboxkey/$tran");
+    }
+    return $res;
+  }
+
+  function signed_balance($tran, $asset, $amount, $acct=false) {
+    if ($acct) {
+      return $this->bankmsg($this->t->BALANCE, $tran, $asset, $amount, $acct);
+    } else {
+      return $this->bankmsg($this->t->BALANCE, $tran, $asset, $amount);
+    }
+  }
+
   /*** Request processing ***/
  
   // Register a new ID, or lookup a public key
   function do_id($args, $reqs, $msg) {
     $t = $this->t;
+    $db = $this->db;
     $customer = $args[$t->CUSTOMER];
     $id = $args[$t->ID];
+    if ($id == '0') $id = $this->bankid;
     $pubkey = $args[$t->PUBKEY];
-    $name = $args[$t->NAME];
-    $existingkey = $this->db->get($t->PUBKEYSIG . "/$id");
+    $existingkey = $db->get($t->PUBKEYSIG . "/$id");
     if (!$pubkey) {
       // Lookup request
       if ($existingkey) return $existingkey;
-      else return $this->bankmsg($t->FAILED, $msg, 'No such public key');
+      else return $this->failmsg($msg, 'No such public key');
     } else {
       // Registration request
+      if ($customer != $id) {
+        return $this->failmsg($msg, "Can only register your own ID");
+      }
+      // The parser will have added an entry in $t->PUBKEY
+      if ($this->pubkeydb->get($id)) {
+        return $this->failmsg($msg, "Already registered");
+      }
+      if ($this->ssl->pubkey_id($pubkey) != $id) {
+        return $this->failmsg($msg, "Pubkey doesn't match ID");
+      }
+      $regfee = $db->get($t->REGFEE);
+      $success = false;
+      if ($regfee > 0) {
+        $inbox = $this->scaninbox($id);
+        foreach ($inbox as $msg) {
+          $parse = $this->parser->parse($msg);
+          if ($parse[1] == $t->SPEND) {
+            $asset = $parse[4];
+            $amount = $parse[5];
+            if ($amount > $regfee) {
+              $success = true;
+              break;
+            }
+          }
+        }
+        if (!$success) {
+          return $this->failmsg($msg, "Insufficient usage tokens for registration fee");
+        }
+      }
+      $db->put($t->PUBKEY . "/$id", $pubkey);
+      $db->put($t->PUBKEYSIG . "/$id", $msg);
+      $db->put($this->acctbalancekey($id), $this->signed_balance(0, 0, -$regfee));
+      return $msg;
     }
   }
 
@@ -199,20 +260,20 @@ class server {
     $t = $this->t;
     $parses = $parser->parse($msg);
     if (!$parses) {
-      return $this->bankmsg($t->FAILED, $msg, $parser->errmsg);
+      return $this->failmsg($msg, $parser->errmsg);
     }
     $req = $parses[0][1];
     $commands = $this->commands();
     $method_pattern = $commands[$req];
     if (!$method_pattern) {
-      return $this->bankmsg($t->FAILED, $msg, "Unknown request: $req");
+      return $this->failmsg($msg, "Unknown request: $req");
     }
     $method = $method_pattern[0];
     $pattern = array_merge(array($t->CUSTOMER,$t->REQ), $method_pattern[1]);
     $args = $this->parser->matchargs($parses[0], $pattern);
     if (!$args) {
       echo "Request:"; print_r($parses[0]);
-      return $this->bankmsg($t->FAILED, $msg,
+      return $this->failmsg($msg,
                             "Request doesn't match pattern: " .
                             $parser->formatpattern($pattern));
     }
@@ -230,6 +291,28 @@ $db = new fsdb("../trubancdb");
 $ssl = new ssl();
 $server = new server($db, $ssl, false, 'Trubanc');
 
-echo $server->process($server->bankmsg("id",'7603d46d350d47f92774eb22502c48a6bc044c82'));
+$privkey = "-----BEGIN RSA PRIVATE KEY-----
+MIIBOwIBAAJBAMwfcmkk2coTuYAEbdZ5iXggObNPzbSiDnVtndZFe4/4Xg0IQPfp
+Q04OkhWIftMy1OjFhGlBzzNzdW98KYwKMgsCAwEAAQJASAgk4LPPYz84q9NkS1ZS
+S6Dbm8pipga2IXxQQaf9ZZ02vWpJR0tTlxq36Zl5P+aAbMck0AvHLgiawx0qWxRz
+2QIhAPwyHhCeoZ972KcRi4AIVsWtkGfQsVpVbBOzuFmtAdU9AiEAzzOwvhW6az25
+MyxD5VnbEhswT+lDnGAx/WSsHlPqaOcCIQCM0ac7/Heex9Z3ozJTsVRSWNHTRhJh
+sGUCs01ytUnauQIgeZrNrRHVgeEM04K0KmPtFZhNZ2jwnFM8o4m1FmuLlJsCIQDc
+9tCyRjE3Zj0tXfZL2n6DGeyAc0OsfdQn6V0tFPf6hg==
+-----END RSA PRIVATE KEY-----
+";
+$pubkey = $ssl->privkey_to_pubkey($privkey);
+$id = $ssl->pubkey_id($pubkey);
+
+function custmsg() {
+  global $id, $server, $ssl, $privkey;
+  $args = func_get_args();
+  $args = array_merge(array($id), $args);
+  $msg = $server->utility->makemsg($args);
+  $sig = $ssl->sign($msg, $privkey);
+  return "$msg:$sig";
+}
+
+echo $server->process(custmsg("id",$id,$pubkey,"George Jetson"));
 
 ?>

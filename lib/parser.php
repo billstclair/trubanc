@@ -135,12 +135,12 @@ class parser {
           if (!$pubkey && $dict[1] == 'id') {
             // May be the first time we've seen this ID.
             // If it's a key definition message, we've got all we need.
-            $pubkey = $dict[2];
-            $pubkeyid = $ssl->pubkey_id($pubkey);
+            $pubkey = $dict[3];
+            $pubkeyid = $this->ssl->pubkey_id($pubkey);
             if ($id != $pubkeyid) {
               $pubkey = false;
-            } else {
-              $keydb->put($id, $pubkey);
+              //            } else {
+              //              $keydb->put($id, $pubkey);
             }
           }
           // Eventually, we'll need to look up the pubkey from the server here.
