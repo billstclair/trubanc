@@ -32,7 +32,15 @@ class ssl {
     return $keydata['key'];
   }
 
-  // Return the ID of a public key, the SHA1 hash of it
+  // Return number of bits in public key
+  function pubkey_bits($pubkey) {
+    $pubkey = openssl_get_publickey($pubkey);
+    $keydata = openssl_pkey_get_details($pubkey);
+    openssl_free_key($pubkey);
+    return $keydata['bits'];
+  }    
+
+  // Return the ID of a public key: the SHA1 hash of it.
   // The key should be a PEM-encoded string, just as returned from
   // privkey_to_pubkey
   function pubkey_id($pubkey) {

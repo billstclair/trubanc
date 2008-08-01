@@ -112,9 +112,12 @@ Create account
 
 (<bankid>,failed,(<id>,register,<pubkey>),reason:<reason>)
 
-  Note that the customer won't be able to verify the signature on this
-  message, since he doesn't know the bank's public key, and can't get
-  it until he has successfully completed his registration.
+  Note that pubkeys bigger than 4096 bits won't be accepted. Really
+  big keys are a good way to DOS attack the server.
+
+  Note that the customer won't be able to verify the signature on the
+  failed message, since he doesn't know the bank's public key, and
+  can't get it until he has successfully completed his registration.
 
 
 Get last request

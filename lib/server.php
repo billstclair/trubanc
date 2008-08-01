@@ -201,6 +201,9 @@ class server {
     if ($this->ssl->pubkey_id($pubkey) != $id) {
       return $this->failmsg($msg, "Pubkey doesn't match ID");
     }
+    if ($this->ssl->pubkey_bits($pubkey) > 4096) {
+      return $this->failmsg($msg, "Key sizes larger than 4096 not allowed");
+    }
     $regfee = $db->get($t->REGFEE);
     $success = false;
     if ($regfee > 0) {
