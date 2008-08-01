@@ -33,12 +33,16 @@ class fsdb {
     return $key;
   }
 
+  function filename(&$key) {
+    $key = $this->normalize_key($key);
+    $dir = $this->dir;
+    return "$dir/$key";
+  }
+
   function put($key, $value) {
     if (value === false) $value = '';
     $blank = ($value === '');
-    $key = $this->normalize_key($key);
-    $dir = $this->dir;
-    $filename = "$dir/$key";
+    $filename = $this->filename($key);
     $fp = @fopen($filename, $blank ? 'r' : 'w');
     if (!$fp) {
       if ($blank) return '';
@@ -57,9 +61,7 @@ class fsdb {
   }
       
   function get($key) {
-    $key = $this->normalize_key($key);
-    $dir = $this->dir;
-    $filename = "$dir/$key";
+    $filename = $this->filename($key);
     $fp = @fopen($filename, 'r');
     if (!$fp) return false;
     if (!$this->locks[$key]) flock($fp, LOCK_SH);
@@ -68,12 +70,16 @@ class fsdb {
     return $value;
   }
 
-  function lock($key) {
-    $key = $this->normalize_key($key);
-    $dir = $this->dir;
-    $filename = "$dir/$key";
+  function lock($key, $create=false) {
+    $filename = $this->filename($key);
     $fp = @fopen($filename, 'r');
-    if (!$fp) return false;
+    if (!$fp) {
+      if ($create) {
+        touch($filename);
+        $fp = @fopen($filename, 'r');
+      }
+      if (!$fp) return false;
+    }
     flock($fp, LOCK_EX);
     $this->locks[$key] = true;
     return array($fp, $key);

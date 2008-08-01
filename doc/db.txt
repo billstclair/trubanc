@@ -191,10 +191,12 @@ Spend
   that the balance (after subtracting the spend amount) and hash of
   list of outbox transaction numbers (including the new spend
   transaction number) match what the customer sent. If they match,
-  bank updates /account/<id>/last to <tran#>, adds the spend to
-  /account/<id>/outbox/, sets /account/<id>/balance/<name>/<asset#> to
-  the customer's balance item, updates /account/<id>/outboxhash with
-  the customer's outboxhash item, and sends:
+  bank updates /account/<id>/last to <tran#>, stores the spend in
+  /account/<id>/outbox/<tran#> and /account/<id2>/inbox/ (after
+  finding a unique transaction number bigger than all the others
+  there), sets /account/<id>/balance/<name>/<asset#> to the customer's
+  balance item, updates /account/<id>/outboxhash with the customer's
+  outboxhash item, and sends:
 
 (<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,acct:<name>).
   (<bankid>,balance,<tran#>,<asset#>,<amount>,acct:<acct>).
