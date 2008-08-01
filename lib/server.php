@@ -331,8 +331,6 @@ echo process(custmsg("register",$pubkey,"George Jetson"));
 echo process(custmsg('id',0));
 echo process(custmsg('id',$id));
 
-?>
-
 // Copyright 2008 Bill St. Clair
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -346,3 +344,5 @@ echo process(custmsg('id',$id));
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions
 // and limitations under the License.
+
+?>

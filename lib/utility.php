@@ -64,7 +64,6 @@ class utility {
 $ut = new utility();
 print_r($ut->bignum_sort(array("10","1","20", "2", "99999", "123456")));
 */
-?>
 
 // Copyright 2008 Bill St. Clair
 //
@@ -79,3 +78,5 @@ print_r($ut->bignum_sort(array("10","1","20", "2", "99999", "123456")));
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions
 // and limitations under the License.
+
+?>
