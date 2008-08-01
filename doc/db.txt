@@ -80,7 +80,7 @@ Look up pubkey
 
   A note about looking up the bank's public key. It can only be done
   by registered customers. If an unregistered customer sends
-  (<id>,id,0), the <id> will be unknown, so the signature verficiation
+  (<id>,id,0), the <id> will be unknown, so the signature verification
   of the message will fail.
 
 
