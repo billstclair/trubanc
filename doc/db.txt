@@ -205,7 +205,7 @@ Spend
   balance item, updates /account/<id>/outboxhash with the customer's
   outboxhash item, and sends:
 
-(<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,acct:<name>).
+(<bankid>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,acct:<name>).
   (<bankid>,balance,<tran#>,<asset#>,<amount>,acct:<acct>).
   (<bankid>,balance,<tran#>,<asset2#>,<amount2>,acct:<acct2>).
   ...
@@ -225,10 +225,10 @@ Send Note
   Customer sends:
 
 (<id>,note,<tran4#>,<id2>,<note4>,re:<re#>).
-  (<bankid>,balance,<tran#>,<asset#>,<amount>,acct:<acct>).
-  (<bankid>,balance,<tran#>,<asset2#>,<amount2>,acct:<acct2>).
+  (<id>,balance,<tran#>,<asset#>,<amount>,acct:<acct>).
+  (<id>,balance,<tran#>,<asset2#>,<amount2>,acct:<acct2>).
   ...
-  (<bankid>,balance,<tran#>,<assetN#>,<amountN>,acct:<acctN>)
+  (<id>,balance,<tran#>,<assetN#>,<amountN>,acct:<acctN>)
 
   Bank checks that the <tran#> is greater than /account/<id>/last and
   that the balances (after subtracting the fees) match what the
@@ -238,7 +238,7 @@ Send Note
   /account/<id>/balance/<name>/<assetN#> to the customer's balance
   items, and sends:
 
-(<id>,note,<tran#>).
+(<bankid>,note,<tran#>).
   (<bankid>,balance,<tran#>,<asset#>,<amount>,acct:<acct>).
   (<bankid>,balance,<tran#>,<asset2#>,<amount2>,acct:<acct2>).
   ...
