@@ -306,14 +306,18 @@ item the customer sent, and sends back:
 
 (<bankid>,failed,(<id>,removeinbox,<time2#>|<time3#>|<time4#>),errcode:<errcode>,reason:<reason>)
 
-Note that this doesn't automatically send notice of delivery of
-notes. Maybe it should, but probably better to preserve people's
-privacy. If you want to know if they saw your note, give them a small
-spend. They have to accept or reject it to get it out of their inbox.
+This is the most complicated function in the system. It has to deal
+with two kinds of inbox items. The first is spontaneous spends from
+another customer. These get deposited in your account if you
+accept. Whether accepted or rejected gets put in the other guys inbox,
+where it becomes the second type of inbox item. These acknowledge
+earlier spends. When you process one of them, it and the corresponding
+outbox item can be removed, forever.
 
-Note that <acct2> is included in the "processinbox" message above only
-to illustreate the syntax. A destination account for a rejected
-spend makes no sense.
+Note that the customer decides which <acct> names will get the spends
+and the usage token refunds by where he specifies the balances in the
+"balance" items. The bank only verifies that the assets can be
+distributed as the customer requested.
 
 
 Lookup asset
@@ -410,6 +414,12 @@ Get balance
   Otherwise, bank returns:
 
 (<bankid>,failed,(<id>,getbalance,<req#>,acct:<acct>),errcode:<errcode>,reason:<reason>)
+
+
+Switching Asset Issuance
+------------------------
+
+TO DO.
 
 
 // Copyright 2008 Bill St. Clair
