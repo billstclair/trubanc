@@ -8,16 +8,16 @@ Items not in angle brackets are literals
 <key>=<value> is a file named <key> with contents <value>
 Items whose names end with "#" are sequence numbers.
 name:<item> denotes an optional item, passed by position or name
-Items in parens are signed. Signature omitted here.
+Items in parens  are signed. Signature omitted here.
 
 $dbdir/
-  sequence=<sequence#>  -- The transaction sequence number
+  time=<time#>  -- The global timestamp
   privkey=<privkey>   -- the private key. Maybe this shouldn't be in
                       -- the database, so it doesn't get backed up.
   bankid=<bankid>  -- The id of the private key
   regfee=<regfee>  -- Usage tokens paid for registration
                    -- default: 10 (2 each for /pubkey & /pubkeysig,
-                   --              <id>, last, balance, outbox, inbox,
+                   --              <id>, time#, balance, outbox, inbox,
                    --              and one bonus token)
   )
   regfeesig=(<bankid>,regfee,<fee#>,0,<amount>)
@@ -27,37 +27,41 @@ $dbdir/
   tranfeesig=(<bankid>,tranfee,<fee#>,0,<amount>)
   fee/  -- permanent fees, paid for transactions of the given type
         -- Default: none
-    spend=<asset#>:<amount>[.<asset#>:<amount>...]
-    note=<asset#>:<amount>[.<asset#>:<amount>...]
-    createasset=<asset#>:<amount>[.<asset#>:<amount>...]
+    spend=<assetid>:<amount>[.<assetid>:<amount>...]
+    note=<assetid>:<amount>[.<assetid>:<amount>...]
+    createasset=<assetid>:<amount>[.<assetid>:<amount>...]
   feesig/
-    spend=(<bankid>,fee|spend,<fee#>,<asset#>,<amount>)[...]
-    note=(<bankid>,fee|note,<fee#>,<asset#>,<amount>)[...]
-    createasset=(<bankid>,fee|createasset,<fee#>,<asset#>,<amount>)[...]
+    spend=(<bankid>,fee|spend,<fee#>,<assetid>,<amount>)[...]
+    note=(<bankid>,fee|note,<fee#>,<assetid>,<amount>)[...]
+    createasset=(<bankid>,fee|createasset,<fee#>,<assetid>,<amount>)[...]
   pubkey/
     <id>=<pubkey>
   pubkeysig/
-    <id>=(<bankid>,pubkey,<pubkey>,name>)
-  asset/ -- <asset#> 0 is "usage tokens"
-    <asset#>=(<id>,asset,<asset#>,<scale>,<precision>,<assetname>)
-  assetname/
-    <name>=<asset#>
+    <id>=(<id>,pubkey,<pubkey>,name>)
+  tokenid=<tokenid>  -- The assetid of the usage token asset
+  asset/ -- Where the asset types are stored
+    <assetid>=(<id>,asset,<assetid>,<scale>,<precision>,<assetname>)
+        -- The assetid is the sha1 hash of a comma-separated
+        -- concatenation of <id>,<scale>,<precision>,<assetname>
+        -- This makes an assetid impossible to forge, though there
+        -- can be multiple assets with the same name. Customer beware.
+        -- Note that because the assetid is unique, it can cross bank boundaries.
   account/
     <id>/
-      last=<sequence#>  -- new transactions must have higher sequence
-      lastrequest=<request#>  -- new requests must have a higher number
+      time=<time#>  -- 0 when no outstanding transaction, or the <time#> that must be on it
+      last=<time#>  -- The last used value of /account/<id>/time
+      req=<req#>    -- starts at 0. New requests must have a higher number
       balance/
         <name>/  -- "main" is the default balance name
-          <asset#>=(<id>,balance,<tran#>,<asset#>,<amount>,acct:<acct>)
+          <assetid>=(<id>,balance,<time#>,<assetid>,<amount>,acct:<acct>)
       outbox/
-        <tran#>=(<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,acct:<acct>)
-        <re#>=(<id>,note,<re#>,<id2>,re:<re2#>,note:<note>)
-      outboxhash=(<id>,outboxhash,<tran#>,<hash>)
+        <time2#>=(<id>,spend,<time2#>,<id2>,assetid2>,<amount2>,note:<note2>,acct:<acct2>)
+        <time3#>=(<id>,spend,<time3#>,<id3>,<assetid3>,<amount3>,note:<note3>,acct:<acct3>)
+      outboxhash=(<id>,outboxhash,<time#>,<hash>)
       inbox/
-        <tran#>=(<id2>,spend|accept,<tran2#>,note:<note2>,acct:<acct2>)
-        <tran#>=(<id3>,spend|reject,<tran3#>,note:<note3>)
-        <re2#>=(<id4>,note,<re2#>,<id>,<re#>,note:<note4>)
-
+        <time2#>=(<id2>,spend|accept,<time2#>,note:<note22>,acct:<acct2>)
+        <time3#>=(<id3>,spend|reject,<time3#>,note:<note32>)
+        <time4#>=(<id4>,spend,<time4#>,note:<note4>)
 
 === Transactions ===
 
@@ -94,21 +98,22 @@ Create account
   If the id is new, matches the pubkey, the signature is OK, and the
   customer has enough usage tokens in his inbox (spending usage tokens
   to a new <id> is how the account directory is actually created),
-  bank responds with:
+  bank adds a negative spend for the registration tokens to customer's
+  inbox, and responds with:
 
-(<id>,register,<pubkey>,name=<name>)
+(<bankid>,register,<bank_pubkey>,name=<bankname>)
 
   This is the first time the bank will have seen the customer's
   pubkey.  The parsing code notices these "id" messages, and verifies
   pubkey if unknown, before using it to verify the registration
   message itself.  Customer will need to process his inbox to transfer
-  his introduction tokens to his balance. No spend|cancel operations
-  will be allowed for usage token spends to an account with a negative
-  usage token balance. This ensures that the usage token balance will
-  be positive after the new customer processes his inbox.
-
-  Otherwise, bank puts a negative balance (/regfee) of usage tokens in
-  the balance, and responds with:
+  his introduction tokens, and the bank's charges against them, to his
+  balance. Banks can choose to put negative spends in your inbox to
+  charge periodic fees. You usually won't be able to spend an asset
+  to anyone but the asset issuer until you pay those fees. Banks can
+  also choose to allow negative spends from any customer to
+  another. This is a request for money, and can be denied like any
+  other spend.
 
 (<bankid>,failed,(<id>,register,<pubkey>),reason:<reason>)
 
@@ -120,145 +125,107 @@ Create account
   can't get it until he has successfully completed his registration.
 
 
-Get last request
-----------------
+Get Req
+-------
 
   Customer sends:
 
-(<id>,getlastrequest,<random>)
+(<id>,getreq,<random>)
 
   Bank sends:
 
-(<bankid>, lastrequest, <request#>)
+(<bankid>,req,<req#>)
 
   Note that this request can be replayed. The customer needs to have
   some way of getting back in sync for requests. This is it.
   It makes no changes to the server database, just returns the
-  customer's most recent request <request#>.
+  customer's most recent request <req#>.
 
 
-Get sequence number
--------------------
+Get timestamp
+-------------
 
   Customer sends:
 
-(<id>,sequence,<request#>)
+(<id>,time,<req#>)
 
-  Bank compares <request#> to /accounts/<id>/lastrequest. If
-  <request#> is greater, bank sets /account/<id>/lastrequest to
-  <request#>, increments /sequence to <sequence#>, and returns:
+  Bank compares <req#> to /accounts/<id>/req. If <req#> is greater,
+  bank sets /account/<id>/req to <req#>, increments /time to <time#>,
+  sets /account/<id>/time to <time#>, and returns:
 
-(<bankid>,sequence,<sequence#>)
+(<bankid>,time,<time#>)
 
   Otherwise, bank returns
 
-(<bankid>,failed,(<id>,sequence,<random>),reason:<reason>)
+(<bankid>,failed,(<id>,time,<req#>),reason:<reason>)
 
+  Note that this always creates a new <time#>, larger than any
+  timestamp in the bank. If the cusomter didn't use the last <time#>
+  returned from this request, it is overwritten, and can no longer be
+  used.
 
 Get fees
 --------
 
   Customer sends:
 
-(<id>,getfees,<operation>,<request#>)
+(<id>,getfees,<operation>,<req#>)
 
   <operation> can be "*" to return all fees.
-  Bank compares <request#> to /account/<id>/lastrequest. If <request#>
-  is greater, bank sets /account/<id>/lastrequest to <request#>,
-  increments /sequence to <sequence#>, and returns /regfeesig,
+  Bank compares <req#> to /account/<id>/req. If <req#>
+  is greater, bank sets /account/<id>/req to <req#>,
+  increments /time to <time#>, and returns /regfeesig,
   /tranfeesig, and /feesig/<operation>:
 
-(<bankid>regfee,0,<fee#>,<amount>).
-  (<bankid>,tranfee,<fee#>,0,<amount>).
-  (<bankid>,fee|<operation>,<fee#>,<asset#>,<amount>).
-  (<bankid>,fee|<operation2>,<fee2#>,<asset2#>,<amount2>).
+(<bankid>regfee,<time#>,0,<amount>).
+  (<bankid>,tranfee,<time2#>,0,<amount>).
+  (<bankid>,fee|<operation>,<time3#>,<assetid>,<amount>).
+  (<bankid>,fee|<operation2>,<time4#>,assetid2>,<amount2>).
   ...
-  (<bankid>,fee|<operationN>,<feeN#>,<assetN#>,<amountN>)
+  (<bankid>,fee|<operationN>,<timeN#>,<assetidN>,<amountN>)
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,getfees,<operation>,<request#>),reason:<reason>)
+(<bankid>,failed,(<id>,getfees,<operation>,<req#>),reason:<reason>)
 
 
 Spend
 -----
 
   Customer sends the following. Second and subsequent balance items
-  are for the fee assets. Fees always come from the same account
-  <name> as the spend. This allows limitations on licensed spends (not
-  defined yet) from a particular account <name>. Or maybe we should
-  have a particular account name, assigned by the customer, defaulting
-  to "main" for all fees.
+  are for the fee assets. Customer can pick whatever accounts he likes
+  for the fees to be taken from. The bank figures out if it can make
+  it work.
 
-(<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,acct:<name>).
-  (<id>,balance,<tran#>,<asset#>,<amount>,acct:<acct>).
-  (<id>,balance,<tran#>,<asset2#>,<amount2>,acct:<acct2>).
+(<id>,spend,<time#>,<id2>,<assetid>,<amount>,note:<note>,acct:<name>).
+  (<id>,balance,<time#>,<assetid>,<amount>,acct:<acct>).
+  (<id>,balance,<time#>,assetid2>,<amount2>,acct:<acct2>).
   ...
-  (<id>,balance,<tran#>,<assetN#>,<amountN>,acct:<acctN>).
-  (<id>,outboxhash,<tran#>,<hash>)
+  (<id>,balance,<time#>,<assetidN>,<amountN>,acct:<acctN>).
+  (<id>,outboxhash,<time#>,<outboxhash>)
 
-  Bank checks that the <tran#> is greater than /account/<id>/last,
-  that the balance (after subtracting the spend amount) and hash of
-  list of outbox transaction numbers (including the new spend
-  transaction number) match what the customer sent. If they match,
-  bank updates /account/<id>/last to <tran#>, stores the spend in
-  /account/<id>/outbox/<tran#> and /account/<id2>/inbox/ (after
-  finding a unique transaction number bigger than all the others
-  there), sets /account/<id>/balance/<name>/<asset#> to the customer's
-  balance item, updates /account/<id>/outboxhash with the customer's
-  outboxhash item, and sends:
+  Bank checks that the <time#> is equal to /account/<id>/time, that
+  the balances match (after subtracting the spend amount fees), and
+  that the hash of all the outbox entries (after adding the new one),
+  sorted numerically by <time#>, match what the customer sent. If they
+  match, bank sets /account/<id>/time to 0, stores the spend in
+  /account/<id>/outbox/<time#> and /account/<id2>/inbox/<time#>, sets
+  the /account/<id>/balance/<name>/<assetid> to the customer's balance
+  items, updates /account/<id>/hash with the customer's hash item, and
+  sends:
 
-(<bankid>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,acct:<name>).
-  (<bankid>,balance,<tran#>,<asset#>,<amount>,acct:<acct>).
-  (<bankid>,balance,<tran#>,<asset2#>,<amount2>,acct:<acct2>).
+(<bankid>,spend,<time#>,<id2>,<assetid>,<amount>,note:<note>,acct:<acct>).
+  (<bankid>,balance,<time#>,<assetid>,<amount>,acct:<acct>).
+  (<bankid>,balance,<time#>,assetid2>,<amount2>,acct:<acct2>).
   ...
-  (<bankid>,balance,<tran#>,<assetN#>,<amountN>,acct:<acctN>).
-  (<bankid>,outboxhash,<tran#>,<hash>)
+  (<bankid>,balance,<time#>,<assetidN>,<amountN>,acct:<acctN>).
+  (<bankid>,outboxhash,<time#>,<hash>)
 
 If they don't match, bank returns:
 
-(<bankid>,failed,(<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,acct:<name>),reason:<reason>).
-  (<id>,balance,<tran#>,<asset#>,<amount>,acct:<acct>).
-  (<id>,outboxhash,<tran#>,<hash>)
-
-
-Send Note
----------
-
-  Customer sends:
-
-(<id>,note,<tran4#>,<id2>,<note4>,re:<re#>).
-  (<id>,balance,<tran#>,<asset#>,<amount>,acct:<acct>).
-  (<id>,balance,<tran#>,<asset2#>,<amount2>,acct:<acct2>).
-  ...
-  (<id>,balance,<tran#>,<assetN#>,<amountN>,acct:<acctN>)
-
-  Bank checks that the <tran#> is greater than /account/<id>/last and
-  that the balances (after subtracting the fees) match what the
-  customer sent. If they match, bank updates /account/<id>/last to
-  <tran#>, stores the note in /account/<id2>/inbox/ (after finding a
-  unique <in#> bigger than all the others there), sets
-  /account/<id>/balance/<name>/<assetN#> to the customer's balance
-  items, and sends:
-
-(<bankid>,note,<tran#>).
-  (<bankid>,balance,<tran#>,<asset#>,<amount>,acct:<acct>).
-  (<bankid>,balance,<tran#>,<asset2#>,<amount2>,acct:<acct2>).
-  ...
-  (<bankid>,balance,<tran#>,<assetN#>,<amountN>,acct:<acctN>)
-
-  Otherwise, bank sends:
-
-(<bankid>,failed,(<bankid>,note,<tran4#>))
-
-  Note that no outboxhash is sent because outgoing notes are not
-  stored in the outbox. They're only stored in the recipients inbox.
-
-  Note that the note failure message doesn't quote the request. Notes
-  may be big (probably, there will be a limit), and sending it back
-  doesn't help anything, since the customer will have to have stored
-  all the expected balances and outboxhash, to compare with what the
-  bank sends back.
+(<bankid>,failed,(<id>,spend,<time#>,<id2>,<assetid>,<amount>,note:<note>,acct:<name>),reason:<reason>).
+  (<id>,balance,<time#>,<assetid>,<amount>,acct:<acct>).
+  (<id>,outboxhash,<time#>,<hash>)
 
 
 Query Inbox
@@ -266,33 +233,24 @@ Query Inbox
 
   Customer sends:
 
-(<id>,inbox,<request#>,omit="inX#|inY#")
+(<id>,inbox,<req#>)
 
-  Bank compares <request#> to /account/<id>/lastrequest. If <request#>
-  is greater, bank sets /account/<id>/lastrequest to <request#> and
+  Bank compares <req#> to /account/<id>/req. If <req#>
+  is greater, bank sets /account/<id>/req to <req#> and
   responds with contents of /account/<id>/inbox/, separated by
   periods:
 
-(<bankid>,inbox,<in1#>,(<id2>,spend,<tran2#>,note:<note2>)).
-  (<bankid>,inbox,<in2#>,(<id3>,spend,<tran3#>,note:<note3>)).
-  (<bankid>,inbox,<in3#>,(<id4>,note,<tran4#>,<id>,<note4>,re:<re#>))
+(<bankid>,affirm,<time6#>,
+  (<id>,inbox,<req#>).
+  (<id2>,spend,<time2#>,note:<note2>).
+  (<id3>,spend,<time3#>,note:<note3>))
 
   Otherwise, bank sends:
 
-(<bankid>,failed,(<id>,inbox,<request#>),reason=<reason>)
+(<bankid>,failed,(<id>,inbox,<req#>),reason=<reason>)
 
-Note that the bank needs to wrap each inbox item with a message
-holding the name of the item in the customer's inbox. Since customers
-can number their own transactions, instead of asking the bank to
-allocate them, there may be two messages in the inbox at the same time
-with the same sending customer's transaction number. So the bank picks
-a unique <in#> for each.
-
-Note that inclusion of the "omit" list, will cause those inbox items
-to be omitted from the list sent back. This allows bandwidth reduction
-when the customer knows he's not ready to deal with some inbox items,
-e.g. notes that he wants to leave on the server.
-
+  Note that once the customer has an inbox affirmation, the bank may
+  never present an inbox item with an earlier <time#>
 
 Process Inbox
 -------------
@@ -300,32 +258,32 @@ Process Inbox
   Customer sends:
 
 (<id>,processinbox,in1#|in2#|in3#,accts=<acct>|<acct2>).
-  (<id>,spend|accept,<id2>,<tran2#>,note:<note5>).
-  (<id>,spend|reject,<id3>,<tran3#>,note:<note6>).
-  (<id>,balance,<tran4#>,<asset#>,<amount>,acct:<acct>).
-  (<id>,balance,<tran4#>,<asset2#>,<amount2>,acct:<acct2>).
+  (<id>,spend|accept,<id2>,<time2#>,note:<note5>).
+  (<id>,spend|reject,<id3>,<time3#>,note:<note6>).
+  (<id>,balance,<time4#>,<assetid>,<amount>,acct:<acct>).
+  (<id>,balance,<time4#>,assetid2>,<amount2>,acct:<acct2>).
   ...
-  (<id>,balance,<tran4#>,<assetN#>,<amount3>,acct:<acctN>).
-  (<id>,outboxhash,<tran4#>,<hash>)
+  (<id>,balance,<time4#>,<assetidN>,<amount3>,acct:<acctN>).
+  (<id>,outboxhash,<time4#>,<hash>)
 
 Bank processes the requested inbox transaction2, and compares the
 result to the balances and outboxhash sent by customer. If correct,
 bank removes the listed transactions from /account/<id>/inbox/,
 removes the corresponding transactions from /account/<id>/outbox/,
-updates the /account/<id>/balance/<nameN>/<assetN#> with the balances
+updates the /account/<id>/balance/<nameN>/<assetidN> with the balances
 the customer sent, updates /account/<id>/outboxhash with the
 outboxhash item the customer sent, and sends back:
 
 (<bankid,affirm,(<id>,removeinbox,<inbox1#>|<inbox2#>|<inbox3#>)).
-  (<bankid>,balance,<tran4#>,<asset#>,<amount>,acct:<acct>).
-  (<bankid>,balance,<tran4#>,<asset2#>,<amount2>,acct:<acct2>).
+  (<bankid>,balance,<time4#>,<assetid>,<amount>,acct:<acct>).
+  (<bankid>,balance,<time4#>,assetid2>,<amount2>,acct:<acct2>).
   ...
-  (<bankid>,balance,<tran4#>,<assetN#>,<amount3>,acct:<acctN>).
-  (<bankid>,outboxhash,<tran#>,<hash>)
+  (<bankid>,balance,<time4#>,<assetidN>,<amount3>,acct:<acctN>).
+  (<bankid>,outboxhash,<time#>,<hash>)
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,removeinbox,<tran2#>|<tran3#>|<tran4#>),reason=<reason>)
+(<bankid>,failed,(<id>,removeinbox,<time2#>|<time3#>|<time4#>),reason=<reason>)
 
 Note that this doesn't automatically send notice of delivery of
 notes. Maybe it should, but probably better to preserve people's
@@ -342,17 +300,17 @@ Lookup asset
 
   Customer sends:
 
-(<id>,getasset,<asset#>,<request#>)
+(<id>,getasset,<assetid>,<req#>)
 
-  Bank compares <request#> to /account/<id>/lastrequest. If <request#>
-  is greater, bank sets /account/<id>/lastrequest to <request#>. Then,
-  if <asset#> exists in /asset, bank returns:
+  Bank compares <req#> to /account/<id>/req. If <req#>
+  is greater, bank sets /account/<id>/req to <req#>. Then,
+  if <assetid> exists in /asset, bank returns:
 
-(<bankid>,affirm,(<issuerid>,asset,<asset#>,<assetname>))
+(<bankid>,affirm,(<issuerid>,asset,<assetid>,<assetname>))
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,getasset,<asset#>,<random>),reason:<reason>)
+(<bankid>,failed,(<id>,getasset,<assetid>,<random>),reason:<reason>)
 
 
 Create asset
@@ -360,34 +318,34 @@ Create asset
 
   Customer sends:
 
-(<id>,asset,<asset#>,<scale>,<precision>,<assetname>).
-  (<id>,balance,<tran4#>,<asset#>,-1,acct:<acct1>).
-  (<id>,balance,<tran4#>,<asset2#>,<amount2>acct:<acct2>).
+(<id>,asset,<assetid>,<scale>,<precision>,<assetname>).
+  (<id>,balance,<time4#>,<assetid>,-1,acct:<acct1>).
+  (<id>,balance,<time4#>,assetid2>,<amount2>acct:<acct2>).
   ...
-  (<id>,balance,<tran4#>,<assetN#>,<amountN>,acct:<acctN>).
+  (<id>,balance,<time4#>,<assetidN>,<amountN>,acct:<acctN>).
   
   Note that the balance for the new asset is "-1". Like loom, the sum
-  of all balances for an <asset#> add up to -1. A negative balance
+  of all balances for an <assetid> add up to -1. A negative balance
   means that the owner is the issuer (except negative balances in the
   usage token can exist during registration). I haven't worked out the
   process to switch issuer ownership.
 
-  If the /asset/<asset#> does not exist, /assetname/<assetname> does
-  not exist, <tran4#> is greater than /account/<id>/last, and the
+  If the /asset/<assetid> does not exist, /assetname/<assetname> does
+  not exist, <time4#> is greater than /account/<id>/time, and the
   customer has properly subtracted the createasset fees from the
   balances in /account/<id>/balance/<acctN>, then bank adds
-  <asset#>=(<id>,asset,<asset#>,<scale>,<precision>,<assetname>) to
-  /asset/, adds <assetname>=<asset#> to /assetname/, and returns:
+  <assetid>=(<id>,asset,<assetid>,<scale>,<precision>,<assetname>) to
+  /asset/, adds <assetname>=<assetid> to /assetname/, and returns:
 
-(<bankid>,affirm,(<id>,asset,<asset#>,<assetname>)).
-  (<bankid>,balance,<tran4#>,<asset#>,<amount>,acct:<acct1>).
-  (<bankid>,balance,<tran4#>,<asset2#>,<amount2>acct:<acct2>).
+(<bankid>,affirm,(<id>,asset,<assetid>,<assetname>)).
+  (<bankid>,balance,<time4#>,<assetid>,<amount>,acct:<acct1>).
+  (<bankid>,balance,<time4#>,assetid2>,<amount2>acct:<acct2>).
   ...
-  (<bankid>,balance,<tran4#>,<assetN#>,<amountN>,acct:<acctN>)
+  (<bankid>,balance,<time4#>,<assetidN>,<amountN>,acct:<acctN>)
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,asset,<asset#>,<assetname>),reason:<reason>)
+(<bankid>,failed,(<id>,asset,<assetid>,<assetname>),reason:<reason>)
 
 
 Get outbox
@@ -395,21 +353,21 @@ Get outbox
 
   If customer encounters an outbox hash mismatch, customer can send:
 
-(<id>,getoutbox,<request#>)
+(<id>,getoutbox,<req#>)
 
-  Bank compares <request#> to /account/<id>/lastrequest. If <request#>
-  is greater, bank sets /account/<id>/lastrequest to <request#>. Then,
+  Bank compares <req#> to /account/<id>/req. If <req#>
+  is greater, bank sets /account/<id>/req to <req#>. Then,
   if the <id> exists, bank returns:
 
-(<bankid>,affirm,(<id>,outbox,<request#>)).
-  (<id>,spend,<tran#>,<id2>,<asset#>,<amount>,note:<note>,acct:<name>).
+(<bankid>,affirm,(<id>,outbox,<req#>)).
+  (<id>,spend,<time#>,<id2>,<assetid>,<amount>,note:<note>,acct:<name>).
   (<id>,note,<re#>,<id2>,re:<re2#>,note:<note>).
   ...
-  (<bankid>,outboxhash,<tran#>,<hash>)
+  (<bankid>,outboxhash,<time#>,<hash>)
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,getoutbox,<request#>),reason:<reason>)
+(<bankid>,failed,(<id>,getoutbox,<req#>),reason:<reason>)
 
 
 Get balance
@@ -417,18 +375,18 @@ Get balance
 
   If the customer loses track of a balance, customer can send:
 
-(<id>,getbalance,<request#>,acct:<acct>)
+(<id>,getbalance,<req#>,acct:<acct>)
 
   <acct> can be "*" to return balances of all accounts.
-  Bank compares <request#> to /account/<id>/lastrequest. If <request#>
-  is greater, bank sets /account/<id>/lastrequest to <request#>. Then,
+  Bank compares <req#> to /account/<id>/req. If <req#>
+  is greater, bank sets /account/<id>/req to <req#>. Then,
   if the <id> exists, bank returns:
 
-(<id>,balance,<tran#>,<asset#>,<amount>,acct:<acct>)...
+(<id>,balance,<time#>,<assetid>,<amount>,acct:<acct>)...
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,getbalance,<request#>,acct:<acct>),reason:<reason>)
+(<bankid>,failed,(<id>,getbalance,<req#>,acct:<acct>),reason:<reason>)
 
 // Copyright 2008 Bill St. Clair
 //

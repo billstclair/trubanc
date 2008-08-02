@@ -36,12 +36,12 @@ class server {
     $this->setupDB($passphrase);
   }
 
-  function getsequence() {
+  function gettime() {
     $db = $this->db;
     $t = $this->t;
-    $lock = $db->lock($t->SEQUENCE);
-    $res = $db->get($t->SEQUENCE) + 1;
-    $db->put($t->SEQUENCE, $res);
+    $lock = $db->lock($t->TIME);
+    $res = $db->get($t->TIME) + 1;
+    $db->put($t->TIME, $res);
     $db->unlock($lock);
     return $res;
   }
@@ -50,20 +50,24 @@ class server {
     return $this->db->get($this->acctlastkey($id));
   }
 
-  function getacctlastrequest($id) {
-    return $this->db->get($this->acctlastrequestkey($id));
+  function getacctreq($id) {
+    return $this->db->get($this->acctreqkey($id));
   }
 
   function accountdir($id) {
     return $this->t->ACCOUNT . "/$id" . '/';
   }
 
+  function accttimekey($id) {
+    return $this->accountdir($id) . $this->t->TIME;
+  }
+
   function acctlastkey($id) {
     return $this->accountdir($id) . $this->t->LAST;
   }
 
-  function acctlastrequestkey($id) {
-    return $this->accountdir($id) . $this->t->LASTREQUEST;
+  function acctreqkey($id) {
+    return $this->accountdir($id) . $this->t->REQ;
   }
 
   function balancekey($id) {
@@ -95,12 +99,17 @@ class server {
     return $this->bankmsg($this->t->OUTBOXHASH, $this->getacctlast($id), $hash);
   }
 
+  function assetID($id, $scale, $precision, $name) {
+    return sha1("$id,$scale,$precision,$name");
+  }
+
   // Initialize the database, if it needs initializing
   function setupDB($passphrase) {
     $db = $this->db;
     $ssl = $this->ssl;
     $t = $this->t;
-    if (!$db->get($t->SEQUENCE)) $db->put($t->SEQUENCE, '0');
+    $bankname = $this->bankname;
+    if (!$db->get($t->TIME)) $db->put($t->TIME, '0');
     if (!$db->get($t->PRIVKEY)) {
       // http://www.rsa.com/rsalabs/node.asp?id=2004 recommends that 3072-bit
       // RSA keys are equivalent to 128-bit symmetric keys, and they should be
@@ -113,35 +122,39 @@ class server {
       $bankid = $ssl->pubkey_id($pubkey);
       $this->bankid = $bankid;
       $db->put($t->BANKID, $bankid);
-      $regmsg = $this->bankmsg($t->REGISTER, $pubkey, $this->bankname);
+      $regmsg = $this->bankmsg($t->REGISTER, "\n$pubkey", $bankname);
       $db->put($t->PUBKEY . "/$bankid", $pubkey);
       $db->put($t->PUBKEYSIG . "/$bankid", $regmsg);
       $db->put($t->REGFEE, 10);
-      $db->put($t->REGFEESIG, $this->bankmsg($t->REGFEE, $this->getsequence(), 0, 10));
+      $db->put($t->REGFEESIG, $this->bankmsg($t->REGFEE, 0, 0, 10));
       $db->put($t->TRANFEE, 2);
-      $db->put($t->TRANFEESIG, $this->bankmsg($t->TRANFEE, $this->getsequence(), 0, 2));
-      $assetname = "Usage Tokens";
-      $asset = $this->bankmsg($t->ASSET, 0, 0, 0, $assetname);
-      $db->put($t->ASSET . '/0', $asset);
-      $db->put($t->ASSETNAME . "/$assetname", 0);
+      $db->put($t->TRANFEESIG, $this->bankmsg($t->TRANFEE, 0, 0, 2));
+      $token_name = "Asset Tokens";
+      if ($this->bankname) $token_name = "$bankname $token_name";
+      $tokenid = $this->assetid($bankid, 0, 0, $token_name);
+      $this->tokenid = $tokenid;
+      $asset = $this->bankmsg($t->ASSET, $tokenid, 0, 0, $token_name);
+      $db->put($t->TOKENID, $tokenid);
+      $db->put($t->ASSET . "/$tokenid", $asset);
       $accountdir = $t->ACCOUNT . "/$bankid";
-      $seq = $this->getsequence();
-      $db->put($this->acctlastkey($bankid), $seq);
-      $db->put($this->acctlastrequestkey($bankid), 0);
+      $db->put($this->accttimekey($bankid), 0);
+      $db->put($this->acctlastkey($bankid), 0);
+      $db->put($this->acctreqkey($bankid), 0);
       $mainkey = $this->acctbalancekey($bankid);
-      $db->put("$mainkey/0", $this->bankmsg($t->BALANCE, $seq, 0, -1));
+      $db->put("$mainkey/$tokenid", $this->bankmsg($t->BALANCE, 0, $tokenid, -1));
       $db->put($this->outboxhashkey($bankid), $this->outboxhash($bankid));
     } else {
       $privkey = $ssl->load_private_key($db->get($t->PRIVKEY), $passphrase);
       $this->privkey = $privkey;
       $this->bankid = $this->db->get($this->t->BANKID);
+      $this->tokenid = $db->get($t->TOKENID);
     }
   }
 
   // Bank sign a message
   function banksign($msg) {
     $sig = $this->ssl->sign($msg, $this->privkey);
-    return "$msg:$sig";
+    return "$msg:\n$sig";
   }
 
   // Make a bank signed message from $array
@@ -160,21 +173,32 @@ class server {
   }
 
   function scaninbox($id) {
+    $db = $this->db;
     $inboxkey = $this->inboxkey($id);
-    $trans = $this->db->contents($inboxkey);
+    $times = $db->contents($inboxkey);
     $res = array();
-    foreach ($trans as $tran) {
-      $res[] = $this->db->get("$inboxkey/$tran");
+    foreach ($times as $time) {
+      $res[] = $db->get("$inboxkey/$time");
     }
     return $res;
   }
 
-  function signed_balance($tran, $asset, $amount, $acct=false) {
+  function signed_balance($time, $asset, $amount, $acct=false) {
     if ($acct) {
-      return $this->bankmsg($this->t->BALANCE, $tran, $asset, $amount, $acct);
+      return $this->bankmsg($this->t->BALANCE, $time, $asset, $amount, $acct);
     } else {
-      return $this->bankmsg($this->t->BALANCE, $tran, $asset, $amount);
+      return $this->bankmsg($this->t->BALANCE, $time, $asset, $amount);
     }
+  }
+
+  function signed_spend($time, $id, $assetid, $amount, $note=false, $acct=false) {
+    if ($note && $acct) {
+      return $this->bankmsg($this->t->SPEND, $time, $id, $assetid, $amount, $note, $acct);
+    } elseif ($note) {
+      return $this->bankmsg($this->t->SPEND, $time, $id, $assetid, $amount, $note);
+    } elseif ($acct) {
+      return $this->bankmsg($this->t->SPEND, $time, $id, $assetid, $amount, "acct=$acct");
+    } else return $this->bankmsg($this->t->SPEND, $time, $id, $assetid, $amount);
   }
 
   /*** Request processing ***/
@@ -207,15 +231,20 @@ class server {
       return $this->failmsg($msg, "Key sizes larger than 4096 not allowed");
     }
     $regfee = $db->get($t->REGFEE);
+    $tokenid = $this->tokenid;
     $success = false;
     if ($regfee > 0) {
       $inbox = $this->scaninbox($id);
-      foreach ($inbox as $msg) {
-        $parse = $this->parser->parse($msg);
+      foreach ($inbox as $inmsg) {
+        $parse = $this->parser->parse($inmsg);
+        if (!$parse) {
+          return $this->failmsg("Error parsing inbox: " . $parser->errmsg . ":\n$inmsg");
+        }
+        $parse = $parse[0];
         if ($parse[1] == $t->SPEND) {
           $asset = $parse[4];
           $amount = $parse[5];
-          if ($amount > $regfee) {
+          if ($asset == $tokenid && $amount >= $regfee) {
             $success = true;
             break;
           }
@@ -225,12 +254,17 @@ class server {
         return $this->failmsg($msg, "Insufficient usage tokens for registration fee");
       }
     }
+    $bankid = $this->bankid;
     $db->put($t->PUBKEY . "/$id", $pubkey);
     $db->put($t->PUBKEYSIG . "/$id", $msg);
-    $db->put($this->acctbalancekey($id) . "/0", $this->signed_balance(0, 0, -$regfee));
-    $db->put($this->acctlastkey($id), 0);
-    $db->put($this->acctlastrequestkey($id), 0);
-    return $msg;
+    $time = $this->gettime();
+    if ($regfee != 0) {
+      $db->put($this->inboxkey($id) . "/$time", $this->signed_spend($time, $id, $tokenid, -$regfee, "Registration fee"));
+    }
+    $db->put($this->accttimekey($id), 0);
+    $db->put($this->acctlastkey($id), $time);
+    $db->put($this->acctreqkey($id), 0);
+    return $db->get($t->PUBKEYSIG . "/$bankid");
   }
 
   /*** End request processing ***/
@@ -240,12 +274,12 @@ class server {
     if (!$this->commands) {
       $names = array($t->ID => array($t->ID),
                      $t->REGISTER => array($t->PUBKEY,$t->NAME=>1),
-                     $t->GETLASTREQUEST => array($t->RANDOM),
-                     $t->SEQUENCE => array($t->REQUEST),
+                     $t->GETREQ => array($t->REQUEST),
+                     $t->TIME => array($t->REQUEST),
                      $t->GETFEES => array($t->OPERATION,$t->REQUEST),
-                     $t->SPEND => array($t->TRAN,$t->ID,$t->ASSET,$t->AMOUNT,$t->NOTE=>1,$t->ACCT=>1),
+                     $t->SPEND => array($t->TIME,$t->ID,$t->ASSET,$t->AMOUNT,$t->NOTE=>1,$t->ACCT=>1),
                      $t->INBOX => array($t->REQUEST),
-                     $t->PROCESSINBOX => array($t->TRANLIST),
+                     $t->PROCESSINBOX => array($t->TIMELIST),
                      $t->GETASSET => array($t->ASSET,$t->REQUEST),
                      $t->ASSET => array($t->ASSET,$t->SCALE,$t->PRECISION,$t->ASSETNAME),
                      $t->GETOUTBOX => array($t->REQUEST),
@@ -278,7 +312,6 @@ class server {
     $pattern = array_merge(array($t->CUSTOMER,$t->REQ), $method_pattern[1]);
     $args = $this->parser->matchargs($parses[0], $pattern);
     if (!$args) {
-      echo "Request:"; print_r($parses[0]);
       return $this->failmsg($msg,
                             "Request doesn't match pattern: " .
                             $parser->formatpattern($pattern));
@@ -316,7 +349,7 @@ function custmsg() {
   $args = array_merge(array($id), $args);
   $msg = $server->utility->makemsg($args);
   $sig = $ssl->sign($msg, $privkey);
-  return "$msg:$sig";
+  return "$msg:\n$sig";
 }
 
 function process($msg) {
@@ -325,6 +358,16 @@ function process($msg) {
   echo "\n=== Msg ===\n$msg\n";
   echo "=== Response ===\n";
   echo $server->process($msg);
+}
+
+// Fake a spend of tokens to the customer
+$time = $server->gettime();
+$tokenid = $server->tokenid;
+$t = $server->t;
+$regfee = $db->get($t->REGFEE);
+if (!$db->get($t->PUBKEY, "/$id")) {
+  $db->put($server->inboxkey($id) . "/$time",
+           $server->signed_spend($time, $id, $tokenid, $regfee * 2, "Gift"));
 }
 
 echo process(custmsg("register",$pubkey,"George Jetson"));

@@ -6,7 +6,7 @@
 class tokens {
 
   // db file & directory names
-  var $SEQUENCE = 'sequence';
+  var $TIME = 'time';
   var $PRIVKEY = 'privkey';
   var $BANKID = 'bankid';
   var $REGFEE = 'regfee';
@@ -17,11 +17,12 @@ class tokens {
   var $FEESIG = 'feesig';
   var $PUBKEY = 'pubkey';
   var $PUBKEYSIG = 'pubkeysig';
+  var $TOKENID = 'tokenid';
   var $ASSET = 'asset';
   var $ASSETNAME = 'assetname';
   var $ACCOUNT = 'account';
   var $LAST = 'last';
-  var $LASTREQUEST = 'lastrequest';
+  var $REQ = 'req';
   var $BALANCE = 'balance';
   var $MAIN = 'main';
   var $OUTBOX = 'outbox';
@@ -33,7 +34,7 @@ class tokens {
   var $REGISTER = 'register';
   var $FAILED = 'failed';
   var $REASON = 'reason';
-  var $GETLASTREQUEST = 'getlastrequest';
+  var $GETREQ = 'getreq';
   var $GETFEES = 'getfees';
   var $SPEND = 'spend';
   var $PROCESSINBOX = 'processinbox';
@@ -48,7 +49,6 @@ class tokens {
 
   // request parameter names
   var $CUSTOMER = 'customer';
-  var $REQ = 'req';
   var $NAME = 'name';
   var $RANDOM = 'random';
   var $REQUEST = 'request';
