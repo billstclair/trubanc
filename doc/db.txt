@@ -199,7 +199,7 @@ Spend
   for the fees to be taken from. The bank figures out if it can make
   it work.
 
-(<id>,spend,<time#>,<id2>,<assetid>,<amount>,note:<note>,acct:<name>).
+(<id>,spend,<time#>,<id2>,<assetid>,<amount>,note:<note>>).
   (<id>,balance,<time#>,<assetid>,<amount>,acct:<acct>).
   (<id>,balance,<time#>,assetid2>,<amount2>,acct:<acct2>).
   ...

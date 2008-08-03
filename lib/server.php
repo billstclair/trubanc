@@ -207,6 +207,7 @@ class server {
   function do_id($args, $reqs, $msg) {
     $t = $this->t;
     $db = $this->db;
+    // $t->ID => array($t->ID)
     $customer = $args[$t->CUSTOMER];
     $id = $args[$t->ID];
     if ($id == '0') $id = $this->bankid;
@@ -219,6 +220,7 @@ class server {
   function do_register($args, $reqs, $msg) {
     $t = $this->t;
     $db = $this->db;
+    // $t->REGISTER => array($t->PUBKEY,$t->NAME=>1)
     $id = $args[$t->CUSTOMER];
     $pubkey = $args[$t->PUBKEY];
     if ($this->pubkeydb->get($id)) {
@@ -267,7 +269,67 @@ class server {
     return $db->get($t->PUBKEYSIG . "/$bankid");
   }
 
+  // Process a spend
+  function do_spend($args, $reqs, $msg) {
+    $t = $this->t;
+    $db = $this->db;
+    // $t->SPEND => array($t->TIME,$t->ID,$t->ASSET,$t->AMOUNT,$t->NOTE=>1),
+    $id = $args[$t->CUSTOMER];
+    $time = $args[$t->TIME];
+    $id2 = $args[$t->ID];
+    $assetid = $args[$t->ASSET];
+    $amount = $args[$t->AMOUNT];
+    $note = $args[$t->NOTE];
+
+    $tokens = 0;
+    $tokenid = $this->tokenid;
+    if ($id != $id2) {
+      // Spends to yourself are free
+      $tokens = $db->get($t->TRANFEE);
+    }
+    $debits = array($tokenid => $tokens, $assetid => $amount);
+
+    $bals = array();
+    $outboxhash = false;
+    $first = true;
+    foreach ($reqs as $req) {
+      if ($first) next;
+      else $first = false;
+      $reqargs = $this->match_pattern($msg, $req);
+      if (is_string($req_args)) return $reqargs; // match error
+      $reqid = $reqargs[$t->CUSTOMER];
+      $reqreq = $reqargs[$t->REQ];
+      if ($reqid != $id) return $this->failmsg($msg, "ID mismatch");
+      if ($reqreq == $t->BALANCE) {
+        
+      }
+    }
+  }
+
   /*** End request processing ***/
+
+  function patterns() {
+    $t = $this->t;
+    if (!this->patterns) {
+      $patterns = array($t->BALANCE => array($t->TIME, $t->ASSET, $t->AMOUNT, $t->ACCT=>1),
+                        $t->OUTBOXHASH => array($t->TIME, $t->OUTBOXHASH));
+      $this->patterns = $patterns;
+    }
+    return $this->patterns;
+  }
+
+  function match_pattern($msg, $req) {
+    $pattern = $this->patterns[$req[1]];
+    if ($pattern) return $this->failmsg($msg, "Unknown request: " . $req[1]);
+    $pattern = array_merge(array($t->CUSTOMER,$t->REQ), $pattern);
+    $args = $this->parser->matchargs($req, $pattern);
+    if (!$args) {
+      return $this->failmsg($msg,
+                            "Request doesn't match pattern: " .
+                            $parser->formatpattern($pattern));
+    }
+    return $args;
+  }
 
   function commands() {
     $t = $this->t;
@@ -277,7 +339,7 @@ class server {
                      $t->GETREQ => array($t->REQUEST),
                      $t->TIME => array($t->REQUEST),
                      $t->GETFEES => array($t->OPERATION,$t->REQUEST),
-                     $t->SPEND => array($t->TIME,$t->ID,$t->ASSET,$t->AMOUNT,$t->NOTE=>1,$t->ACCT=>1),
+                     $t->SPEND => array($t->TIME,$t->ID,$t->ASSET,$t->AMOUNT,$t->NOTE=>1),
                      $t->INBOX => array($t->REQUEST),
                      $t->PROCESSINBOX => array($t->TIMELIST),
                      $t->GETASSET => array($t->ASSET,$t->REQUEST),
