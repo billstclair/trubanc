@@ -54,7 +54,7 @@ $dbdir/
       last=<time#>  -- The last used value of /account/<id>/time
       req=<req#>    -- starts at 0. New requests must have a higher number
       balance/
-        <name>/  -- "main" is the default balance name
+        <acct>/  -- "main" is the default acct name
           <assetid>=(<id>,balance,<time#>,<assetid>,<amount>,acct:<acct>)
       outbox/
         <time2#>=(<id>,spend,<time2#>,<id2>,assetid2>,<amount2>,note:<note2>,acct:<acct2>)
@@ -212,7 +212,7 @@ Spend
   sorted numerically by <time#>, match what the customer sent. If they
   match, bank sets /account/<id>/time to 0, stores the spend in
   /account/<id>/outbox/<time#> and /account/<id2>/inbox/<time#>, sets
-  the /account/<id>/balance/<name>/<assetid> to the customer's balance
+  the /account/<id>/balance/<acct>/<assetid> to the customer's balance
   items, updates /account/<id>/hash with the customer's hash item, and
   sends:
 
@@ -225,7 +225,7 @@ Spend
 
 If they don't match, bank returns:
 
-(<bankid>,failed,(<id>,spend,<time#>,<id2>,<assetid>,<amount>,note:<note>,acct:<name>),errcode:<errcode>,reason:<reason>).
+(<bankid>,failed,(<id>,spend,<time#>,<id2>,<assetid>,<amount>,note:<note>,acct:<acct>),errcode:<errcode>,reason:<reason>).
   (<id>,balance,<time#>,<assetid>,<amount>,acct:<acct>).
   (<id>,outboxhash,<time#>,<hash>)
 
@@ -291,7 +291,7 @@ the balances and outboxhash sent by customer. If correct, bank sets
 the transaction from /account/<id>/inbox/, removes completed
 transactions from /account/<id>/outbox/, signs and adds spend|accept
 and spend|reject items to the other customers' inboxes, updates the
-/account/<id>/balance/<nameN>/<assetidN> with the balances the
+/account/<id>/balance/<acctN>/<assetidN> with the balances the
 customer sent, updates /account/<id>/outboxhash with the outboxhash
 item the customer sent, and sends back:
 
@@ -358,10 +358,11 @@ Create asset
   usage token can exist during registration). I haven't worked out the
   process to switch issuer ownership.
 
-  If the /asset/<assetid> does not exist, /assetname/<assetname> does
-  not exist, <time4#> is greater than /account/<id>/time, and the
-  customer has properly subtracted the createasset fees from the
-  balances in /account/<id>/balance/<acctN>, then bank adds
+  If <assetid> is the hash of <id><scale><precision><assetname>,
+  /asset/<assetid> does not exist, <time4#> is greater than
+  /account/<id>/time, and the customer has properly subtracted the
+  createasset fees from the balances in /account/<id>/balance/<acctN>
+  (including a balance of -1 for the new asset), then bank adds
   <assetid>=(<id>,asset,<assetid>,<scale>,<precision>,<assetname>) to
   /asset/, adds <assetname>=<assetid> to /assetname/, and returns:
 
