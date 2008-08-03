@@ -15,32 +15,27 @@ $dbdir/
   privkey=<privkey>   -- the private key. Maybe this shouldn't be in
                       -- the database, so it doesn't get backed up.
   bankid=<bankid>  -- The id of the private key
-  regfee=<regfee>  -- Usage tokens paid for registration
+  regfee=(<bankid>,regfee,<fee#>,<tokenid>,<amount>)
+                   -- Usage tokens paid for registration
                    -- default: 10 (2 each for /pubkey & /pubkeysig,
                    --              <id>, time#, balance, outbox, inbox,
                    --              and one bonus token)
-  )
-  regfeesig=(<bankid>,regfee,<fee#>,0,<amount>)
-  tranfee=<tranfee>  -- Usage tokens paid for a transaction.
-                      -- Returned when the transaction completes.
-                      -- Default: 2 (inbox & outbox entry)
-  tranfeesig=(<bankid>,tranfee,<fee#>,0,<amount>)
+  tranfee=(<bankid>,tranfee,<fee#>,<tokenid>,<amount>)
+                   -- Usage tokens paid for a transaction.
+                   -- Returned when the transaction completes.
+                   -- Default: 2 (inbox & outbox entry)
   fee/  -- permanent fees, paid for transactions of the given type
         -- Default: none
-    spend=<assetid>:<amount>[.<assetid>:<amount>...]
-    note=<assetid>:<amount>[.<assetid>:<amount>...]
-    createasset=<assetid>:<amount>[.<assetid>:<amount>...]
-  feesig/
     spend=(<bankid>,fee|spend,<fee#>,<assetid>,<amount>)[...]
-    note=(<bankid>,fee|note,<fee#>,<assetid>,<amount>)[...]
+    selfspend=(<bankid>,fee|spend,<fee#>,<assetid>,<amount>)[...]
     createasset=(<bankid>,fee|createasset,<fee#>,<assetid>,<amount>)[...]
-  pubkey/
+  pubkey/  -- for fast lookup. Must verify that <id> = hash(<pubkey>)
     <id>=<pubkey>
   pubkeysig/
     <id>=(<id>,pubkey,<pubkey>,name>)
-  tokenid=<tokenid>  -- The assetid of the usage token asset
+  tokenid=(<bankid>,tokenid,<tokenid>)  -- The assetid of the usage token asset
   asset/ -- Where the asset types are stored
-    <assetid>=(<id>,asset,<assetid>,<scale>,<precision>,<assetname>)
+    <assetid>=(<bankid>,@asset,(<id>,asset,<assetid>,<scale>,<precision>,<assetname>))
         -- The assetid is the sha1 hash of a comma-separated
         -- concatenation of <id>,<scale>,<precision>,<assetname>
         -- This makes an assetid impossible to forge, though there
@@ -55,15 +50,15 @@ $dbdir/
       req=<req#>    -- starts at 0. New requests must have a higher number
       balance/
         <acct>/  -- "main" is the default acct name
-          <assetid>=(<id>,balance,<time#>,<assetid>,<amount>,acct:<acct>)
+          <assetid>=(<bankid>,@balance,(<id>,balance,<time#>,<assetid>,<amount>,acct:<acct>))
       outbox/
-        <time2#>=(<id>,spend,<time2#>,<id2>,assetid2>,<amount2>,note:<note2>,acct:<acct2>)
-        <time3#>=(<id>,spend,<time3#>,<id3>,<assetid3>,<amount3>,note:<note3>,acct:<acct3>)
-      outboxhash=(<id>,outboxhash,<time#>,<hash>)
+        <time2#>=(<bankid>,@spend,(<id>,spend,<time2#>,<id2>,assetid2>,<amount2>,note:<note2>,acct:<acct2>))
+        <time3#>=(<bankid>,@spend,<id>,spend,<time3#>,<id3>,<assetid3>,<amount3>,note:<note3>,acct:<acct3>))
+      outboxhash=(<bankid>,@outboxhash,(<id>,outboxhash,<time#>,<hash>))
       inbox/
-        <time5#>=(bankid,inbox,<time5#>,(<id2>,spend|accept,<time2#>,note:<note22>,acct:<acct2>))
-        <time6#>=(bankid,inbox,<time6#>,(<id3>,spend|reject,<time3#>,note:<note32>))
-        <time7#>=(bankid,inbox,<time7#>,(<id4>,spend,<time4#>,note:<note4>))
+        <time5#>=(<bankid>,inbox,<time5#>,(<id2>,spend|accept,<time2#>,note:<note22>,acct:<acct2>))
+        <time6#>=(<bankid>,inbox,<time6#>,(<id3>,spend|reject,<time3#>,note:<note32>))
+        <time7#>=(<bankid>,inbox,<time7#>,(<id4>,spend,<time4#>,note:<note4>))
 
 === Transactions ===
 
@@ -216,18 +211,16 @@ Spend
   items, updates /account/<id>/hash with the customer's hash item, and
   sends:
 
-(<bankid>,spend,<time#>,<id2>,<assetid>,<amount>,note:<note>,acct:<acct>).
-  (<bankid>,balance,<time#>,<assetid>,<amount>,acct:<acct>).
-  (<bankid>,balance,<time#>,assetid2>,<amount2>,acct:<acct2>).
+(<bankid>,@spend,(<id>,spend,<time#>,<id2>,<assetid>,<amount>,note:<note>,acct:<acct>)).
+  (<bankid>,@balance,(<id>,balance,<time#>,<assetid>,<amount>,acct:<acct>)).
+  (<bankid>,@balance,(<id>,balance,<time#>,assetid2>,<amount2>,acct:<acct2>)).
   ...
-  (<bankid>,balance,<time#>,<assetidN>,<amountN>,acct:<acctN>).
-  (<bankid>,outboxhash,<time#>,<hash>)
+  (<bankid>,@balance,(<id>,balance,<time#>,<assetidN>,<amountN>,acct:<acctN>)).
+  (<bankid>,@outboxhash,(<id>,outboxhash,<time#>,<hash>))
 
 If they don't match, bank returns:
 
-(<bankid>,failed,(<id>,spend,<time#>,<id2>,<assetid>,<amount>,note:<note>,acct:<acct>),errcode:<errcode>,reason:<reason>).
-  (<id>,balance,<time#>,<assetid>,<amount>,acct:<acct>).
-  (<id>,outboxhash,<time#>,<hash>)
+(<bankid>,failed,(<id>,spend,<time#>,<id2>,<assetid>,<amount>,note:<note>,acct:<acct>),errcode:<errcode>,reason:<reason>)
 
 
 Query Inbox
@@ -295,12 +288,12 @@ and spend|reject items to the other customers' inboxes, updates the
 customer sent, updates /account/<id>/outboxhash with the outboxhash
 item the customer sent, and sends back:
 
-(<bankid,removeinbox,<time8#>,<inbox1#>|<inbox2#>|<inbox3#>).
-  (<bankid>,balance,<time8#>,<assetid>,<amount>,acct:<acct>).
-  (<bankid>,balance,<time8#>,assetid2>,<amount2>,acct:<acct2>).
+(<bankid,@processinbox,(<id>,processinbox,<time8#>,<time7#>|<time8#>|<time9#>).
+  (<bankid>,@balance,(<id>,<time8#>,<assetid>,<amount>,acct:<acct>)).
+  (<bankid>,@balance,(<id>,balance,<time8#>,assetid2>,<amount2>,acct:<acct2>)).
   ...
-  (<bankid>,balance,<time8#>,<assetidN>,<amount3>,acct:<acctN>).
-  (<bankid>,outboxhash,<time8#>,<hash>)
+  (<bankid>,@balance,(<id>,balance,<time8#>,<assetidN>,<amount3>,acct:<acctN>)).
+  (<bankid>,@outboxhash,(<id>,outboxhash,<time8#>,<hash>))
 
   Otherwise, bank returns:
 
