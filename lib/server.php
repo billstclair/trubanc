@@ -17,6 +17,8 @@ class server {
   var $utility;
   var $pubkeydb;
   var $bankname;
+  var $regfee;
+  var $tranfee;
 
   var $privkey;
   var $bankid;
@@ -30,7 +32,7 @@ class server {
     $this->ssl = $ssl;
     $this->t = new tokens();
     $this->pubkeydb = $db->subdir($this->t->PUBKEY);
-    $this->parser = new parser($this->pubkeydb);
+    $this->parser = new parser($this->pubkeydb, $ssl);
     $this->utility = new utility();
     $this->bankname = $bankname;
     $this->setupDB($passphrase);
@@ -158,7 +160,6 @@ class server {
     $ssl = $this->ssl;
     $t = $this->t;
     $bankname = $this->bankname;
-    if (!$db->get($t->TIME)) $db->put($t->TIME, '0');
     if (!$db->get($t->PRIVKEY)) {
       // http://www.rsa.com/rsalabs/node.asp?id=2004 recommends that 3072-bit
       // RSA keys are equivalent to 128-bit symmetric keys, and they should be
@@ -170,34 +171,51 @@ class server {
       $pubkey = $ssl->privkey_to_pubkey($privkey);
       $bankid = $ssl->pubkey_id($pubkey);
       $this->bankid = $bankid;
-      $db->put($t->BANKID, $bankid);
+      $db->put($t->TIME, $this->bankmsg($t->TIME, '0'));
+      $db->put($t->BANKID, $this->bankmsg($t->BANKID, $bankid));
       $regmsg = $this->bankmsg($t->REGISTER, "\n$pubkey", $bankname);
       $db->put($t->PUBKEY . "/$bankid", $pubkey);
       $db->put($t->PUBKEYSIG . "/$bankid", $regmsg);
-      $db->put($t->REGFEE, 10);
-      $db->put($t->REGFEESIG, $this->bankmsg($t->REGFEE, 0, 0, 10));
-      $db->put($t->TRANFEE, 2);
-      $db->put($t->TRANFEESIG, $this->bankmsg($t->TRANFEE, 0, 0, 2));
       $token_name = "Asset Tokens";
       if ($this->bankname) $token_name = "$bankname $token_name";
       $tokenid = $this->assetid($bankid, 0, 0, $token_name);
       $this->tokenid = $tokenid;
       $asset = $this->bankmsg($t->ASSET, $tokenid, 0, 0, $token_name);
-      $db->put($t->TOKENID, $tokenid);
-      $db->put($t->ASSET . "/$tokenid", $asset);
+      $db->put($t->TOKENID, $this->bankmsg($t->TOKENID, $tokenid));
+      $db->put($t->ASSET . "/$tokenid", $this->bankmsg($t->ATASSET, $asset));
+      $this->regfee = 10;
+      $db->put($t->REGFEE, $this->bankmsg($t->REGFEE, 0, $tokenid, $this->regfee));
+      $this->tranfee = 2;
+      $db->put($t->TRANFEE, $this->bankmsg($t->TRANFEE, 0, $tokenid, $this->tranfee));
       $accountdir = $t->ACCOUNT . "/$bankid";
       $db->put($this->accttimekey($bankid), 0);
       $db->put($this->acctlastkey($bankid), 0);
       $db->put($this->acctreqkey($bankid), 0);
       $mainkey = $this->acctbalancekey($bankid);
-      $db->put("$mainkey/$tokenid", $this->bankmsg($t->BALANCE, 0, $tokenid, -1));
-      $db->put($this->outboxhashkey($bankid), $this->outboxhashmsg($bankid, 0));
+      $db->put("$mainkey/$tokenid",
+               $this->bankmsg($t->ATBALANCE,$this->bankmsg($t->BALANCE, 0, $tokenid, -1)));
+      $db->put($this->outboxhashkey($bankid),
+               $this->bankmsg($t->ATOUTBOXHASH, $this->outboxhashmsg($bankid, 0)));
     } else {
       $privkey = $ssl->load_private_key($db->get($t->PRIVKEY), $passphrase);
       $this->privkey = $privkey;
-      $this->bankid = $this->db->get($this->t->BANKID);
-      $this->tokenid = $db->get($t->TOKENID);
+      $this->bankid = $this->get_signed_db_item($db, $bankid, $t->BANKID);
+      $this->regfee = $this->get_signed_db_item($db, $bankid, $t->REGFEE);
+      $this->tranfee = $this->get_signed_db_item($db, $bankid, $t->TRANFEE);
+      $msg = $db->get($t->TOKENID);
+      $this->tokenid = $req[2];
     }
+  }
+
+  // Get a signed item from the database
+  function get_signed_db_item($db, $bankid, $key) {
+    $msg = $this->db->get($key);
+    if (!$msg) die("No value for /$key");
+    $req = $parser->parse($msg);
+    if (!$req) die("While parsing $msg: " . $parser->errmsg);
+    if ($req[0] != $bankid) die("Wrong bankid in $msg");
+    if ($req[1] != $key) die("Key should be '$key' in $msg");
+    return $req[2];
   }
 
   // Bank sign a message
@@ -597,10 +615,11 @@ function process($msg) {
 $time = $server->gettime();
 $tokenid = $server->tokenid;
 $t = $server->t;
-$regfee = $db->get($t->REGFEE);
+$regfee = $server->regfee;
 if (!$db->get($t->PUBKEY, "/$id")) {
   $db->put($server->inboxkey($id) . "/$time",
-           $server->signed_spend($time, $id, $tokenid, $regfee * 2, "Gift"));
+           $server->bankmsg($t->INBOX,
+                            $server->signed_spend($time, $id, $tokenid, $regfee * 2, "Gift")));
 }
 
 echo process(custmsg("register",$pubkey,"George Jetson"));

@@ -11,18 +11,22 @@ name:<item> denotes an optional item, passed by position or name
 Items in parens  are signed. Signature omitted here.
 
 $dbdir/
-  time=<time#>  -- The global timestamp
+  time=(<bankid>,time,<time#>)  -- The global timestamp
   privkey=<privkey>   -- the private key. Maybe this shouldn't be in
-                      -- the database, so it doesn't get backed up.
-  bankid=<bankid>  -- The id of the private key
-  regfee=(<bankid>,regfee,<fee#>,<tokenid>,<amount>)
+                      -- the database, so it doesn't get backed up,
+                      -- But once we have a stand-alone server, it
+                      -- will need a passphrase to use
+  bankid=(<bankid>bankid,<bankid>)      -- The id of the private key
+  tokenid=(<bankid>,tokenid,<tokenid>)  -- The assetid of the usage token asset
+  regfee=(<bankid>,regfee,<time#>,<tokenid>,<amount>)
                    -- Usage tokens paid for registration
-                   -- default: 10 (2 each for /pubkey & /pubkeysig,
-                   --              <id>, time#, balance, outbox, inbox,
-                   --              and one bonus token)
-  tranfee=(<bankid>,tranfee,<fee#>,<tokenid>,<amount>)
+                   -- default: 10 (pubkey/<id> (2),
+                                  account/<id>/(time, last, req, outboxhash),
+                                  and a few for good luck)
+  tranfee=(<bankid>,tranfee,<time#>,<tokenid>,<amount>)
                    -- Usage tokens paid for a transaction.
                    -- Returned when the transaction completes.
+                   -- Given to recipient when he rejects a spend (anti-spam)
                    -- Default: 2 (inbox & outbox entry)
   fee/  -- permanent fees, paid for transactions of the given type
         -- Default: none
@@ -33,7 +37,6 @@ $dbdir/
     <id>=<pubkey>
   pubkeysig/
     <id>=(<id>,pubkey,<pubkey>,name>)
-  tokenid=(<bankid>,tokenid,<tokenid>)  -- The assetid of the usage token asset
   asset/ -- Where the asset types are stored
     <assetid>=(<bankid>,@asset,(<id>,asset,<assetid>,<scale>,<precision>,<assetname>))
         -- The assetid is the sha1 hash of a comma-separated

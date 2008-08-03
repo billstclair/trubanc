@@ -14,6 +14,8 @@ class parser {
 
   var $keydb = false;
   var $ssl = false;
+  var $keydict = false;
+
   var $errstr = false;
   var $errmsg = false;
 
@@ -21,6 +23,7 @@ class parser {
     $this->keydb = $keydb;
     if (!$ssl) $ssl = new ssl();
     $this->ssl = $ssl;
+    $keydict = array();         // validated keys
   }
 
   // Return an array or false if the parse could not be done,
@@ -130,21 +133,28 @@ class parser {
             $this->errmsg = "Signature without ID at $pos";
             return false;
           }
-          $keydb = $this->keydb;
-          $pubkey = $keydb->get($id);
+          $keydict = $this->keydict;
+          $pubkey = $keydict[$id];
+          if (!$pubkey) {
+            $keydb = $this->keydb;
+            $pubkey = $keydb->get($id);
+            if ($pubkey) {
+              if ($id != $this->ssl->pubkey_id($pubkey)) {
+                $this->errmsg = "Pubkey doesn't match id: $id";
+                return false;
+              }
+              $keydict[$id] = $pubkey;
+            }
+          }
           if (!$pubkey && $dict[1] == 'register') {
             // May be the first time we've seen this ID.
             // If it's a key definition message, we've got all we need.
             $pubkey = $dict[2];
             $pubkeyid = $this->ssl->pubkey_id($pubkey);
-            if ($id != $pubkeyid) {
-              $pubkey = false;
-              //            } else {
-              //              $keydb->put($id, $pubkey);
-            }
+            if ($id != $pubkeyid) $pubkey = false;
+            else $keydict[$id]= $pubkey;
           }
-          // Eventually, we'll need to look up the pubkey from the server here.
-          // That will require init parms for the server & my <id>
+          // The client will need to look up and cache the pubkey from the server here.
           if (!$pubkey) {
             $this->errmsg = "No key for id: $id at $pos";
             return false;

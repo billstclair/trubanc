@@ -9,17 +9,13 @@ class tokens {
   var $TIME = 'time';
   var $PRIVKEY = 'privkey';
   var $BANKID = 'bankid';
+  var $TOKENID = 'tokenid';
   var $REGFEE = 'regfee';
-  var $REGFEESIG = 'regfeesig';
   var $TRANFEE = 'tranfee';
-  var $TRANFEESIG = 'tranfeesig';
   var $FEE = 'fee';
-  var $FEESIG = 'feesig';
   var $PUBKEY = 'pubkey';
   var $PUBKEYSIG = 'pubkeysig';
-  var $TOKENID = 'tokenid';
   var $ASSET = 'asset';
-  var $ASSETNAME = 'assetname';
   var $ACCOUNT = 'account';
   var $LAST = 'last';
   var $REQ = 'req';
@@ -38,8 +34,6 @@ class tokens {
   var $GETFEES = 'getfees';
   var $SPEND = 'spend';
   var $PROCESSINBOX = 'processinbox';
-  var $NOTE = 'note';
-  var $ACCT = 'acct';
   var $SPENDACCEPT = 'spend|accept';
   var $SPENDREJECT = 'spend|reject';
   var $AFFIRM = 'affirm';
@@ -47,15 +41,22 @@ class tokens {
   var $GETOUTBOX = 'getoutbox';
   var $GETBALANCE = 'getbalance';
 
+  // Affirmations
+  var $ATOUTBOXHASH = '@outboxhash';
+  var $ATBALANCE = '@balance';
+  var $ATSPEND = '@spend';
+  var $ATASSET = '@asset';
+
   // request parameter names
   var $CUSTOMER = 'customer';
   var $NAME = 'name';
-  var $RANDOM = 'random';
+  var $NOTE = 'note';
+  var $ACCT = 'acct';
   var $REQUEST = 'request';
   var $OPERATION = 'operation';
   var $TRAN = 'tran';
   var $AMOUNT = 'amount';
-  var $TRANLIST = 'tranlist';
+  var $ASSETNAME = 'assetname';
   var $SCALE = 'scale';
   var $PRECISION = 'precision';
   var $HASH = 'hash';
