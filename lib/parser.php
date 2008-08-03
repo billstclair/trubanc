@@ -220,6 +220,22 @@ class parser {
     return $res;
   }
 
+  // Return just the message part of a signed message, not including the signature.
+  // Assumes that the message will parse.
+  function unsigned_message($msg) {
+    $pos = strpos('):', $msg);
+    if ($pos === FALSE) return $msg;
+    return substr($msg, 0, $pos+1);
+  }
+
+  // Return the first message in a list of them.
+  // Assumes that message parses correctly.
+  function first_message($msg) {
+    $pos = strpos('.', $msg);
+    if ($pos === FALSE) return $msg;
+    else return substr($msg, 0, $pos);
+  }
+
   // $parse is an array with numeric and string keys
   // $pattern is an array with numeric keys with string value, and
   // non-numeric keys with non-false values.

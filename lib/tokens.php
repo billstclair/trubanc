@@ -58,6 +58,7 @@ class tokens {
   var $TRANLIST = 'tranlist';
   var $SCALE = 'scale';
   var $PRECISION = 'precision';
+  var $HASH = 'hash';
 }
 
 // Copyright 2008 Bill St. Clair

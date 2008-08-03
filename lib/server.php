@@ -90,17 +90,66 @@ class server {
     return $this->accountdir($id) . $this->t->INBOX;
   }
 
-  function outboxhash($id) {
-    $bankid = $this->bankid;
+  function outboxhash($id, $transtime, $newitem=false) {
+    $parser = $this->parser;
+    $db = $this->db;
+    $dir = $this->outboxkey($id);
     $contents = $this->db->contents($this->outboxkey($id));
+    if ($newitem) $contents[] = $transtime;
     $contents = $this->utility->bignum_sort($contents);
+    $unhashed = '';
+    foreach ($contents as $time) {
+      if (bccomp($time, $transtime) <= 0) {
+        if ($time == $transtime) $item = $newtime;
+        else $item = $db->get("$dir/$time");
+        $entry = $parser->unsigned_message($item);
+        if ($unhashed != '') $unhashed .= '.';
+        $unhashed .= $entry;
+      }
+    }
     $tranlist = implode(',', $contents);
-    $hash = sha1($tranlist);
-    return $this->bankmsg($this->t->OUTBOXHASH, $this->getacctlast($id), $hash);
+    return sha1($tranlist);
+  }
+
+  function outboxhashmsg($id, $transtime) {
+    return $this->bankmsg($this->t->OUTBOXHASH, $this->getacctlast($id),
+                          $this->outboxhash($id, $transtime));
   }
 
   function assetID($id, $scale, $precision, $name) {
     return sha1("$id,$scale,$precision,$name");
+  }
+
+  function is_asset($assetid) {
+    return $this->db->get($this->t->ASSET . "/$assetid");
+  }
+
+  function lookup_asset($assetid) {
+    $asset = is_assset($assetid);
+    return $this->parser->parse($asset);
+  }
+
+  function lookup_asset_name($assetid) {
+    $assetreq = $this->lookup_asset($assetid);
+    return $assetreq[5];
+  }
+
+  function lookup_tranfee() {
+    return $this->db->get($this->t->TRANFEE);
+  }
+
+  function is_alphanumeric($char) {
+    $ord = ord($char);
+    return ($ord >= ord('0') && $ord <= ord('9')) ||
+      ($ord >= ord('A') && $ord <= ord('Z')) ||
+      ($ord >= ord('a') && $ord <= ord('z'));
+  }
+
+  function is_acct_name($acct) {
+    for ($i=0; $i<strlen($acct); $i++) {
+      if (!is_alphanumeric(substr($acct, $i, 1))) return false;
+    }
+    return true;
   }
 
   // Initialize the database, if it needs initializing
@@ -142,7 +191,7 @@ class server {
       $db->put($this->acctreqkey($bankid), 0);
       $mainkey = $this->acctbalancekey($bankid);
       $db->put("$mainkey/$tokenid", $this->bankmsg($t->BALANCE, 0, $tokenid, -1));
-      $db->put($this->outboxhashkey($bankid), $this->outboxhash($bankid));
+      $db->put($this->outboxhashkey($bankid), $this->outboxhashmsg($bankid, 0));
     } else {
       $privkey = $ssl->load_private_key($db->get($t->PRIVKEY), $passphrase);
       $this->privkey = $privkey;
@@ -199,6 +248,39 @@ class server {
     } elseif ($acct) {
       return $this->bankmsg($this->t->SPEND, $time, $id, $assetid, $amount, "acct=$acct");
     } else return $this->bankmsg($this->t->SPEND, $time, $id, $assetid, $amount);
+  }
+
+  function enq_time($id) {
+    $db = $this->db;
+    $time = $this->gettime();
+    $key = $this->accttimekey($id);
+    $lock = $db->lock($key);
+    $q = $db->get($key);
+    if (!$q) $q = $time;
+    else $q .= ",$time";
+    $db->put($q);
+    $db->unlock($lock);
+    return $q;
+  }
+
+  function deq_time($id) {
+    $db = $this->db;
+    $key = $this->accttimekey($id);
+    $lock = $db->lock($key);
+    $q = $db->get($key);
+    if (!$q) return false;
+    $pos = strpos(',', $q);
+    if (!$pos) {
+      $time = $q;
+      $q = 0; // don't want to delete the file, so store 0 instead of ''
+    } else {
+      $time = strpos($q, 0, $pos);
+      $q = strpos($q, $pos+1);
+    }
+    $db->put($key, $q);
+    $db->put($this->acctlastkey($id), $time);
+    $db->unlock($lock);
+    return $time;
   }
 
   /*** Request processing ***/
@@ -281,15 +363,29 @@ class server {
     $amount = $args[$t->AMOUNT];
     $note = $args[$t->NOTE];
 
+    // Burn the transaction, even if balances don't match.
+    $accttime = $this->deq_time($id);
+    if (!$accttime) return $this->failmsg($msg, "No timestamp enqueued");
+    if ($accttime != $time) return $this->failmsg($msg, "Timestamp mismatch");
+
+    if (!$this->is_asset($assetid)) {
+      return $this->failmsg($msg, "Unknown asset id: $assetid");
+    }
+    if (!is_numeric($amount)) {
+      return $this->failmsg($msg, "Not a number: $amount");
+    }
+
     $tokens = 0;
     $tokenid = $this->tokenid;
     if ($id != $id2) {
       // Spends to yourself are free
-      $tokens = $db->get($t->TRANFEE);
+      $tokens = $this->lookup_tranfee();
     }
-    $debits = array($tokenid => $tokens, $assetid => $amount);
 
-    $bals = array();
+    $bals = array($tokenid => -$tokens,
+                  $assetid => -$amount);
+    $acctbals = array();
+
     $outboxhash = false;
     $first = true;
     foreach ($reqs as $req) {
@@ -299,20 +395,87 @@ class server {
       if (is_string($req_args)) return $reqargs; // match error
       $reqid = $reqargs[$t->CUSTOMER];
       $reqreq = $reqargs[$t->REQ];
+      $reqtime = $reqargs[$t->TIME];
+      if ($reqtime != $time) return $this->failmsg($msg, "Timestamp mismatch");
       if ($reqid != $id) return $this->failmsg($msg, "ID mismatch");
       if ($reqreq == $t->BALANCE) {
-        
+        $balasset = $t->ASSET;
+        $balamount = $t->AMOUNT;
+        $acct = $t->ACCT || $t->MAIN;
+        if (!$this->is_asset($balasset)) {
+          return $this->failmsg($msg, "Unknown asset id: $balasset");
+        }
+        if (!is_numeric($balamount)) {
+          return $this->failmsg($msg, "Not a number: $balamount");
+        }
+        if (!is_acct_name($acct)) {
+          return $this->failmsg($msg, "Acct may contain only letters and digits: $acct");
+        }
+        $bals[$balasset] += $balamount;
+        $acctmsg = $db->get($this->acctbalancekey($id, $acct));
+        $acctreq = $parser->parse($acctmsg);
+        if ($acctreq) $acctargs = $this->match_pattern($acctmsg, $acctreq);
+        else $acctargs = false;
+        if (!$acctargs || $acctargs[$t->ASSET] != $balasset) {
+          // This really needs to notify the bank owner, somehow. We're in deep shit.
+          $name = $this->lookup_asset_name($balasset);
+          return $this->failmsg($msg, "Bank entry corrupted for acct: $acct, asset: $name ($balasset)");
+        }
+        $bals[$balasset] -= $acctargs[$t->AMOUNT];
+        $acctbals[$acct][$balasset] += $balamount;
+      } elseif ($reqreq == $t->OUTBOXHASH) {
+        if ($outboxhash) {
+          return $this->failmsg($msg, $t->OUTBOXHASH . " appeared multiple times");
+        }
+        $outboxhash = $req;
+        $hash = $reqargs[$t->HASH];
+      } else {
+        return $this->failmsg($msg, "$reqreq not valid for spend. Only " . $t->BALANCE .
+                              "and " . $t->OUTBOXHASH);
       }
     }
+
+    $errmsg = "";
+    $first = true;
+    foreach ($bals as $balasset => $balamount) {
+      if ($balamount != 0) {
+        $name = $this->lookup_asset_name($balasset);
+        if (!$first) $errmsg .= ',';
+        $first = false;
+        $errmsg .= " $name: $balamount";
+      }
+    }
+    if ($errmsg != '') return $this->failmsg($msg, "Balance discrepanies: $errmsg");
+
+    if ($this->outboxhash($id, $outboxhash) != $hash) {
+      return $this->failmsg($msg, $t->OUTBOXHASH . ' mismatch');
+    }
+
+    // All's well with the world. Commit this baby.
+    $spendmsg = $parser->first_message($msg);
+    $inbox_item = $this->bankmsg($this->INBOX, $this->gettime(), $spendmsg);
+    
+    // Grab lock
+
+    // Append spend to outbox
+
+    // Append spend to recipient's inbox
+
+    // Update balances
+
+    // Release lock
+
+    // Create return message
   }
 
   /*** End request processing ***/
 
+  // Patterns for non-request data
   function patterns() {
     $t = $this->t;
-    if (!this->patterns) {
+    if (!$this->patterns) {
       $patterns = array($t->BALANCE => array($t->TIME, $t->ASSET, $t->AMOUNT, $t->ACCT=>1),
-                        $t->OUTBOXHASH => array($t->TIME, $t->OUTBOXHASH));
+                        $t->OUTBOXHASH => array($t->TIME, $t->HASH));
       $this->patterns = $patterns;
     }
     return $this->patterns;

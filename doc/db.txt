@@ -319,6 +319,9 @@ and the usage token refunds by where he specifies the balances in the
 "balance" items. The bank only verifies that the assets can be
 distributed as the customer requested.
 
+Rejected spends credit the usage tokens to the recipient, not the
+spender. This discourages spam, even in an otherwise free bank.
+
 
 Lookup asset
 ------------
