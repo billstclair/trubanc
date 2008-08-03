@@ -385,6 +385,7 @@ class server {
     $bals = array($tokenid => -$tokens,
                   $assetid => -$amount);
     $acctbals = array();
+    $newbalcnt = 0;             // number of new balance slots needed. Each costs a token
 
     $outboxhash = false;
     $first = true;
@@ -401,6 +402,7 @@ class server {
       if ($reqreq == $t->BALANCE) {
         $balasset = $t->ASSET;
         $balamount = $t->AMOUNT;
+        if ($balamount < 0) return $this->failmsg($msg, "Balance may not be negative");
         $acct = $t->ACCT || $t->MAIN;
         if (!$this->is_asset($balasset)) {
           return $this->failmsg($msg, "Unknown asset id: $balasset");
@@ -411,18 +413,21 @@ class server {
         if (!is_acct_name($acct)) {
           return $this->failmsg($msg, "Acct may contain only letters and digits: $acct");
         }
+        $acctbals[$acct][$balasset] += $balamount;
         $bals[$balasset] += $balamount;
         $acctmsg = $db->get($this->acctbalancekey($id, $acct));
-        $acctreq = $parser->parse($acctmsg);
-        if ($acctreq) $acctargs = $this->match_pattern($acctmsg, $acctreq);
-        else $acctargs = false;
-        if (!$acctargs || $acctargs[$t->ASSET] != $balasset) {
-          // This really needs to notify the bank owner, somehow. We're in deep shit.
-          $name = $this->lookup_asset_name($balasset);
-          return $this->failmsg($msg, "Bank entry corrupted for acct: $acct, asset: $name ($balasset)");
+        if (!$acctmsg) $newbalcnt++;
+        else {
+          $acctreq = $parser->parse($acctmsg);
+          if ($acctreq) $acctargs = $this->match_pattern($acctmsg, $acctreq);
+          else $acctargs = false;
+          if (!$acctargs || $acctargs[$t->ASSET] != $balasset) {
+            // This really needs to notify the bank owner, somehow. We're in deep shit.
+            $name = $this->lookup_asset_name($balasset);
+            return $this->failmsg($msg, "Bank entry corrupted for acct: $acct, asset: $name ($balasset)");
+          }
+          $bals[$balasset] -= $acctargs[$t->AMOUNT];
         }
-        $bals[$balasset] -= $acctargs[$t->AMOUNT];
-        $acctbals[$acct][$balasset] += $balamount;
       } elseif ($reqreq == $t->OUTBOXHASH) {
         if ($outboxhash) {
           return $this->failmsg($msg, $t->OUTBOXHASH . " appeared multiple times");
@@ -435,14 +440,17 @@ class server {
       }
     }
 
+    // Charge a token for each new balance file
+    $bals[$tokenid] -= $newbalcnt;
+
     $errmsg = "";
     $first = true;
     foreach ($bals as $balasset => $balamount) {
       if ($balamount != 0) {
         $name = $this->lookup_asset_name($balasset);
-        if (!$first) $errmsg .= ',';
+        if (!$first) $errmsg .= ', ';
         $first = false;
-        $errmsg .= " $name: $balamount";
+        $errmsg .= "$name: $balamount";
       }
     }
     if ($errmsg != '') return $this->failmsg($msg, "Balance discrepanies: $errmsg");
@@ -459,9 +467,9 @@ class server {
 
     // Append spend to outbox
 
-    // Append spend to recipient's inbox
-
     // Update balances
+
+    // Append spend to recipient's inbox
 
     // Release lock
 
