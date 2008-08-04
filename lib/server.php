@@ -92,6 +92,10 @@ class server {
     return $this->accountdir($id) . $this->t->INBOX;
   }
 
+  function spenddir($id) {
+    return $this->accountdir($id) . $this->t->SPEND;
+  }
+
   function outboxhash($id, $transtime, $newitem=false) {
     $parser = $this->parser;
     $db = $this->db;
@@ -134,10 +138,6 @@ class server {
   function lookup_asset_name($assetid) {
     $assetreq = $this->lookup_asset($assetid);
     return $assetreq[5];
-  }
-
-  function lookup_tranfee() {
-    return $this->db->get($this->t->TRANFEE);
   }
 
   function is_alphanumeric($char) {
@@ -408,6 +408,16 @@ class server {
   function do_spend($args, $reqs, $msg) {
     $t = $this->t;
     $db = $this->db;
+    $id = $args[$t->CUSTOMER];
+    $lock = $db->lock($this->accttimekey($id));
+    $res = do_spend_internal($args, $reqs, $msg);
+    $db->unlock($lock);
+    return $res;
+  }
+
+  function do_spend_internal($args, $reqs, $msg) {
+    $t = $this->t;
+    $db = $this->db;
     // $t->SPEND => array($t->BANKID,$t->TIME,$t->ID,$t->ASSET,$t->AMOUNT,$t->NOTE=>1),
     $id = $args[$t->CUSTOMER];
     $time = $args[$t->TIME];
@@ -432,7 +442,7 @@ class server {
     $tokenid = $this->tokenid;
     if ($id != $id2) {
       // Spends to yourself are free
-      $tokens = $this->lookup_tranfee();
+      $tokens = $this->tranfee;
     }
 
     $bals = array($tokenid => -$tokens,
@@ -466,7 +476,10 @@ class server {
         if (!is_acct_name($acct)) {
           return $this->failmsg($msg, "Acct may contain only letters and digits: $acct");
         }
-        $acctbals[$acct][$balasset] += $balamount;
+        if ($acctbals[$acct][$balasset]) {
+          return $this->failmsg($msg, "Duplicate acct/asset pair");
+        }
+        $acctbals[$acct][$balasset] += $balamount; // *** this needs to be the signed user item ***
         $bals[$balasset] += $balamount;
         $acctmsg = $db->get($this->acctbalancekey($id, $acct));
         if (!$acctmsg) $newbalcnt++;
@@ -514,17 +527,20 @@ class server {
 
     // All's well with the world. Commit this baby.
     $spendmsg = $parser->first_message($msg);
+    $outbox_item = $this->bankmsg($this->ATSPEND, $spendmsg);
     $inbox_item = $this->bankmsg($this->INBOX, $this->gettime(), $spendmsg);
+    $res = $outbox_item;
     
-    // Grab lock
-
     // Append spend to outbox
+    $db->put($this->spenddir($id) . "/$time", $outbox_item);
 
     // Update balances
+    $dir = $this->accountdir($id);
+    foreach ($acctbals as $acct => $balance) {
+      
+    }
 
     // Append spend to recipient's inbox
-
-    // Release lock
 
     // Create return message
   }

@@ -71,6 +71,12 @@ class fsdb {
   }
 
   function lock($key, $create=false) {
+    $locks = $this->locks;
+    $lock = $locks[$key];
+    if ($lock) {
+      $lock[2]++;
+      return $lock;
+    }
     $filename = $this->filename($key);
     $fp = @fopen($filename, 'r');
     if (!$fp) {
@@ -81,14 +87,17 @@ class fsdb {
       if (!$fp) return false;
     }
     flock($fp, LOCK_EX);
-    $this->locks[$key] = true;
-    return array($fp, $key);
+    $lock = array($fp, $key, 1);
+    $this->locks[$key] = $lock;
+    return $lock;
   }
 
   function unlock($lock) {
     if ($lock) {
-      fclose($lock[0]);
-      unset($this->locks[$lock[1]]);
+      if (--$lock[2] <= 0) {
+        fclose($lock[0]);
+        unset($this->locks[$lock[1]]);
+      }
     }
   }
 
