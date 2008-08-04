@@ -16,6 +16,8 @@ class parser {
   var $ssl = false;
   var $keydict = false;
 
+  var $msgkey = '%msg%';        // the text of the message is stored here
+
   var $errstr = false;
   var $errmsg = false;
 
@@ -164,6 +166,7 @@ class parser {
             $this->errmsg = "Failure to verify signature at $pos for $msg";
             return false;
           }
+          $dict[$this->msgkey] = $msg;
           if (count($stack) > 0) {
             //echo "Popping\n";
             $value = $dict;
@@ -230,6 +233,11 @@ class parser {
     return $res;
   }
 
+  // Return the message string that parsed into the array in $parse
+  function parsemsg($parse) {
+    return $parse[$this->msgkey];
+  }
+
   // Return just the message part of a signed message, not including the signature.
   // Assumes that the message will parse.
   function unsigned_message($msg) {
@@ -276,7 +284,7 @@ class parser {
       $i++;
     }
     foreach ($parse as $key => $value) {
-      if ($res[$key] === NULL) return false;
+      if ($key != $this->msgkey && $res[$key] === NULL) return false;
     }
     return $res;
   }

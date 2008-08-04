@@ -62,6 +62,7 @@ class tokens {
   var $SCALE = 'scale';
   var $PRECISION = 'precision';
   var $HASH = 'hash';
+  var $MSG = 'msg';
 }
 
 // Copyright 2008 Bill St. Clair

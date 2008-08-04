@@ -200,6 +200,7 @@ class server {
     } else {
       $privkey = $ssl->load_private_key($db->get($t->PRIVKEY), $passphrase);
       $this->privkey = $privkey;
+      // Should change the numeric indices to names, and call match_pattern in get_signed_db_item
       $this->bankid = $this->get_signed_db_item($db, 0, $t->BANKID);
       $this->tokenid = $this->get_signed_db_item($db, $bankid, $t->TOKENID);
       $this->regfee = $this->get_signed_db_item($db, $bankid, $t->REGFEE,
@@ -312,18 +313,21 @@ class server {
   }
 
   function match_bank_signed_message($inmsg) {
+    $t = $this->t;
     $parser = $this->parser;
     $req = $parser->parse($inmsg);
-    if ($req) $req = $req[0];
     if (!$req) return $parser->errmsg;
-    if ($req[0] != $this->bankid) {
+    if ($req) $req = $req[0];
+    $args = $this->match_pattern($req);
+    if (!$args) return "Failed to match bank-signed message";
+    if ($args[$t->CUSTOMER] != $this->bankid) {
       return "Not signed by this bank";
     }
-    $msg = $req[count($req) - 1];
+    $msg = $args[$t->MSG];
     $req = $parser->parse($msg);
-    if ($req) $req = $req[0];
     if (!$req) return $parser->errmsg;
-    return $this->match_pattern($msg, $req);
+    if ($req) $req = $req[0];
+    return $this->match_pattern($req);
   }
 
   /*** Request processing ***/
@@ -455,7 +459,7 @@ class server {
     foreach ($reqs as $req) {
       if ($first) next;
       else $first = false;
-      $reqargs = $this->match_pattern($msg, $req);
+      $reqargs = $this->match_pattern($req);
       if (is_string($req_args)) return $this->failmsg($msg, $reqargs); // match error
       $reqid = $reqargs[$t->CUSTOMER];
       $reqreq = $reqargs[$t->REQ];
@@ -485,7 +489,7 @@ class server {
         if (!$acctmsg) $newbalcnt++;
         else {
           $acctreq = $parser->parse($acctmsg);
-          if ($acctreq) $acctargs = $this->match_pattern($acctmsg, $acctreq);
+          if ($acctreq) $acctargs = $this->match_pattern($acctreq);
           else $acctargs = false;
           if (!$acctargs || $acctargs[$t->ASSET] != $balasset) {
             // This really needs to notify the bank owner, somehow. We're in deep shit.
@@ -553,17 +557,19 @@ class server {
     if (!$this->patterns) {
       $patterns = array($t->BALANCE => array($t->BANKID,$t->TIME, $t->ASSET, $t->AMOUNT, $t->ACCT=>1),
                         $t->OUTBOXHASH => array($t->BANKID,$t->TIME, $t->HASH),
-                        $t->SPEND => array($t->BANKID,$t->TIME,$t->ID,$t->ASSET,$t->AMOUNT,$t->NOTE=>1));
+                        $t->SPEND => array($t->BANKID,$t->TIME,$t->ID,$t->ASSET,$t->AMOUNT,$t->NOTE=>1),
+                        $t->INBOX => array($t->MSG)
+                        );
       $this->patterns = $patterns;
     }
     return $this->patterns;
   }
 
-  function match_pattern($msg, $req) {
+  function match_pattern($req) {
     $t = $this->t;
     $patterns = $this->patterns();
     $pattern = $patterns[$req[1]];
-    if (!$pattern) return $this->failmsg($msg, "Unknown request: '" . $req[1] . "'");
+    if (!$pattern) return "Unknown request: '" . $req[1] . "'";
     $pattern = array_merge(array($t->CUSTOMER,$t->REQ), $pattern);
     $args = $this->parser->matchargs($req, $pattern);
     if (!$args) {
@@ -676,20 +682,19 @@ function process($msg) {
 }
 
 // Fake a spend of tokens to the customer
-$time = $server->gettime();
 $tokenid = $server->tokenid;
 $t = $server->t;
 $bankid = $server->bankid;
 $regfee = $server->regfee;
-if (!$db->get("account/$id/1") && !$db->get("pubkey/$id")) {
-  $db->put($server->inboxkey($id) . "/$time",
+if (!$db->get("account/$id/inbox/1") && !$db->get("pubkey/$id")) {
+  $db->put($server->inboxkey($id) . "/1",
            $server->bankmsg($t->INBOX,
-                            $server->signed_spend($time, $id, $tokenid, $regfee * 2, "Gift")));
+                            $server->signed_spend(1, $id, $tokenid, $regfee * 2, "Gift")));
 }
 
-echo process(custmsg('bankid',$pubkey));
+//echo process(custmsg('bankid',$pubkey));
 echo process(custmsg("register",$bankid,$pubkey,"George Jetson"));
-echo process(custmsg('id',$bankid,$id));
+//echo process(custmsg('id',$bankid,$id));
 
 // Copyright 2008 Bill St. Clair
 //
