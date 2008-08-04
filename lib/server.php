@@ -201,28 +201,32 @@ class server {
       $privkey = $ssl->load_private_key($db->get($t->PRIVKEY), $passphrase);
       $this->privkey = $privkey;
       // Should change the numeric indices to names, and call match_pattern in get_signed_db_item
-      $this->bankid = $this->get_signed_db_item($db, 0, $t->BANKID);
-      $this->tokenid = $this->get_signed_db_item($db, $bankid, $t->TOKENID);
-      $this->regfee = $this->get_signed_db_item($db, $bankid, $t->REGFEE,
-                                                4, array(3 => $this->tokenid));
-      $this->tranfee = $this->get_signed_db_item($db, $bankid, $t->TRANFEE,
-                                                 4, array(3 => $this->tokenid));
+      $this->bankid = $this->unpack_bank_param($db, $t->BANKID);
+      $this->tokenid = $this->unpack_bank_param($db, $t->TOKENID);
+      $this->regfee = $this->unpack_bank_param($db, $t->REGFEE, $t->AMOUNT);
+      $this->tranfee = $this->unpack_bank_param($db, $t->TRANFEE, $t->AMOUNT);
     }
+  }
+
+  // Unpack wrapped initialization parameter
+  function unpack_bank_param($db, $type, $key=false) {
+    if (!$key) $key = $type;
+    return $this->unpack_bankmsg($db->get($type), $type, false, $key, true);
   }
 
   // Get a signed item from the database
   function get_signed_db_item($db, $bankid, $key, $index=2, $compares=false) {
     $msg = $this->db->get($key);
-    if (!$msg) die("No value for /$key");
+    if (!$msg) die("No value for /$key\n");
     $req = $this->parser->parse($msg);
     $req = $req[0];
-    if (!$req) die("While parsing $msg: " . $parser->errmsg);
-    if ($bankid != 0 && $req[0] != $bankid) die("Wrong bankid, $bankid, in $msg");
-    if ($req[1] != $key) die("Key should be '$key', not '" . $req[1] . "' in $msg");
+    if (!$req) die("While parsing $msg: " . $parser->errmsg . "\n");
+    if ($bankid != 0 && $req[0] != $bankid) die("Wrong bankid, $bankid, in $msg\n");
+    if ($req[1] != $key) die("Key should be '$key', not '" . $req[1] . "' in $msg\n");
     if ($compares) {
       foreach ($compares as $idx => $value) {
         if ($req[$idx] != $value) die("\$req[$idx] should be '$value', not '"
-                                      . $req[$idx] . "' in $msg");
+                                      . $req[$idx] . "' in $msg\n");
       }
     }
     return $req[$index];
@@ -247,6 +251,55 @@ class server {
     $args = func_get_args();
     $msg = array_merge(array($this->bankid, $this->t->FAILED), $args);
     return $this->banksign($this->utility->makemsg($msg));
+  }
+
+  function maybedie($msg, $die) {
+    if ($die) die("$msg\n");
+    return $msg;
+  }
+
+  // Reverse the bankmsg() function, optionally picking one field to return
+  function unpack_bankmsg($msg, $type=false, $subtype=false, $idx=false, $fatal=false) {
+    $bankid = $this->bankid;
+    $parser = $this->parser;
+    $t = $this->t;
+
+    $reqs = $parser->parse($msg);
+    if (!$reqs) return $this->maybedie($parser->errmsg, $fatal);
+    $req = $reqs[0];
+    $args = $this->match_pattern($req);
+    if (is_string($args)) $this->maybedie("Matching bank-wrapped message: $args", $fatal);
+    if ($args[$t->CUSTOMER] != $bankid && $bankid) {
+      return $this->maybedie("bankmsg not from bank", $fatal);
+    }
+    if ($type && $args[$t->REQ] != $type) {
+      if ($fatal) die("Bankmsg wasn't of type: $type\n");
+      return false;
+    }
+    if (!$subtype) {
+      if ($idx) {
+        $res = $args[$idx];
+        return $this->maybedie($res, $fatal && !$res);
+      }
+      return $args;
+    }
+
+    $msg = $args[$t->MSG];
+    if (!$msg) return $this->maybedie("No wrapped message", $fatal);
+    $reqs = $parser->parse($msg);
+    if (!$reqs) return $this->maybedie($parser->errmsg, $fatal);
+    $req = $reqs[0];
+    $args = $this->match_pattern($req);
+    if (is_string($args)) return $this->maybedie("Matching wrapped customer message: $args", $fatal);
+    if (is_string($subtype) && !$args[$subtype]) {
+      if ($fatal) die("Wrapped message wasn't of type: $subtype\n");
+      return false;
+    }
+    if ($idx) {
+      $res = $args[$idx];
+      return $this->maybedie($res, $fatal && !$res);
+    }
+    return $args;
   }
 
   function scaninbox($id) {
@@ -321,7 +374,7 @@ class server {
     if (!$req) return $parser->errmsg;
     if ($req) $req = $req[0];
     $args = $this->match_pattern($req);
-    if (!$args) return "Failed to match bank-signed message";
+    if (is_string($args)) return "Failed to match bank-signed message";
     if ($args[$t->CUSTOMER] != $this->bankid) {
       return "Not signed by this bank";
     }
@@ -378,11 +431,11 @@ class server {
     if ($regfee > 0) {
       $inbox = $this->scaninbox($id);
       foreach ($inbox as $inmsg) {
-        $inmsg_args = $this->match_bank_signed_message($inmsg);
+        $inmsg_args = $this->unpack_bankmsg($inmsg, $t->SPEND, true);
         if (is_string($inmsg_args)) {
           return $this->failmsg($msg, "Inbox parsing failed: $inmsg_args");
         }
-        if ($inmsg_args && $inmsg_args[$t->REQ] == $t->SPEND) {
+        if ($inmsg_args) {
           // $t->SPEND = array($t->BANKID,$t->TIME,$t->ID,$t->ASSET,$t->AMOUNT,$t->NOTE=>1))
           $asset = $inmsg_args[$t->ASSET];
           $amount = $inmsg_args[$t->AMOUNT];
@@ -452,10 +505,8 @@ class server {
       $tokens = $this->tranfee;
     }
 
-    $bals = array($tokenid => -$tokens,
-                  $assetid => -$amount);
+    $bals = array($assetid => -$amount);
     $acctbals = array();
-    $newbalcnt = 0;             // number of new balance slots needed. Each costs a token
 
     $outboxhash = false;
     $first = true;
@@ -484,12 +535,12 @@ class server {
           return $this->failmsg($msg, "Acct may contain only letters and digits: $acct");
         }
         if ($acctbals[$acct][$balasset]) {
-          return $this->failmsg($msg, "Duplicate acct/asset pair");
+          return $this->failmsg($msg, "Duplicate acct/asset balance pair");
         }
-        $acctbals[$acct][$balasset] += $balamount; // *** this needs to be the signed user item ***
+        $acctbals[$acct][$balasset] = $parser->parsemsg($req);
         $bals[$balasset] += $balamount;
         $acctmsg = $db->get($this->acctbalancekey($id, $acct));
-        if (!$acctmsg) $newbalcnt++;
+        if (!$acctmsg) $tokens++;
         else {
           $acctreq = $parser->parse($acctmsg);
           if ($acctreq) $acctargs = $this->match_pattern($acctreq);
@@ -513,8 +564,8 @@ class server {
       }
     }
 
-    // Charge a token for each new balance file
-    $bals[$tokenid] -= $newbalcnt;
+    // Charge the transaction and new balance file tokens;
+    $bals[$tokenid] -= $tokens;
 
     $errmsg = "";
     $first = true;
@@ -531,6 +582,9 @@ class server {
     if ($this->outboxhash($id, $outboxhash) != $hash) {
       return $this->failmsg($msg, $t->OUTBOXHASH . ' mismatch');
     }
+
+    // Temporary
+    return $this->failmsg($msg, "Spend ready to commit");
 
     // All's well with the world. Commit this baby.
     $spendmsg = $parser->first_message($msg);
@@ -558,10 +612,21 @@ class server {
   function patterns() {
     $t = $this->t;
     if (!$this->patterns) {
-      $patterns = array($t->BALANCE => array($t->BANKID,$t->TIME, $t->ASSET, $t->AMOUNT, $t->ACCT=>1),
+      $patterns = array(// Customer messages
+                        $t->BALANCE => array($t->BANKID,$t->TIME, $t->ASSET, $t->AMOUNT, $t->ACCT=>1),
                         $t->OUTBOXHASH => array($t->BANKID,$t->TIME, $t->HASH),
                         $t->SPEND => array($t->BANKID,$t->TIME,$t->ID,$t->ASSET,$t->AMOUNT,$t->NOTE=>1),
-                        $t->INBOX => array($t->MSG)
+                        // Bank signed messages
+                        $t->TOKENID => array($t->TOKENID),
+                        $t->BANKID => array($t->BANKID),
+                        $t->REGFEE => array($t->TIME, $t->ASSET, $t->AMOUNT),
+                        $t->TRANFEE => array($t->TIME, $t->ASSET, $t->AMOUNT),
+                        $t->INBOX => array($t->TIME, $t->MSG),
+                        $t->ATREGISTER => array($t->MSG),
+                        $t->ATOUTBOXHASH => array($t->MSG),
+                        $t->ATBALANCE => array($t->MSG),
+                        $t->ATSPEND => array($t->MSG),
+                        $t->ATASSET => array($t->MSG)
                         );
       $this->patterns = $patterns;
     }
@@ -581,7 +646,7 @@ class server {
     }
     $argsbankid = $args[$t->BANKID];
     $bankid = $this->bankid;
-    if ($argsbankid &&  $argsbankid != $bankid) {
+    if ($argsbankid && $bankid &&  $argsbankid != $bankid) {
       return "bankid mismatch, sb: $bankid, was: $argsbankid";
     }
     return $args;
