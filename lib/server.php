@@ -292,24 +292,26 @@ class server {
     return $q;
   }
 
-  function deq_time($id) {
+  function deq_time($id, $time) {
     $db = $this->db;
     $key = $this->accttimekey($id);
     $lock = $db->lock($key);
     $q = $db->get($key);
-    if (!$q) return false;
-    $pos = strpos(',', $q);
-    if (!$pos) {
-      $time = $q;
-      $q = 0; // don't want to delete the file, so store 0 instead of ''
-    } else {
-      $time = strpos($q, 0, $pos);
-      $q = strpos($q, $pos+1);
+    $res = false;
+    if ($q) {
+      $times = explode(',', $q);
+      foreach ($times as $k => $v) {
+        if ($v == $time) {
+          $res = $time;
+          unset($times[$k]);
+          $q = implode(',', $times);
+          $db->put($key, $q);
+          $db->put($this->acctlastkey($id), $time);
+        }
+      }
     }
-    $db->put($key, $q);
-    $db->put($this->acctlastkey($id), $time);
     $db->unlock($lock);
-    return $time;
+    return $res;
   }
 
   function match_bank_signed_message($inmsg) {
@@ -422,6 +424,8 @@ class server {
   function do_spend_internal($args, $reqs, $msg) {
     $t = $this->t;
     $db = $this->db;
+    $bankid = $this->bankid;
+
     // $t->SPEND => array($t->BANKID,$t->TIME,$t->ID,$t->ASSET,$t->AMOUNT,$t->NOTE=>1),
     $id = $args[$t->CUSTOMER];
     $time = $args[$t->TIME];
@@ -431,9 +435,8 @@ class server {
     $note = $args[$t->NOTE];
 
     // Burn the transaction, even if balances don't match.
-    $accttime = $this->deq_time($id);
+    $accttime = $this->deq_time($id, $time);
     if (!$accttime) return $this->failmsg($msg, "No timestamp enqueued");
-    if ($accttime != $time) return $this->failmsg($msg, "Timestamp mismatch");
 
     if (!$this->is_asset($assetid)) {
       return $this->failmsg($msg, "Unknown asset id: $assetid");
@@ -687,6 +690,7 @@ $t = $server->t;
 $bankid = $server->bankid;
 $regfee = $server->regfee;
 if (!$db->get("account/$id/inbox/1") && !$db->get("pubkey/$id")) {
+  $server->gettime();           // eat a transaction
   $db->put($server->inboxkey($id) . "/1",
            $server->bankmsg($t->INBOX,
                             $server->signed_spend(1, $id, $tokenid, $regfee * 2, "Gift")));
