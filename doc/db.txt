@@ -36,9 +36,9 @@ $dbdir/
   pubkey/  -- for fast lookup. Must verify that <id> = hash(<pubkey>)
     <id>=<pubkey>
   pubkeysig/
-    <id>=(<id>,pubkey,<pubkey>,name>)
+    <id>=(<bankid>,@register,(<id>,pubkey,<bankid>,<pubkey>,name=<name>))
   asset/ -- Where the asset types are stored
-    <assetid>=(<bankid>,@asset,(<id>,asset,<assetid>,<scale>,<precision>,<assetname>))
+    <assetid>=(<bankid>,@asset,(<id>,asset,<bankid>,<assetid>,<scale>,<precision>,<assetname>))
         -- The assetid is the sha1 hash of a comma-separated
         -- concatenation of <id>,<scale>,<precision>,<assetname>
         -- This makes an assetid impossible to forge, though there
@@ -53,39 +53,46 @@ $dbdir/
       req=<req#>    -- starts at 0. New requests must have a higher number
       balance/
         <acct>/  -- "main" is the default acct name
-          <assetid>=(<bankid>,@balance,(<id>,balance,<time#>,<assetid>,<amount>,acct:<acct>))
+          <assetid>=(<bankid>,@balance,(<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>))
       outbox/
-        <time2#>=(<bankid>,@spend,(<id>,spend,<time2#>,<id2>,assetid2>,<amount2>,note:<note2>,acct:<acct2>))
-        <time3#>=(<bankid>,@spend,<id>,spend,<time3#>,<id3>,<assetid3>,<amount3>,note:<note3>,acct:<acct3>))
-      outboxhash=(<bankid>,@outboxhash,(<id>,outboxhash,<time#>,<hash>))
+        <time2#>=(<bankid>,@spend,(<id>,spend,<bankid>,<time2#>,<id2>,<assetid2>,<amount2>,note:<note2>,acct:<acct2>))
+        <time3#>=(<bankid>,@spend,(<id>,spend,<bankid>,<time3#>,<id3>,<assetid3>,<amount3>,note:<note3>,acct:<acct3>))
+      outboxhash=(<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time#>,<hash>))
       inbox/
-        <time5#>=(<bankid>,inbox,<time5#>,(<id2>,spend|accept,<time2#>,note:<note22>,acct:<acct2>))
-        <time6#>=(<bankid>,inbox,<time6#>,(<id3>,spend|reject,<time3#>,note:<note32>))
-        <time7#>=(<bankid>,inbox,<time7#>,(<id4>,spend,<time4#>,note:<note4>))
+        <time5#>=(<bankid>,inbox,<time5#>,(<id2>,spend|accept,<bankid>,<time2#>,<id>,note:<note22>,acct:<acct2>))
+        <time6#>=(<bankid>,inbox,<time6#>,(<id3>,spend|reject,<bankid>,<time3#>,<id>,note:<note32>))
+        <time7#>=(<bankid>,inbox,<time7#>,(<id4>,spend,<bankid>,<time4#>,<id>,<assetid4>,<amount4>,note:<note4>))
+
 
 === Transactions ===
 
+Note that <bankid> is sent in almost all transactions. This guarantees
+that the request is actually meant for that bank. It also makes it
+easy to notice if somebody steals the machine, but not the bank's
+private key passphrase. They will be able to resign all the database
+contents, but since all the customer-signed data contains the original
+bankid, a customer will notice the change, and be able to prove it.
+The bank checks, for all request, that the <bankid> sent matches. I
+won't repeat this requirement below.
 
-Look up pubkey
---------------
 
+Get bankid
+----------
   Customer sends:
 
-(<id>,id,<id2>)
+(<id>,bankid,<pubkey>)
 
-  Use 0 for <id2> to look up the bank's key.
-  If there is such an id registered, bank responds with:
+  If <id> is the public key ID for <pubkey>, bank returns:
 
-(<id2>,register,<pubkey>,name=<name>)
+(<bankid>,@register,(<bankid>,register,<bankid>,<pubkey>,name=<name>))
 
-  If there is no such id, bank responds with:
+  The <bankid> is required for the other requests, and the bank's
+  public key, to validate them. So a new customer will need to do this
+  first.
 
-(<bankid>,failed,(<id>,id,<id2>),errcode:<errcode>,reason:<reason>)
+  If there's a mismatch, bank returns:
 
-  A note about looking up the bank's public key. It can only be done
-  by registered customers. If an unregistered customer sends
-  (<id>,id,0), the <id> will be unknown, so the signature verification
-  of the message will fail.
+(<bankid>,failed,(<id>,bankid,<pubkey>),errcode:<errcode>,reason:<reason>)
 
 
 Create account
@@ -93,15 +100,15 @@ Create account
 
   Customer sends:
 
-(<id>,register,<pubkey>,name=<name>)
+(<id>,register,<bankid>,<pubkey>,name=<name>)
 
-  If the id is new, matches the pubkey, the signature is OK, and the
-  customer has enough usage tokens in his inbox (spending usage tokens
-  to a new <id> is how the account directory is actually created),
-  bank adds a negative spend for the registration tokens to customer's
-  inbox, and responds with:
+  If the id is new, matches the pubkey, the <bankid> is correct, the
+  signature is OK, and the customer has enough usage tokens in his
+  inbox (spending usage tokens to a new <id> is how the account
+  directory is actually created), bank adds a negative spend for the
+  registration tokens to customer's inbox, and responds with:
 
-(<bankid>,register,<bank_pubkey>,name=<bankname>)
+(<bankid>,@register,(<id>,register,<bankid>,<pubkey>,name=<name>))
 
   This is the first time the bank will have seen the customer's
   pubkey.  The parsing code notices these "id" messages, and verifies
@@ -120,9 +127,26 @@ Create account
   Note that pubkeys bigger than 4096 bits won't be accepted. Really
   big keys are a good way to DOS attack the server.
 
-  Note that the customer won't be able to verify the signature on the
-  failed message, since he doesn't know the bank's public key, and
-  can't get it until he has successfully completed his registration.
+
+Look up pubkey
+--------------
+
+  Customer sends:
+
+(<id>,id,<bankid>,<id2>)
+
+  Use 0 for <id2> to look up the bank's key.
+  If <id2> is registered, bank responds with:
+
+(<bankid>,@register,(<id2>,register,<bankid>,<pubkey>,name=<name>))
+
+  If there is no such id, bank responds with:
+
+(<bankid>,failed,(<id>,id,<bankid>,<id2>),errcode:<errcode>,reason:<reason>)
+
+  Note that only registered customers can ask for another customer's
+  public key. Otherwise, the bank won't know the public key with which
+  to validate the request.
 
 
 Get Req
@@ -130,16 +154,16 @@ Get Req
 
   Customer sends:
 
-(<id>,getreq,<random>)
+(<id>,getreq,<bankid>)
 
-  Bank sends:
+  Bank returns:
 
 (<bankid>,req,<req#>)
 
   Note that this request can be replayed. The customer needs to have
-  some way of getting back in sync for requests. This is it.
-  It makes no changes to the server database, just returns the
-  customer's most recent request <req#>.
+  some way of getting back in sync for requests. This is it.  It makes
+  no changes to the server database, just returns the customer's most
+  recent request <req#>.
 
 
 Get timestamp
@@ -147,7 +171,7 @@ Get timestamp
 
   Customer sends:
 
-(<id>,time,<req#>)
+(<id>,time,<bankid>,<req#>)
 
   Bank compares <req#> to /accounts/<id>/req. If <req#> is greater,
   bank sets /account/<id>/req to <req#>, increments /time to <time#>,
@@ -155,9 +179,9 @@ Get timestamp
 
 (<bankid>,time,<time#>)
 
-  Otherwise, bank returns
+  Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,time,<req#>),errcode:<errcode>,reason:<reason>)
+(<bankid>,failed,(<id>,time,<bankid>,<req#>),errcode:<errcode>,reason:<reason>)
 
   Note that this always creates a new <time#>, larger than any
   timestamp in the bank. If the cusomter didn't use the last <time#>
@@ -169,7 +193,7 @@ Get fees
 
   Customer sends:
 
-(<id>,getfees,<req#>,operation=<operation>)
+(<id>,getfees,<bankid>,<req#>,operation=<operation>)
 
   Bank compares <req#> to /account/<id>/req. If <req#>
   is greater, bank sets /account/<id>/req to <req#>,
@@ -186,7 +210,7 @@ Get fees
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,getfees,<operation>,<req#>),errcode:<errcode>,reason:<reason>)
+(<bankid>,failed,(<id>,getfees,<bankid>,<req#>,<operation>),errcode:<errcode>,reason:<reason>)
 
 
 Spend
@@ -197,12 +221,12 @@ Spend
   for the fees to be taken from. The bank figures out if it can make
   it work.
 
-(<id>,spend,<time#>,<id2>,<assetid>,<amount>,note:<note>>).
-  (<id>,balance,<time#>,<assetid>,<amount>,acct:<acct>).
-  (<id>,balance,<time#>,assetid2>,<amount2>,acct:<acct2>).
+(<id>,spend,<bankid>,<time#>,<id2>,<assetid>,<amount>,note:<note>>).
+  (<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>).
+  (<id>,balance,<bankid>,<time#>,<assetid2>,<amount2>,acct:<acct2>).
   ...
-  (<id>,balance,<time#>,<assetidN>,<amountN>,acct:<acctN>).
-  (<id>,outboxhash,<time#>,<outboxhash>)
+  (<id>,balance,<bankid>,<time#>,<assetidN>,<amountN>,acct:<acctN>).
+  (<id>,outboxhash,<bankid>,<time#>,<outboxhash>)
 
   Bank checks that the <time#> is equal to /account/<id>/time, that
   the balances match (after subtracting the spend amount fees), and
@@ -214,16 +238,16 @@ Spend
   items, updates /account/<id>/hash with the customer's hash item, and
   sends:
 
-(<bankid>,@spend,(<id>,spend,<time#>,<id2>,<assetid>,<amount>,note:<note>,acct:<acct>)).
-  (<bankid>,@balance,(<id>,balance,<time#>,<assetid>,<amount>,acct:<acct>)).
-  (<bankid>,@balance,(<id>,balance,<time#>,assetid2>,<amount2>,acct:<acct2>)).
+(<bankid>,@spend,(<id>,spend,<time#>,<id2>,<bankid>,<assetid>,<amount>,note:<note>,acct:<acct>)).
+  (<bankid>,@balance,(<id>,balance,<time#>,<bankid>,<assetid>,<amount>,acct:<acct>)).
+  (<bankid>,@balance,(<id>,balance,<time#>,<bankid>,assetid2>,<amount2>,acct:<acct2>)).
   ...
-  (<bankid>,@balance,(<id>,balance,<time#>,<assetidN>,<amountN>,acct:<acctN>)).
-  (<bankid>,@outboxhash,(<id>,outboxhash,<time#>,<hash>))
+  (<bankid>,@balance,(<id>,balance,<time#>,<bankid>,<assetidN>,<amountN>,acct:<acctN>)).
+  (<bankid>,@outboxhash,(<id>,outboxhash,<time#>,<bankid>,<hash>))
 
 If they don't match, bank returns:
 
-(<bankid>,failed,(<id>,spend,<time#>,<id2>,<assetid>,<amount>,note:<note>,acct:<acct>),errcode:<errcode>,reason:<reason>)
+(<bankid>,failed,(<id>,spend,<bankid>,<time#>,<id2>,<assetid>,<amount>,note:<note>,acct:<acct>),errcode:<errcode>,reason:<reason>)
 
 
 Query Inbox
@@ -231,22 +255,22 @@ Query Inbox
 
   Customer sends:
 
-(<id>,inbox,<req#>)
+(<id>,inbox,<bankid>,<req#>)
 
   Bank compares <req#> to /account/<id>/req. If <req#>
   is greater, bank sets /account/<id>/req to <req#> and
   responds with contents of /account/<id>/inbox/, separated by
   periods:
 
-(<bankid>,inbox,<req#>).
-  <time6#>=(bankid,inbox,<time6#>,(<id2>,spend|accept,<time2#>,note:<note22>,acct:<acct2>)).
-  <time7#>=(bankid,inbox,<time7#>,(<id3>,spend|reject,<time3#>,note:<note32>)).
-  <time8#>=(bankid,inbox,<time8#>,(<id4>,spend,<time4#>,note:<note4>)).
-  <time9#>=(bankid,inbox,<time9#>,(<id5>,spend,<time5#>,note:<note5>))
+(<bankid>,@inbox(<id>,inbox,<bankid>,<req#>).
+  <time6#>=(bankid,inbox,<time6#>,(<id2>,spend|accept,<bankid>,<time2#>,note:<note22>,acct:<acct2>)).
+  <time7#>=(bankid,inbox,<time7#>,(<id3>,spend|reject,<bankid>,<time3#>,note:<note32>)).
+  <time8#>=(bankid,inbox,<time8#>,(<id4>,spend,<bankid>,<time4#>,note:<note4>)).
+  <time9#>=(bankid,inbox,<time9#>,(<id5>,spend,<bankid>,time5#>,note:<note5>))
 
   Otherwise, bank sends:
 
-(<bankid>,failed,(<id>,inbox,<req#>),errcode:<errcode>,reason:<reason>)
+(<bankid>,failed,(<id>,inbox,<bankid>,<req#>),errcode:<errcode>,reason:<reason>)
 
   If the inbox is not empty, bank will ensure that there are two
   timestamps in /account/<id>/time, one for processing the inbox, and
@@ -271,14 +295,14 @@ Process Inbox
 
   Customer sends:
 
-(<id>,processinbox,<time8#>,<time6#>|<time7#>|<time8#>|<time9#>).
-  (<id>,spend|accept,<id4>,<time4#>,note:<note42>).
-  (<id>,spend|reject,<id5>,<time5#>,note:<note52>).
-  (<id>,balance,<time8#>,<assetid>,<amount>,acct:<acct>).
-  (<id>,balance,<time8#>,assetid2>,<amount2>,acct:<acct2>).
+(<id>,processinbox,<bankid>,time8#>,<time6#>|<time7#>|<time8#>|<time9#>).
+  (<id>,spend|accept,<bankid>,<id4>,<time4#>,note:<note42>).
+  (<id>,spend|reject,<bankid,<id5>,<time5#>,note:<note52>).
+  (<id>,balance,<bankid>,<time8#>,<assetid>,<amount>,acct:<acct>).
+  (<id>,balance,<bankid>,<time8#>,assetid2>,<amount2>,acct:<acct2>).
   ...
-  (<id>,balance,<time8#>,<assetidN>,<amount3>,acct:<acctN>).
-  (<id>,outboxhash,<time8#>,<hash>)
+  (<id>,balance,<bankid>,<time8#>,<assetidN>,<amount3>,acct:<acctN>).
+  (<id>,outboxhash,<bankid>,<time8#>,<hash>)
 
 Bank compares <time8#> to /account/<id>/time. If it's the same. Bank
 processes the requested inbox transaction2, and compares the result to
@@ -291,16 +315,16 @@ and spend|reject items to the other customers' inboxes, updates the
 customer sent, updates /account/<id>/outboxhash with the outboxhash
 item the customer sent, and sends back:
 
-(<bankid,@processinbox,(<id>,processinbox,<time8#>,<time7#>|<time8#>|<time9#>).
-  (<bankid>,@balance,(<id>,<time8#>,<assetid>,<amount>,acct:<acct>)).
-  (<bankid>,@balance,(<id>,balance,<time8#>,assetid2>,<amount2>,acct:<acct2>)).
+(<bankid,@processinbox,(<id>,processinbox,<bankid>,<time8#>,<time7#>|<time8#>|<time9#>).
+  (<bankid>,@balance,(<id>,balance,<bankid>,<time8#>,<assetid>,<amount>,acct:<acct>)).
+  (<bankid>,@balance,(<id>,balance,<bankid>,time8#>,assetid2>,<amount2>,acct:<acct2>)).
   ...
-  (<bankid>,@balance,(<id>,balance,<time8#>,<assetidN>,<amount3>,acct:<acctN>)).
-  (<bankid>,@outboxhash,(<id>,outboxhash,<time8#>,<hash>))
+  (<bankid>,@balance,(<id>,balance,<bankid>,<time8#>,<assetidN>,<amount3>,acct:<acctN>)).
+  (<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time8#>,<hash>))
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,removeinbox,<time2#>|<time3#>|<time4#>),errcode:<errcode>,reason:<reason>)
+(<bankid>,failed,(<id>,processinbox,<bankid>,<time8#>|<time6#>|<time7#>|<time8#>|<time9#>),errcode:<errcode>,reason:<reason>)
 
 This is the most complicated function in the system. It has to deal
 with two kinds of inbox items. The first is spontaneous spends from
@@ -324,17 +348,17 @@ Lookup asset
 
   Customer sends:
 
-(<id>,getasset,<req#>,<assetid>)
+(<id>,getasset,<req#>,<bankid>,<assetid>)
 
   Bank compares <req#> to /account/<id>/req. If <req#>
   is greater, bank sets /account/<id>/req to <req#>. Then,
   if <assetid> exists in /asset, bank returns:
 
-(<bankid>,affirm,(<issuerid>,asset,<assetid>,<assetname>))
+(<bankid>,affirm,(<issuerid>,asset,<bankid>,<assetid>,<assetname>))
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,getasset,<assetid>,<random>),errcode:<errcode>,reason:<reason>)
+(<bankid>,failed,(<id>,getasset,<bankid>,<assetid>,<random>),errcode:<errcode>,reason:<reason>)
 
 
 Create asset
@@ -342,11 +366,11 @@ Create asset
 
   Customer sends:
 
-(<id>,asset,<assetid>,<scale>,<precision>,<assetname>).
-  (<id>,balance,<time4#>,<assetid>,-1,acct:<acct1>).
-  (<id>,balance,<time4#>,assetid2>,<amount2>acct:<acct2>).
+(<id>,asset,<bankid>,<assetid>,<scale>,<precision>,<assetname>).
+  (<id>,balance,<time4#>,<bankid>,<assetid>,-1,acct:<acct1>).
+  (<id>,balance,<time4#>,<bankid>,assetid2>,<amount2>acct:<acct2>).
   ...
-  (<id>,balance,<time4#>,<assetidN>,<amountN>,acct:<acctN>).
+  (<id>,balance,<time4#>,<bankid>,<assetidN>,<amountN>,acct:<acctN>).
   
   Note that the balance for the new asset is "-1". Like loom, the sum
   of all balances for an <assetid> add up to -1. A negative balance
@@ -362,15 +386,15 @@ Create asset
   <assetid>=(<id>,asset,<assetid>,<scale>,<precision>,<assetname>) to
   /asset/, adds <assetname>=<assetid> to /assetname/, and returns:
 
-(<bankid>,affirm,(<id>,asset,<assetid>,<assetname>)).
-  (<bankid>,balance,<time4#>,<assetid>,<amount>,acct:<acct1>).
-  (<bankid>,balance,<time4#>,assetid2>,<amount2>acct:<acct2>).
+(<bankid>,affirm,(<id>,asset,<bankid>,<assetid>,<assetname>)).
+  (<bankid>,balance,<time4#>,<bankid>,<assetid>,<amount>,acct:<acct1>).
+  (<bankid>,balance,<time4#>,<bankid>,assetid2>,<amount2>acct:<acct2>).
   ...
-  (<bankid>,balance,<time4#>,<assetidN>,<amountN>,acct:<acctN>)
+  (<bankid>,balance,<time4#>,<bankid>,<assetidN>,<amountN>,acct:<acctN>)
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,asset,<assetid>,<assetname>),errcode:<errcode>,reason:<reason>)
+(<bankid>,failed,(<id>,asset,<bankid>,<assetid>,<assetname>),errcode:<errcode>,reason:<reason>)
 
 
 Get outbox
@@ -378,21 +402,21 @@ Get outbox
 
   If customer encounters an outbox hash mismatch, customer can send:
 
-(<id>,getoutbox,<req#>)
+(<id>,getoutbox,<bankid>,req#>)
 
   Bank compares <req#> to /account/<id>/req. If <req#>
   is greater, bank sets /account/<id>/req to <req#>. Then,
   if the <id> exists, bank returns:
 
-(<bankid>,outbox,<req#>).
-  (<id>,spend,<time2#>,<id2>,<assetid>,<amount>,note:<note>,acct:<name>).
-  (<id>,spend,<time3#>,<id3>,<assetid3>,<amount3>,note:<note3>,acct:<acct3>).
+(<bankid>,@getoutbox,(<id>,getoutbox,<bankid>,<req#>).
+  (<bankid>,@spend,(<id>,spend,<time2#>,<id2>,<bankid>,<assetid2>,<amount2>,note:<note2>,acct:<acct2>))
+  (<bankid>,@spend,<id>,spend,<time3#>,<id3>,<bankid>,<assetid3>,<amount3>,note:<note3>,acct:<acct3>))
   ...
-  (<bankid>,outboxhash,<time#>,<hash>)
+  (<bankid>,@outboxhash,(<id>,outboxhash,<time#>,<bankid>,<hash>))
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,getoutbox,<req#>),errcode:<errcode>,reason:<reason>)
+(<bankid>,failed,(<id>,getoutbox,<bankid>,req#>),errcode:<errcode>,reason:<reason>)
 
 
 Get balance
@@ -400,7 +424,7 @@ Get balance
 
   If the customer loses track of a balance, customer can send:
 
-(<id>,getbalance,<req#>,acct:<acct>,assetid:<assetid>)
+(<id>,getbalance,<req#>,<bankid>,acct:<acct>,assetid:<assetid>)
 
   <acct> can be "*" to return balances of all accounts. Bank compares
   <req#> to /account/<id>/req. If <req#> is greater, bank sets
@@ -409,11 +433,11 @@ Get balance
   information about all accounts is returned. If assetid is not
   specified, then information about all assetids is returned.
 
-(<id>,balance,<time#>,<assetid>,<amount>,acct:<acct>)...
+(<bankid>,@balance,(<id>,balance,<bankid>,time#>,<assetid>,<amount>,acct:<acct>))...
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,getbalance,<req#>,acct:<acct>),errcode:<errcode>,reason:<reason>)
+(<bankid>,failed,(<id>,getbalance,<bankid>,<req#>,acct:<acct>,assetid:<assetid>),errcode:<errcode>,reason:<reason>)
 
 
 Switching Asset Issuance

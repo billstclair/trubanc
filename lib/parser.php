@@ -146,16 +146,16 @@ class parser {
               $keydict[$id] = $pubkey;
             }
           }
-          if (!$pubkey && $dict[1] == 'register') {
+          if (!$pubkey && ($dict[1] == 'register' || $dict[1] == 'bankid')) {
             // May be the first time we've seen this ID.
             // If it's a key definition message, we've got all we need.
-            $pubkey = $dict[2];
+            $pubkey = ($dict[1] == 'register') ? $dict[3] : $dict[2];
             $pubkeyid = $this->ssl->pubkey_id($pubkey);
             if ($id != $pubkeyid) $pubkey = false;
             else $keydict[$id]= $pubkey;
           }
-          // The client will need to look up and cache the pubkey from the server here.
           if (!$pubkey) {
+            // The client will need to look up and cache the pubkey from the server here.
             $this->errmsg = "No key for id: $id at $pos";
             return false;
           }

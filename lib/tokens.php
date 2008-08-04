@@ -42,17 +42,19 @@ class tokens {
   var $GETBALANCE = 'getbalance';
 
   // Affirmations
+  var $ATREGISTER = '@register';
   var $ATOUTBOXHASH = '@outboxhash';
   var $ATBALANCE = '@balance';
   var $ATSPEND = '@spend';
   var $ATASSET = '@asset';
+  var $ATINBOX = '@inbox';
+  var $ATPROCESSINBOX = '@processinbox';
 
   // request parameter names
   var $CUSTOMER = 'customer';
   var $NAME = 'name';
   var $NOTE = 'note';
   var $ACCT = 'acct';
-  var $REQUEST = 'request';
   var $OPERATION = 'operation';
   var $TRAN = 'tran';
   var $AMOUNT = 'amount';
