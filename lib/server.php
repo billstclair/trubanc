@@ -131,13 +131,14 @@ class server {
   }
 
   function lookup_asset($assetid) {
-    $asset = is_assset($assetid);
-    return $this->parser->parse($asset);
+    $t = $this->t;
+    $asset = $this->is_asset($assetid);
+    return $this->unpack_bankmsg($asset, $t->ATASSET, $t->ASSET);
   }
 
   function lookup_asset_name($assetid) {
     $assetreq = $this->lookup_asset($assetid);
-    return $assetreq[5];
+    return $assetreq[$this->t->NAME];
   }
 
   function is_alphanumeric($char) {
@@ -149,7 +150,7 @@ class server {
 
   function is_acct_name($acct) {
     for ($i=0; $i<strlen($acct); $i++) {
-      if (!is_alphanumeric(substr($acct, $i, 1))) return false;
+      if (!$this->is_alphanumeric(substr($acct, $i, 1))) return false;
     }
     return true;
   }
@@ -469,7 +470,7 @@ class server {
     $db = $this->db;
     $id = $args[$t->CUSTOMER];
     $lock = $db->lock($this->accttimekey($id));
-    $res = do_spend_internal($args, $reqs, $msg);
+    $res = $this->do_spend_internal($args, $reqs, $msg);
     $db->unlock($lock);
     return $res;
   }
@@ -478,6 +479,7 @@ class server {
     $t = $this->t;
     $db = $this->db;
     $bankid = $this->bankid;
+    $parser = $this->parser;
 
     // $t->SPEND => array($t->BANKID,$t->TIME,$t->ID,$t->ASSET,$t->AMOUNT,$t->NOTE=>1),
     $id = $args[$t->CUSTOMER];
@@ -511,34 +513,38 @@ class server {
     $outboxhash = false;
     $first = true;
     foreach ($reqs as $req) {
-      if ($first) next;
-      else $first = false;
+      print_r($req);
+      if ($first) {
+        $first = false;
+        continue;
+      }
       $reqargs = $this->match_pattern($req);
       if (is_string($req_args)) return $this->failmsg($msg, $reqargs); // match error
+      print_r($reqargs);
       $reqid = $reqargs[$t->CUSTOMER];
       $reqreq = $reqargs[$t->REQ];
       $reqtime = $reqargs[$t->TIME];
       if ($reqtime != $time) return $this->failmsg($msg, "Timestamp mismatch");
       if ($reqid != $id) return $this->failmsg($msg, "ID mismatch");
       if ($reqreq == $t->BALANCE) {
-        $balasset = $t->ASSET;
-        $balamount = $t->AMOUNT;
+        $balasset = $reqargs[$t->ASSET];
+        $balamount = $reqargs[$t->AMOUNT];
         if ($balamount < 0) return $this->failmsg($msg, "Balance may not be negative");
-        $acct = $t->ACCT || $t->MAIN;
+        $acct = $reqargs[$t->ACCT] || $t->MAIN;
         if (!$this->is_asset($balasset)) {
           return $this->failmsg($msg, "Unknown asset id: $balasset");
         }
         if (!is_numeric($balamount)) {
           return $this->failmsg($msg, "Not a number: $balamount");
         }
-        if (!is_acct_name($acct)) {
+        if (!$this->is_acct_name($acct)) {
           return $this->failmsg($msg, "Acct may contain only letters and digits: $acct");
         }
         if ($acctbals[$acct][$balasset]) {
           return $this->failmsg($msg, "Duplicate acct/asset balance pair");
         }
         $acctbals[$acct][$balasset] = $parser->parsemsg($req);
-        $bals[$balasset] += $balamount;
+        $bals[$balasset] -= $balamount;
         $acctmsg = $db->get($this->acctbalancekey($id, $acct));
         if (!$acctmsg) $tokens++;
         else {
@@ -550,7 +556,7 @@ class server {
             $name = $this->lookup_asset_name($balasset);
             return $this->failmsg($msg, "Bank entry corrupted for acct: $acct, asset: $name ($balasset)");
           }
-          $bals[$balasset] -= $acctargs[$t->AMOUNT];
+          $bals[$balasset] += $acctargs[$t->AMOUNT];
         }
       } elseif ($reqreq == $t->OUTBOXHASH) {
         if ($outboxhash) {
@@ -560,12 +566,14 @@ class server {
         $hash = $reqargs[$t->HASH];
       } else {
         return $this->failmsg($msg, "$reqreq not valid for spend. Only " . $t->BALANCE .
-                              "and " . $t->OUTBOXHASH);
+                              " and " . $t->OUTBOXHASH);
       }
     }
 
     // Charge the transaction and new balance file tokens;
     $bals[$tokenid] -= $tokens;
+
+    echo 'bals: '; print_r($bals);
 
     $errmsg = "";
     $first = true;
@@ -616,6 +624,8 @@ class server {
                         $t->BALANCE => array($t->BANKID,$t->TIME, $t->ASSET, $t->AMOUNT, $t->ACCT=>1),
                         $t->OUTBOXHASH => array($t->BANKID,$t->TIME, $t->HASH),
                         $t->SPEND => array($t->BANKID,$t->TIME,$t->ID,$t->ASSET,$t->AMOUNT,$t->NOTE=>1),
+                        $t->ASSET => array($t->BANKID,$t->ASSET,$t->SCALE,$t->PRECISION,$t->NAME),
+
                         // Bank signed messages
                         $t->TOKENID => array($t->TOKENID),
                         $t->BANKID => array($t->BANKID),
@@ -762,8 +772,13 @@ if (!$db->get("account/$id/inbox/1") && !$db->get("pubkey/$id")) {
 }
 
 //echo process(custmsg('bankid',$pubkey));
-echo process(custmsg("register",$bankid,$pubkey,"George Jetson"));
+//echo process(custmsg("register",$bankid,$pubkey,"George Jetson"));
 //echo process(custmsg('id',$bankid,$id));
+
+$spend = custmsg('spend',$bankid,4,$bankid,$server->tokenid,5,"Hello Big Boy!");
+$bal = custmsg('balance',$bankid,4,$server->tokenid,2);
+$db->put($server->accttimekey($id), 4);
+echo process("$spend.$bal");
 
 // Copyright 2008 Bill St. Clair
 //
