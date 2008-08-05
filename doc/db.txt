@@ -36,7 +36,7 @@ $dbdir/
   pubkey/  -- for fast lookup. Must verify that <id> = hash(<pubkey>)
     <id>=<pubkey>
   pubkeysig/
-    <id>=(<bankid>,@register,(<id>,pubkey,<bankid>,<pubkey>,name=<name>))
+    <id>=(<bankid>,@register,(<id>,register,<bankid>,<pubkey>,name=<name>))
   asset/ -- Where the asset types are stored
     <assetid>=(<bankid>,@asset,(<id>,asset,<bankid>,<assetid>,<scale>,<precision>,<assetname>))
         -- The assetid is the sha1 hash of a comma-separated

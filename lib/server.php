@@ -269,7 +269,7 @@ class server {
     if (!$reqs) return $this->maybedie($parser->errmsg, $fatal);
     $req = $reqs[0];
     $args = $this->match_pattern($req);
-    if (is_string($args)) $this->maybedie("Matching bank-wrapped message: $args", $fatal);
+    if (is_string($args)) $this->maybedie("While matching bank-wrapped message: $args", $fatal);
     if ($args[$t->CUSTOMER] != $bankid && $bankid) {
       return $this->maybedie("bankmsg not from bank", $fatal);
     }
@@ -291,7 +291,7 @@ class server {
     if (!$reqs) return $this->maybedie($parser->errmsg, $fatal);
     $req = $reqs[0];
     $args = $this->match_pattern($req);
-    if (is_string($args)) return $this->maybedie("Matching wrapped customer message: $args", $fatal);
+    if (is_string($args)) return $this->maybedie("While matching wrapped customer message: $args", $fatal);
     if (is_string($subtype) && !$args[$subtype]) {
       if ($fatal) die("Wrapped message wasn't of type: $subtype\n");
       return false;
@@ -431,12 +431,15 @@ class server {
     $success = false;
     if ($regfee > 0) {
       $inbox = $this->scaninbox($id);
+      echo "inbox: "; print_r($inbox);
       foreach ($inbox as $inmsg) {
-        $inmsg_args = $this->unpack_bankmsg($inmsg, $t->SPEND, true);
+        echo "inmsg: $inmsg\n";
+        $inmsg_args = $this->unpack_bankmsg($inmsg, false, true);
+        echo "inmsg_args: "; print_r($inmsg_args);
         if (is_string($inmsg_args)) {
           return $this->failmsg($msg, "Inbox parsing failed: $inmsg_args");
         }
-        if ($inmsg_args) {
+        if ($inmsg_args && $inmsg_args[$t->REQ] == $t->SPEND) {
           // $t->SPEND = array($t->BANKID,$t->TIME,$t->ID,$t->ASSET,$t->AMOUNT,$t->NOTE=>1))
           $asset = $inmsg_args[$t->ASSET];
           $amount = $inmsg_args[$t->AMOUNT];
@@ -456,7 +459,9 @@ class server {
     $db->put($t->PUBKEYSIG . "/$id", $res);
     $time = $this->gettime();
     if ($regfee != 0) {
-      $db->put($this->inboxkey($id) . "/$time", $this->signed_spend($time, $id, $tokenid, -$regfee, "Registration fee"));
+      $spendmsg = $this->signed_spend($time, $id, $tokenid, -$regfee, "Registration fee");
+      $spendmsg = $this->bankmsg($t->INBOX, $time, $spendmsg);
+      $db->put($this->inboxkey($id) . "/$time", $spendmsg);
     }
     $db->put($this->accttimekey($id), 0);
     $db->put($this->acctlastkey($id), $time);
@@ -498,6 +503,15 @@ class server {
     }
     if (!is_numeric($amount)) {
       return $this->failmsg($msg, "Not a number: $amount");
+    }
+
+    // Make sure there are no inbox entries older than the spend
+    $inbox = $this->scaninbox($id);
+    foreach ($inbox as $inmsg) {
+      $inmsg_args = $this->unpack_bankmsg($inmsg);
+      if (bccomp($inmsg_args[$t->TIME], $time) <= 0) {
+        return $this->failmsg($msg, "An inbox item is older than the spend timestamp");
+      }
     }
 
     $tokens = 0;
@@ -645,11 +659,12 @@ class server {
 
   function match_pattern($req) {
     $t = $this->t;
+    $parser = $this->parser;
     $patterns = $this->patterns();
     $pattern = $patterns[$req[1]];
     if (!$pattern) return "Unknown request: '" . $req[1] . "'";
     $pattern = array_merge(array($t->CUSTOMER,$t->REQ), $pattern);
-    $args = $this->parser->matchargs($req, $pattern);
+    $args = $parser->matchargs($req, $pattern);
     if (!$args) {
       return "Request doesn't match pattern: " .
         $parser->formatpattern($pattern);
@@ -767,16 +782,16 @@ $regfee = $server->regfee;
 if (!$db->get("account/$id/inbox/1") && !$db->get("pubkey/$id")) {
   $server->gettime();           // eat a transaction
   $db->put($server->inboxkey($id) . "/1",
-           $server->bankmsg($t->INBOX,
+           $server->bankmsg($t->INBOX, 1,
                             $server->signed_spend(1, $id, $tokenid, $regfee * 2, "Gift")));
 }
 
 //echo process(custmsg('bankid',$pubkey));
-//echo process(custmsg("register",$bankid,$pubkey,"George Jetson"));
+echo process(custmsg("register",$bankid,$pubkey,"George Jetson"));
 //echo process(custmsg('id',$bankid,$id));
 
 $spend = custmsg('spend',$bankid,4,$bankid,$server->tokenid,5,"Hello Big Boy!");
-$bal = custmsg('balance',$bankid,4,$server->tokenid,2);
+$bal = custmsg('balance',$bankid,4,$server->tokenid,3);
 $db->put($server->accttimekey($id), 4);
 echo process("$spend.$bal");
 
