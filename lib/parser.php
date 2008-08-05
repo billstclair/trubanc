@@ -234,7 +234,7 @@ class parser {
   }
 
   // Return the message string that parsed into the array in $parse
-  function parsemsg($parse) {
+  function get_parsemsg($parse) {
     return $parse[$this->msgkey];
   }
 
@@ -249,9 +249,13 @@ class parser {
   // Return the first message in a list of them.
   // Assumes that message parses correctly.
   function first_message($msg) {
-    $pos = strpos('.', $msg);
-    if ($pos === FALSE) return $msg;
-    else return substr($msg, 0, $pos);
+    while (true) {
+      $pos = strpos($msg, '.', $pos+1);
+      if ($pos === FALSE) return $msg;
+      else {
+        if ($pos == 0 || $msg[$pos-1] != '\\') return substr($msg, 0, $pos);
+      }
+    }
   }
 
   // $parse is an array with numeric and string keys

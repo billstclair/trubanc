@@ -110,15 +110,17 @@ class server {
     $unhashed = '';
     foreach ($contents as $time) {
       if (bccomp($time, $transtime) <= 0) {
-        if ($time == $transtime) $item = $newtime;
-        else $item = $db->get("$dir/$time");
-        $entry = $parser->unsigned_message($item);
+        if ($time == $transtime) $item = $newitem;
+        else {
+          $args = unpack_bankmsg($db->get("$dir/$time"));
+          $item = $args[$t->MSG];
+        }
         if ($unhashed != '') $unhashed .= '.';
-        $unhashed .= $entry;
+        $unhashed .= trim($item);
       }
     }
-    $tranlist = implode(',', $contents);
-    return sha1($tranlist);
+    $hash = sha1($unhashed);
+    return $hash;
   }
 
   function outboxhashmsg($id, $transtime) {
@@ -296,7 +298,7 @@ class server {
     $req = $reqs[0];
     $args = $this->match_pattern($req);
     if (is_string($args)) return $this->maybedie("While matching wrapped customer message: $args", $fatal);
-    if (is_string($subtype) && !$args[$subtype]) {
+    if (is_string($subtype) && !$args[$t->REQ] == $subtype) {
       if ($fatal) die("Wrapped message wasn't of type: $subtype\n");
       return false;
     }
@@ -436,7 +438,6 @@ class server {
     if ($regfee > 0) {
       $inbox = $this->scaninbox($id);
       foreach ($inbox as $inmsg) {
-        echo "inmsg: $inmsg\n";
         $inmsg_args = $this->unpack_bankmsg($inmsg, false, true);
         if (is_string($inmsg_args)) {
           return $this->failmsg($msg, "Inbox parsing failed: $inmsg_args");
@@ -498,7 +499,7 @@ class server {
 
     // Burn the transaction, even if balances don't match.
     $accttime = $this->deq_time($id, $time);
-    if (!$accttime) return $this->failmsg($msg, "No timestamp enqueued");
+    if (!$accttime) return $this->failmsg($msg, "Timestamp not enqueued");
 
     if (!$this->is_asset($assetid)) {
       return $this->failmsg($msg, "Unknown asset id: $assetid");
@@ -526,7 +527,7 @@ class server {
     $bals = array();
     if ($id != $id2) {
       // No money changes hands on spends to yourself
-      $bals[$assetid] = -$amount;
+      $bals[$assetid] = bcsub(0, $amount);
     }
     $acctbals = array();
     $negbals = array();
@@ -551,7 +552,8 @@ class server {
         if (bccomp($balamount, 0) < 0) {
           $negbals[$acct][$balasset] = true;
         }
-        $acct = $reqargs[$t->ACCT] || $t->MAIN;
+        $acct = $reqargs[$t->ACCT];
+        if (!$acct) $acct = $t->MAIN;
         if (!$this->is_asset($balasset)) {
           return $this->failmsg($msg, "Unknown asset id: $balasset");
         }
@@ -564,29 +566,37 @@ class server {
         if ($acctbals[$acct][$balasset]) {
           return $this->failmsg($msg, "Duplicate acct/asset balance pair");
         }
-        $acctbals[$acct][$balasset] = $parser->parsemsg($req);
-        $bals[$balasset] -= $balamount;
-        $acctmsg = $db->get($this->acctbalancekey($id, $acct));
+
+        // Remember user's balance message, and subtract it from the total
+        // for this asset.
+        $acctbals[$acct][$balasset] = $parser->get_parsemsg($req);
+        $bals[$balasset] = bcsub($bals[$balasset], $balamount);
+
+        $assetbalancekey = $this->assetbalancekey($id, $balasset, $acct);
+        $acctmsg = $db->get($assetbalancekey);
         if (!$acctmsg) $tokens++;
         else {
           $acctargs = $this->unpack_bankmsg($acctmsg, $t->ATBALANCE, $t->BALANCE);
-          if (is_string($acctargs) || !$acctargs) {
+          if (is_string($acctargs) || !$acctargs ||
+              $acctargs[$t->ASSET] != $balasset ||
+              $acctargs[$t->CUSTOMER] != $id) {
             return $this->failmsg
               ($msg, "Balance entry corrupted for acct: $acct, asset: " .
-               $this->lookup_asset_name($balasset));
+               $this->lookup_asset_name($balasset) . " - $acctmsg");
           }
           $amount = $acctargs[$t->AMOUNT];
-          $bals[$balasset] += $amount;
-          if ($amount < 0) {
+          // Add the current balance to the total for this asset
+          $bals[$balasset] = bcadd($bals[$balasset], $amount);
+          if (bccomp($amount,  0) < 0) {
             if ($negbals[$acct][$balasset]) unset($negbals[$acct][$balasset]);
             else $negbals[$acct][$balasset] = true;
           }
         }
       } elseif ($reqreq == $t->OUTBOXHASH) {
-        if ($outboxhash) {
+        if ($outboxhashreq) {
           return $this->failmsg($msg, $t->OUTBOXHASH . " appeared multiple times");
         }
-        $outboxhash = $req;
+        $outboxhashreq = $req;
         $hash = $reqargs[$t->HASH];
       } else {
         return $this->failmsg($msg, "$reqreq not valid for spend. Only " .
@@ -604,11 +614,12 @@ class server {
     }
 
     // Charge the transaction and new balance file tokens;
-    echo "tranfee: $tokens\n";
     $bals[$tokenid] -= $tokens;
 
     $errmsg = "";
     $first = true;
+    // Check that the balances in the spend message, match the current balance,
+    // minus amount spent minus fees.
     foreach ($bals as $balasset => $balamount) {
       if ($balamount != 0) {
         $name = $this->lookup_asset_name($balasset);
@@ -619,17 +630,14 @@ class server {
     }
     if ($errmsg != '') return $this->failmsg($msg, "Balance discrepanies: $errmsg");
 
-    if ($this->outboxhash($id, $outboxhash) != $hash) {
+    $outboxhash = $this->outboxhash($id, $time, $parser->first_message($msg));
+    if ($outboxhash != $hash) {
       return $this->failmsg($msg, $t->OUTBOXHASH . ' mismatch');
     }
 
-    // Temporary
-    return $this->failmsg($msg, "Spend ready to commit");
-
     // All's well with the world. Commit this baby.
-    $spendmsg = $parser->first_message($msg);
-    $outbox_item = $this->bankmsg($this->ATSPEND, $spendmsg);
     $newtime = $this->gettime();
+    $outbox_item = $this->bankmsg($this->ATSPEND, $spendmsg);
     $inbox_item = $this->bankmsg($this->INBOX, $newtime, $spendmsg);
     $res = $outbox_item;
     
@@ -640,7 +648,6 @@ class server {
 
     // Update balances
     $dir = $this->accountdir($id);
-    $ret = $outbox_item;
     foreach ($acctbals as $acct => $balances) {
       $acctdir = "$dir/$acct";
       foreach ($balances as $assetid => $balance) {
@@ -649,6 +656,11 @@ class server {
         $db->put("$acctdir/$assetid", $balance);
       }
     }
+
+    // Update outboxhash
+    $outboxhash_item = $this->bankmsg($t->ATOUTBOXHASH, $outboxhashreq);
+    $res = $res.$outboxhash_item;
+    $db->put($this->outboxhashkey($id), $outboxhash_item);
 
     if ($id != $id2) {
       // Append spend to outbox
@@ -822,12 +834,12 @@ if (!$db->get("account/$id/inbox/1") && !$db->get("pubkey/$id")) {
            $server->bankmsg($t->INBOX, 5,
                             $server->signed_spend(5, $id, $tokenid, $regfee * 2, "Gift")));
 }
-$acctbalancekey = $server->assetbalancekey($id, $tokenid);
-if (!$db->get($acctbalancekey)) {
+$assetbalancekey = $server->assetbalancekey($id, $tokenid);
+if (!$db->get($assetbalancekey)) {
   // signed_balance($time, $asset, $amount, $acct=false)
-  $msg = custmsg($t->BALANCE, $t->BANKID, 2, $asset, 20);
+  $msg = custmsg($t->BALANCE, $bankid, 2, $tokenid, 20);
   $msg = $server->bankmsg($t->ATBALANCE, $msg);
-  $db->put($acctbalancekey, $msg);
+  $db->put($assetbalancekey, $msg);
 }
 
 $db->put($t->TIME, 5);
@@ -837,9 +849,11 @@ $db->put($t->TIME, 5);
 //echo process(custmsg('id',$bankid,$id));
 
 $spend = custmsg('spend',$bankid,4,$bankid,$server->tokenid,5,"Hello Big Boy!");
-$bal = custmsg('balance',$bankid,4,$server->tokenid,8);
-$db->put($server->accttimekey($id), 10);
-echo process("$spend.$bal");
+$bal = custmsg('balance',$bankid,4,$server->tokenid,13);
+$hash = $server->outboxhash($id, 4, $spend);
+$hash = custmsg('outboxhash', $bankid, 4, $hash);
+$db->put($server->accttimekey($id), 4);
+echo process("$spend.$bal.$hash");
 
 // Copyright 2008 Bill St. Clair
 //
