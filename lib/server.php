@@ -546,6 +546,10 @@ class server {
     $accttime = $this->deq_time($id, $time);
     if (!$accttime) return $this->failmsg($msg, "Timestamp not enqueued");
 
+    if ($id2 == $bankid) {
+      return $this->failmsg($msg, "Spends to the bank are not allowed.");
+    }
+
     if (!$this->is_asset($assetid)) {
       return $this->failmsg($msg, "Unknown asset id: $assetid");
     }
@@ -706,7 +710,7 @@ class server {
     }
 
     // Update outboxhash
-    $outboxhash_item = $this->bankmsg($t->ATOUTBOXHASH, $outboxhashreq);
+    $outboxhash_item = $this->bankmsg($t->ATOUTBOXHASH, $outboxhashmsg);
     $res .= ".$outboxhash_item";
     $db->put($this->outboxhashkey($id), $outboxhash_item);
 
@@ -854,12 +858,36 @@ sGUCs01ytUnauQIgeZrNrRHVgeEM04K0KmPtFZhNZ2jwnFM8o4m1FmuLlJsCIQDc
 $pubkey = $ssl->privkey_to_pubkey($privkey);
 $id = $ssl->pubkey_id($pubkey);
 
+$privkey2 = "-----BEGIN RSA PRIVATE KEY-----
+MIIBOwIBAAJBAK5kvoBZ9mw6xpt7M0M383q5/mhvzLTr1HUG9kr52aJyaV7OegEQ
+ndsN45klFNvzD4slOuh2blg4ca7DuuARuYUCAwEAAQJBAI+aabwrWF268HxrsMSz
+OA1hRvscxMZeQ66yMvF+WBYJIE873UDxUUMgvYJ0Dz6kg6u8BFBKcxWBCIP8e2Bi
+p2kCIQDaH2fPpAd477Xad+BXUiiSqOgWrEIzMiAkZsE2Q+XgYwIhAMytXoq6eZar
++id+XvcTilxSVagqkC+549Og2HtsDP73AiEAteKEVVBJbt4svY1CxG3dKVaxmd5w
+oXJF/TS2HsMFmFMCICZAYGLc5sxZ565p16WlaT5HxOpgygGhZAqxDMRENUmRAiAS
+H3CnJ8Ul3VWvyL5hVjFDHYnD6n18+xqsnjeSQ4bRnQ==
+-----END RSA PRIVATE KEY-----
+";
+$pubkey2 = $ssl->privkey_to_pubkey($privkey2);
+$id2 = $ssl->pubkey_id($pubkey2);
+
 function custmsg() {
   global $id, $server, $ssl, $privkey;
+
   $args = func_get_args();
   $args = array_merge(array($id), $args);
   $msg = $server->utility->makemsg($args);
   $sig = $ssl->sign($msg, $privkey);
+  return "$msg:\n$sig";
+}
+
+function custmsg2() {
+  global $id2, $server, $ssl, $privkey2;
+
+  $args = func_get_args();
+  $args = array_merge(array($id2), $args);
+  $msg = $server->utility->makemsg($args);
+  $sig = $ssl->sign($msg, $privkey2);
   return "$msg:\n$sig";
 }
 
@@ -881,6 +909,9 @@ if (!$db->get("account/$id/inbox/1") && !$db->get("pubkey/$id")) {
   $db->put($server->inboxkey($id) . "/5",
            $server->bankmsg($t->INBOX, 5,
                             $server->signed_spend(5, $id, $tokenid, $regfee * 2, "Gift")));
+  $db->put($server->inboxkey($id2) . "/5",
+           $server->bankmsg($t->INBOX, 5,
+                            $server->signed_spend(5, $id2, $tokenid, $regfee * 2, "Gift")));
 }
 $assetbalancekey = $server->assetbalancekey($id, $tokenid);
 if (!$db->get($assetbalancekey)) {
@@ -890,14 +921,25 @@ if (!$db->get($assetbalancekey)) {
   $msg = $server->bankmsg($t->ATBALANCE, $msg);
   $db->put($assetbalancekey, $msg);
 }
+$assetbalancekey = $server->assetbalancekey($id2, $tokenid);
+if (!$db->get($assetbalancekey)) {
+  // signed_balance($time, $asset, $amount, $acct=false)
+  $server->add_to_bank_balance($tokenid, -20);
+  $msg = custmsg2($t->BALANCE, $bankid, 2, $tokenid, 20);
+  $msg = $server->bankmsg($t->ATBALANCE, $msg);
+  $db->put($assetbalancekey, $msg);
+}
 
 $db->put($t->TIME, 5);
 
 //echo process(custmsg('bankid',$pubkey));
 //echo process(custmsg("register",$bankid,$pubkey,"George Jetson"));
+//echo process(custmsg2("register",$bankid,$pubkey2,"Jane Jetson"));
 //echo process(custmsg('id',$bankid,$id));
 
-$spend = custmsg('spend',$bankid,4,$bankid,$server->tokenid,5,"Hello Big Boy!");
+//return;
+
+$spend = custmsg('spend',$bankid,4,$id2,$server->tokenid,5,"Hello Big Boy!");
 $bal = custmsg('balance',$bankid,4,$server->tokenid,13);
 $hash = $server->outboxhash($id, 4, $spend);
 $hash = custmsg('outboxhash', $bankid, 4, $hash);

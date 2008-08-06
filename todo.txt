@@ -1,6 +1,11 @@
-For spend:
+For spend
+---------
 
-$parser->get_parsemsg() needs to return SIGNED message
-Don't use $parser->first_message()
-Take the message for the outboxhash, not the args array.
+Right now, spends to the bank are rejected right away.
+
+Some alternatives:
+
+1) Accept spends to the bank right away, with no inbox or outbox.
+
+2) Reject spends to the bank, but keep the proferred tokens. This would likely anger people, but possibly no more than losing tokens when another customer rejects your spend.
 
