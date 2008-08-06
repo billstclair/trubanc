@@ -200,8 +200,10 @@ class server {
       $db->put($this->acctlastkey($bankid), 0);
       $db->put($this->acctreqkey($bankid), 0);
       $mainkey = $this->acctbalancekey($bankid);
-      $db->put("$mainkey/$tokenid",
-               $this->bankmsg($t->ATBALANCE,$this->bankmsg($t->BALANCE, 0, $tokenid, -1)));
+      // $t->BALANCE => array($t->BANKID,$t->TIME, $t->ASSET, $t->AMOUNT, $t->ACCT=>1),
+      $msg = $this->bankmsg($t->BALANCE, $bankid, 0, $tokenid, -1);
+      $msg = $this->bankmsg($t->ATBALANCE, $msg);
+      $db->put("$mainkey/$tokenid", $msg);
       $db->put($this->outboxhashkey($bankid),
                $this->bankmsg($t->ATOUTBOXHASH, $this->outboxhashmsg($bankid, 0)));
     } else {
@@ -390,6 +392,49 @@ class server {
     if (!$req) return $parser->errmsg;
     if ($req) $req = $req[0];
     return $this->match_pattern($req);
+  }
+
+  // Add $amount to the bank balance for $assetid in the main account
+  // Any non-false return value is an error string
+  function add_to_bank_balance($assetid, $amount) {
+    global $bankid;
+    global $db;
+
+    if ($amount == 0) return;
+    $key = $this->assetbalancekey($bankid, $assetid);
+    $lock = $db->lock($key);
+    $res = $this->add_to_bank_balance_internal($key, $assetid, $amount);
+    $db->unlock($lock);
+    return $res;
+  }
+
+  function add_to_bank_balance_internal($key, $assetid, $amount) {
+    global $bankid;
+    global $db;
+    global $t;
+
+    $balmsg = $db->get($key);
+    $balargs = $this->unpack_bankmsg($balmsg, $t->ATBALANCE, $t->BALANCE);
+    if (is_string($balargs) || !$balargs) {
+      return "Error unpacking bank balance: '$balargs'";
+    } elseif ($balargs[$t->ACCT] && $balargs[$t->ACCT] != $t->MAIN) {
+      return "Bank balance message not for main account";
+    } else {
+      $bal = $balargs[$t->AMOUNT];
+      $newbal = bcadd($bal, $amount);
+      $balsign = bccomp($bal, 0);
+      $newbalsign = bccomp($newbal, 0);
+      if (($balsign >= 0 && $newbalsign < 0) ||
+          ($balsign < 0 && $newbalsign >= 0)) {
+        return "Transaction would put bank out of balance.";
+      } else {
+        // $t->BALANCE => array($t->BANKID,$t->TIME, $t->ASSET, $t->AMOUNT, $t->ACCT=>1)
+        $msg = $this->bankmsg($t->BALANCE, $bankid, $this->gettime(), $assetid, $newbal);
+        $msg = $this->bankmsg($t->ATBALANCE, $msg);
+        $db->put($key, $msg);
+      }
+    }
+    return false;
   }
 
   /*** Request processing ***/
@@ -630,36 +675,39 @@ class server {
     }
     if ($errmsg != '') return $this->failmsg($msg, "Balance discrepanies: $errmsg");
 
-    $outboxhash = $this->outboxhash($id, $time, $parser->first_message($msg));
+    $spendmsg = $parser->first_message($msg);
+    $outboxhash = $this->outboxhash($id, $time, $spendmsg);
     if ($outboxhash != $hash) {
       return $this->failmsg($msg, $t->OUTBOXHASH . ' mismatch');
     }
 
     // All's well with the world. Commit this baby.
     $newtime = $this->gettime();
-    $outbox_item = $this->bankmsg($this->ATSPEND, $spendmsg);
-    $inbox_item = $this->bankmsg($this->INBOX, $newtime, $spendmsg);
+    $outbox_item = $this->bankmsg($t->ATSPEND, $spendmsg);
+    $inbox_item = $this->bankmsg($t->INBOX, $newtime, $spendmsg);
     $res = $outbox_item;
     
     // Pay bank's fees
     if ($tokens != 0) {
       $err = $this->add_to_bank_balance($this->tokenid, $tokens);
+      if ($err) return $this->failmsg($msg, $err);
     }
 
     // Update balances
     $dir = $this->accountdir($id);
     foreach ($acctbals as $acct => $balances) {
+      if (!$acct) $acct = $t->MAIN;
       $acctdir = "$dir/$acct";
       foreach ($balances as $assetid => $balance) {
         $balance = $this->bankmsg($t->ATBALANCE, $balance);
-        $outbox_item .= ".$balance";
+        $res .= ".$balance";
         $db->put("$acctdir/$assetid", $balance);
       }
     }
 
     // Update outboxhash
     $outboxhash_item = $this->bankmsg($t->ATOUTBOXHASH, $outboxhashreq);
-    $res = $res.$outboxhash_item;
+    $res .= ".$outboxhash_item";
     $db->put($this->outboxhashkey($id), $outboxhash_item);
 
     if ($id != $id2) {
@@ -671,7 +719,7 @@ class server {
     }
 
     // We're done
-    return $ret;
+    return $res;
   }
 
   /*** End request processing ***/
@@ -837,6 +885,7 @@ if (!$db->get("account/$id/inbox/1") && !$db->get("pubkey/$id")) {
 $assetbalancekey = $server->assetbalancekey($id, $tokenid);
 if (!$db->get($assetbalancekey)) {
   // signed_balance($time, $asset, $amount, $acct=false)
+  $server->add_to_bank_balance($tokenid, -20);
   $msg = custmsg($t->BALANCE, $bankid, 2, $tokenid, 20);
   $msg = $server->bankmsg($t->ATBALANCE, $msg);
   $db->put($assetbalancekey, $msg);

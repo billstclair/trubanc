@@ -1,0 +1,6 @@
+For spend:
+
+$parser->get_parsemsg() needs to return SIGNED message
+Don't use $parser->first_message()
+Take the message for the outboxhash, not the args array.
+
