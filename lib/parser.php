@@ -166,7 +166,7 @@ class parser {
             $this->errmsg = "Failure to verify signature at $pos for $msg";
             return false;
           }
-          $dict[$this->msgkey] = $msg;
+          $dict[$this->msgkey] = substr($str, $start, $pos + strlen($tok) - $start);
           if (count($stack) > 0) {
             //echo "Popping\n";
             $value = $dict;
@@ -356,7 +356,7 @@ $privkey2 = $ssl->make_privkey(512);
 $pubkey2 = $ssl->privkey_to_pubkey($privkey2);
 $id2 = $ssl->pubkey_id($pubkey2);
 $keydb->put($id, $pubkey);
-
+$keydb->put($id2, $pubkey2);
 $msg = "($id,\(1\,2\:3\\\\4\.5\),2,x:foo)";
 $sig = $ssl->sign($msg, $privkey);
 if (!$sig) {
@@ -378,8 +378,9 @@ $msg .= ".$msg3:$sig3.$msg4:$sig4.";
 echo "$msg\n";
 $parser = new parser($keydb, $ssl);
 $res = $parser->parse($msg);
-if ($res) print_r($res);
-else {
+if ($res) {
+  print_r($res);
+} else {
   echo $parser->errmsg;
 }
 echo "\n";

@@ -96,8 +96,8 @@ class server {
     return $this->accountdir($id) . $this->t->INBOX;
   }
 
-  function spenddir($id) {
-    return $this->accountdir($id) . $this->t->SPEND;
+  function outboxdir($id) {
+    return $this->accountdir($id) . $this->t->OUTBOX;
   }
 
   function outboxhash($id, $transtime, $newitem=false) {
@@ -641,7 +641,7 @@ class server {
         if ($outboxhashreq) {
           return $this->failmsg($msg, $t->OUTBOXHASH . " appeared multiple times");
         }
-        $outboxhashreq = $req;
+        $outboxhashmsg = $parser->get_parsemsg($req);
         $hash = $reqargs[$t->HASH];
       } else {
         return $this->failmsg($msg, "$reqreq not valid for spend. Only " .
@@ -675,7 +675,7 @@ class server {
     }
     if ($errmsg != '') return $this->failmsg($msg, "Balance discrepanies: $errmsg");
 
-    $spendmsg = $parser->first_message($msg);
+    $spendmsg = $parser->get_parsemsg($reqs[0]);
     $outboxhash = $this->outboxhash($id, $time, $spendmsg);
     if ($outboxhash != $hash) {
       return $this->failmsg($msg, $t->OUTBOXHASH . ' mismatch');
@@ -694,14 +694,14 @@ class server {
     }
 
     // Update balances
-    $dir = $this->accountdir($id);
+    $balancekey = $this->balancekey($id);
     foreach ($acctbals as $acct => $balances) {
       if (!$acct) $acct = $t->MAIN;
-      $acctdir = "$dir/$acct";
-      foreach ($balances as $assetid => $balance) {
+      $acctdir = "$balancekey/$acct";
+      foreach ($balances as $balasset => $balance) {
         $balance = $this->bankmsg($t->ATBALANCE, $balance);
         $res .= ".$balance";
-        $db->put("$acctdir/$assetid", $balance);
+        $db->put("$acctdir/$balasset", $balance);
       }
     }
 
@@ -712,7 +712,7 @@ class server {
 
     if ($id != $id2) {
       // Append spend to outbox
-      $db->put($this->spenddir($id) . "/$time", $outbox_item);
+      $db->put($this->outboxdir($id) . "/$time", $outbox_item);
 
       // Append spend to recipient's inbox
       $db->put($this->inboxkey($id2) . "/$newtime", $inbox_item);
