@@ -288,19 +288,19 @@ Process Inbox
 
   Customer sends:
 
-(<id>,processinbox,<bankid>,time8#>,<time6#>|<time7#>|<time8#>|<time9#>).
+(<id>,processinbox,<bankid>,time11#>,<time6#>|<time7#>|<time8#>|<time9#>).
   (<id>,spend|accept,<bankid>,<id4>,<time4#>,note:<note42>).
   (<id>,spend|reject,<bankid,<id5>,<time5#>,note:<note52>).
-  (<id>,balance,<bankid>,<time8#>,<assetid>,<amount>,acct:<acct>).
-  (<id>,balance,<bankid>,<time8#>,assetid2>,<amount2>,acct:<acct2>).
+  (<id>,balance,<bankid>,<time11#>,<assetid>,<amount>,acct:<acct>).
+  (<id>,balance,<bankid>,<time11#>,assetid2>,<amount2>,acct:<acct2>).
   ...
-  (<id>,balance,<bankid>,<time8#>,<assetidN>,<amount3>,acct:<acctN>).
-  (<id>,outboxhash,<bankid>,<time8#>,<hash>)
+  (<id>,balance,<bankid>,<time11#>,<assetidN>,<amount3>,acct:<acctN>).
+  (<id>,outboxhash,<bankid>,<time11#>,<hash>)
 
-Bank compares <time8#> to /account/<id>/time. If it's the same. Bank
-processes the requested inbox transaction2, and compares the result to
+Bank compares <time11#> to /account/<id>/time. If it's the same. Bank
+processes the requested inbox transactions, and compares the result to
 the balances and outboxhash sent by customer. If correct, bank sets
-/account/<id>/last to <time8#>, sets /account/<id>/time to 0, removes
+/account/<id>/last to <time11#>, sets /account/<id>/time to 0, removes
 the transaction from /account/<id>/inbox/, removes completed
 transactions from /account/<id>/outbox/, signs and adds spend|accept
 and spend|reject items to the other customers' inboxes, updates the
@@ -308,16 +308,16 @@ and spend|reject items to the other customers' inboxes, updates the
 customer sent, updates /account/<id>/outboxhash with the outboxhash
 item the customer sent, and sends back:
 
-(<bankid,@processinbox,(<id>,processinbox,<bankid>,<time8#>,<time7#>|<time8#>|<time9#>).
-  (<bankid>,@balance,(<id>,balance,<bankid>,<time8#>,<assetid>,<amount>,acct:<acct>)).
-  (<bankid>,@balance,(<id>,balance,<bankid>,time8#>,assetid2>,<amount2>,acct:<acct2>)).
+(<bankid,@processinbox,(<id>,processinbox,<bankid>,<time11#>,<time7#>|<time8#>|<time9#>).
+  (<bankid>,@balance,(<id>,balance,<bankid>,<time11#>,<assetid>,<amount>,acct:<acct>)).
+  (<bankid>,@balance,(<id>,balance,<bankid>,time11#>,assetid2>,<amount2>,acct:<acct2>)).
   ...
-  (<bankid>,@balance,(<id>,balance,<bankid>,<time8#>,<assetidN>,<amount3>,acct:<acctN>)).
-  (<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time8#>,<hash>))
+  (<bankid>,@balance,(<id>,balance,<bankid>,<time11#>,<assetidN>,<amount3>,acct:<acctN>)).
+  (<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time11#>,<hash>))
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,processinbox,<bankid>,<time8#>|<time6#>|<time7#>|<time8#>|<time9#>),errcode:<errcode>,reason:<reason>)
+(<bankid>,failed,(<id>,processinbox,<bankid>,<time11#>|<time6#>|<time7#>|<time8#>|<time9#>),errcode:<errcode>,reason:<reason>)
 
 This is the most complicated function in the system. It has to deal
 with two kinds of inbox items. The first is spontaneous spends from
@@ -347,7 +347,7 @@ Lookup asset
   is greater, bank sets /account/<id>/req to <req#>. Then,
   if <assetid> exists in /asset, bank returns:
 
-(<bankid>,affirm,(<issuerid>,asset,<bankid>,<assetid>,<assetname>))
+(<bankid>,@asset,(<issuerid>,asset,<bankid>,<assetid>,<assetname>))
 
   Otherwise, bank returns:
 
@@ -367,23 +367,23 @@ Create asset
   
   Note that the balance for the new asset is "-1". Like loom, the sum
   of all balances for an <assetid> add up to -1. A negative balance
-  means that the owner is the issuer (except negative balances in the
-  usage token can exist during registration). I haven't worked out the
-  process to switch issuer ownership.
+  means that the owner is the issuer. I haven't worked out the process
+  to switch issuer ownership.
 
   If <assetid> is the hash of <id><scale><precision><assetname>,
-  /asset/<assetid> does not exist, <time4#> is greater than
+  /asset/<assetid> does not exist, <time4#> is equal to
   /account/<id>/time, and the customer has properly subtracted the
   createasset fees from the balances in /account/<id>/balance/<acctN>
   (including a balance of -1 for the new asset), then bank adds
   <assetid>=(<id>,asset,<assetid>,<scale>,<precision>,<assetname>) to
-  /asset/, adds <assetname>=<assetid> to /assetname/, and returns:
+  /asset/, sets /account/<id>/last to <time4#>, clears
+  /account/<id>/time, and returns:
 
-(<bankid>,affirm,(<id>,asset,<bankid>,<assetid>,<assetname>)).
-  (<bankid>,balance,<time4#>,<bankid>,<assetid>,<amount>,acct:<acct1>).
-  (<bankid>,balance,<time4#>,<bankid>,assetid2>,<amount2>acct:<acct2>).
+(<bankid>,@asset,(<id>,asset,<bankid>,<assetid>,<assetname>)).
+  (<bankid>,@balance,(<id>,balance,<time4#>,<bankid>,<assetid>,-1,acct:<acct1>)).
+  (<bankid>,@balance,(<id>,balance,<time4#>,<bankid>,assetid2>,<amount2>acct:<acct2>)).
   ...
-  (<bankid>,balance,<time4#>,<bankid>,<assetidN>,<amountN>,acct:<acctN>)
+  (<bankid>,@balance,(<id>,balance,<time4#>,<bankid>,assetidN>,<amountN>acct:<acctN>)).
 
   Otherwise, bank returns:
 
@@ -393,7 +393,7 @@ Create asset
 Get outbox
 ----------
 
-  If customer encounters an outbox hash mismatch, customer can send:
+  If customer needs to get back in sync with his outbox, he can send:
 
 (<id>,getoutbox,<bankid>,req#>)
 
@@ -419,12 +419,12 @@ Get balance
 
 (<id>,getbalance,<req#>,<bankid>,acct:<acct>,assetid:<assetid>)
 
-  <acct> can be "*" to return balances of all accounts. Bank compares
-  <req#> to /account/<id>/req. If <req#> is greater, bank sets
-  /account/<id>/req to <req#>.  Then bank returns information about
-  the specified <acct>s and <assetid>s If acct is not specified then
-  information about all accounts is returned. If assetid is not
-  specified, then information about all assetids is returned.
+  Bank compares <req#> to /account/<id>/req. If <req#> is greater,
+  bank sets /account/<id>/req to <req#>.  Then bank returns
+  information about the specified <acct>s and <assetid>s If acct is
+  not specified then information about all accounts is returned. If
+  assetid is not specified, then information about all assetids is
+  returned.
 
 (<bankid>,@balance,(<id>,balance,<bankid>,time#>,<assetid>,<amount>,acct:<acct>))...
 
