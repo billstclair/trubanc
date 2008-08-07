@@ -158,7 +158,7 @@ Get Req
 
   Bank returns:
 
-(<bankid>,req,<req#>)
+(<bankid>,req,<id>,<req#>)
 
   Note that this request can be replayed. The customer needs to have
   some way of getting back in sync for requests. This is it.  It makes
@@ -171,17 +171,17 @@ Get timestamp
 
   Customer sends:
 
-(<id>,time,<bankid>,<req#>)
+(<id>,gettime,<bankid>,<req#>)
 
   Bank compares <req#> to /accounts/<id>/req. If <req#> is greater,
   bank sets /account/<id>/req to <req#>, increments /time to <time#>,
   sets /account/<id>/time to <time#>, and returns:
 
-(<bankid>,time,<time#>)
+(<bankid>,gettime,<id>,<time#>)
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,time,<bankid>,<req#>),errcode:<errcode>,reason:<reason>)
+(<bankid>,failed,(<id>,gettime,<bankid>,<req#>),errcode:<errcode>,reason:<reason>)
 
   Note that this always creates a new <time#>, larger than any
   timestamp in the bank. If the cusomter didn't use the last <time#>
@@ -260,35 +260,36 @@ Query Inbox
   Bank compares <req#> to /account/<id>/req. If <req#>
   is greater, bank sets /account/<id>/req to <req#> and
   responds with contents of /account/<id>/inbox/, separated by
-  periods:
+  periods, plus two timestamps:
 
 (<bankid>,@inbox(<id>,inbox,<bankid>,<req#>).
-  <time6#>=(bankid,inbox,<time6#>,(<id2>,spend|accept,<bankid>,<time2#>,note:<note22>,acct:<acct2>)).
-  <time7#>=(bankid,inbox,<time7#>,(<id3>,spend|reject,<bankid>,<time3#>,note:<note32>)).
-  <time8#>=(bankid,inbox,<time8#>,(<id4>,spend,<bankid>,<time4#>,note:<note4>)).
-  <time9#>=(bankid,inbox,<time9#>,(<id5>,spend,<bankid>,time5#>,note:<note5>))
+  (<bankid>,inbox,<time6#>,(<id2>,spend|accept,<bankid>,<time2#>,note:<note22>,acct:<acct2>)).
+  (<bankid>,inbox,<time7#>,(<id3>,spend|reject,<bankid>,<time3#>,note:<note32>)).
+  (<bankid>,inbox,<time8#>,(<id4>,spend,<bankid>,<time4#>,note:<note4>)).
+  (<bankid>,inbox,<time9#>,(<id5>,spend,<bankid>,time5#>,note:<note5>)).
+  (<bankid>,gettime,<id>,<time10#>).
+  (<bankid>,gettime,<id>,<time11#>)
 
   Otherwise, bank sends:
 
 (<bankid>,failed,(<id>,inbox,<bankid>,<req#>),errcode:<errcode>,reason:<reason>)
 
-  If the inbox is not empty, bank will ensure that there are two
-  timestamps in /account/<id>/time, one for processing the inbox, and
-  one for doing a spend. The customer doesn't have to do either, but
-  he will often want to. The bank will not allow a spend to be done if
-  there are any inbox entries with a bank-signed timestamp less than
-  /account/<id>/last. This forces customers to complete inbox
-  transactions, and be in sync with the bank about their balances and
-  outbox contents, if they want to be able to do spends. There is one
-  exception. The customer will always be allowed to spend each assetid
-  to the issuer of that assetid, so that there's always a way to "cash
-  out". Since the bank signs all incoming inbox entries, with a newly
-  allocated timestamp, if the customer gets two timestamps before
-  processing the inbox, then any inbox entries that arrive before his
-  inbox processing and subsequent spend are done will have timestamps
-  greater than the two put ther by the inbox query, so he'll be
-  allowed to use the second one for a spend, even if his inbox is very
-  busy.
+  The two new timestamps ("gettime" messages) are to use for
+  processing the inbox, and for doing a spend. The customer doesn't
+  have to do either, but he will often want to. The bank will not
+  allow a spend to be done if there are any inbox entries with a
+  bank-signed timestamp less than /account/<id>/last. This forces
+  customers to complete inbox transactions, and be in sync with the
+  bank about their balances and outbox contents, if they want to be
+  able to do spends. There is one exception. The customer will always
+  be allowed to spend each assetid to the issuer of that assetid, so
+  that there's always a way to "cash out". Since the bank signs all
+  incoming inbox entries, with a newly allocated timestamp, if the
+  customer gets two timestamps before processing the inbox, then any
+  inbox entries that arrive before his inbox processing and subsequent
+  spend are done will have timestamps greater than the two put ther by
+  the inbox query, so he'll be allowed to use the second one for a
+  spend, even if his inbox is very busy.
 
 Process Inbox
 -------------

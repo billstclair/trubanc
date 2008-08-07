@@ -1,3 +1,5 @@
+Error codes on $this->failmsg()
+
 For spend
 ---------
 

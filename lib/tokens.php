@@ -31,6 +31,7 @@ class tokens {
   var $FAILED = 'failed';
   var $REASON = 'reason';
   var $GETREQ = 'getreq';
+  var $GETTIME = 'gettime';
   var $GETFEES = 'getfees';
   var $SPEND = 'spend';
   var $PROCESSINBOX = 'processinbox';
@@ -52,6 +53,7 @@ class tokens {
 
   // request parameter names
   var $CUSTOMER = 'customer';
+  var $REQUEST = 'request';
   var $NAME = 'name';
   var $NOTE = 'note';
   var $ACCT = 'acct';

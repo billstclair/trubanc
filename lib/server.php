@@ -281,7 +281,7 @@ class server {
     if ($args[$t->CUSTOMER] != $bankid && $bankid) {
       return $this->maybedie("bankmsg not from bank", $fatal);
     }
-    if ($type && $args[$t->REQ] != $type) {
+    if ($type && $args[$t->REQUEST] != $type) {
       if ($fatal) die("Bankmsg wasn't of type: $type\n");
       return false;
     }
@@ -300,7 +300,7 @@ class server {
     $req = $reqs[0];
     $args = $this->match_pattern($req);
     if (is_string($args)) return $this->maybedie("While matching wrapped customer message: $args", $fatal);
-    if (is_string($subtype) && !$args[$t->REQ] == $subtype) {
+    if (is_string($subtype) && !$args[$t->REQUEST] == $subtype) {
       if ($fatal) die("Wrapped message wasn't of type: $subtype\n");
       return false;
     }
@@ -437,6 +437,18 @@ class server {
     return false;
   }
 
+  function checkreq($id, $req) {
+    $db = $this->db;
+    $reqkey = $this->acctreqkey($id);
+    $res = $req;
+    $lock = $db->lock($reqkey);
+    $oldreq = $db->get($reqkey);
+    if (bccomp($req, $oldreq) <= 0) $res = false;
+    else $db->put($reqkey, $req);
+    $db->unlock($lock);
+    return $res;
+  }
+
   /*** Request processing ***/
  
   // Look up the bank's public key
@@ -487,7 +499,7 @@ class server {
         if (is_string($inmsg_args)) {
           return $this->failmsg($msg, "Inbox parsing failed: $inmsg_args");
         }
-        if ($inmsg_args && $inmsg_args[$t->REQ] == $t->SPEND) {
+        if ($inmsg_args && $inmsg_args[$t->REQUEST] == $t->SPEND) {
           // $t->SPEND = array($t->BANKID,$t->TIME,$t->ID,$t->ASSET,$t->AMOUNT,$t->NOTE=>1))
           $asset = $inmsg_args[$t->ASSET];
           $amount = $inmsg_args[$t->AMOUNT];
@@ -515,6 +527,52 @@ class server {
     $db->put($this->acctlastkey($id), $time);
     $db->put($this->acctreqkey($id), 0);
     return $res;
+  }
+
+  // Process a getreq
+  function do_getreq($args, $reqs, $msg) {
+    $t = $this->t;
+    $id = $args[$t->CUSTOMER];
+    return $this->bankmsg($t->REQ,
+                          $id,
+                          $this->db->get($this->acctreqkey($id)));
+  }
+
+  // Process a time request
+  function do_gettime($args, $reqs, $msg) {
+    $t = $this->t;
+    $db = $this->db;
+
+    $id = $args[$t->CUSTOMER];
+    $req = $args[$t->REQ];
+    $lock = $db->lock($this->accttimekey($id));
+    $res = $this->do_gettime_internal($msg, $id, $req);
+    $db->unlock($lock);
+    return $res;
+  }
+
+  function do_gettime_internal($msg, $id, $req) {
+    $t = $this->t;
+    $db = $this->db;
+
+    if (!$this->checkreq($id, $req)) {
+      return $this->failmsg($msg, "New req <= old req");
+    }
+    $time = $this->gettime();
+    $db->put($this->accttimekey($id), $time);
+    return $this->bankmsg($t->TIME, $id, $time);
+  }
+
+  function do_getfees($args, $reqs, $msg) {
+    $t = $this->t;
+    $db = $this->db;
+
+    $id = $args[$t->CUSTOMER];
+    $req = $args[$t->REQ];
+    if (!$this->checkreq($id, $req)) {
+      return $this->failmsg($msg, "New req <= old req");
+    }
+    return $db->get($t->REGFEE) . "." . $db->get($t->TRANFEE);
   }
 
   // Process a spend
@@ -591,7 +649,7 @@ class server {
       $reqargs = $this->match_pattern($req);
       if (is_string($req_args)) return $this->failmsg($msg, $reqargs); // match error
       $reqid = $reqargs[$t->CUSTOMER];
-      $reqreq = $reqargs[$t->REQ];
+      $reqreq = $reqargs[$t->REQUEST];
       $reqtime = $reqargs[$t->TIME];
       if ($reqtime != $time) return $this->failmsg($msg, "Timestamp mismatch");
       if ($reqid != $id) return $this->failmsg($msg, "ID mismatch");
@@ -726,6 +784,58 @@ class server {
     return $res;
   }
 
+  // Query inbox
+  function do_inbox($args, $reqs, $msg) {
+    $t = $this->t;
+    $db = $this->db;
+
+    $id = $args[$t->CUSTOMER];
+    $req = $args[$t->REQ];
+    if (!$this->checkreq($id, $req)) {
+      return $this->failmsg($msg, "New req <= old req");
+    }
+    $lock = $db->lock($this->accttimekey($id));
+    $res = $this->do_inbox_internal($msg, $id);
+    $db->unlock($lock);
+    return $res;
+  }
+
+  function do_inbox_internal($msg, $id) {
+    $t = $this->t;
+    $db = $this->db;
+
+    $inbox = $this->scaninbox($id);
+    $res = $this->bankmsg($t->ATINBOX, $msg);
+    foreach ($inbox as $inmsg) {
+      $res .= '.' . $inmsg;
+      $args = $this->match_message($inmsg);
+      if ($args && !is_string($args)) {
+        $args = $this->match_message($args[$t->MSG]);
+      }
+      if (!$args || is_string($args) ||
+          $args[$t->ID] != $id) {
+        return $this->failmsg($msg, "Inbox corrupt");
+      }
+    }
+    // Append the timestamps, if there are any inbox entries
+    if (count($inbox) > 0) {
+      // Avoid bumping the global timestamp if the customer already
+      // has two timestamps > the highest inbox timestamp.
+      $time = $args[$t->TIME];
+      $key = $this->accttimekey($id);
+      $times = explode(',', $db->get($key));
+      if (!(count($times) >= 2 &&
+            bccomp($times[0], $time) > 0 &&
+            bccomp($times[1], $time) > 0)) {
+        $times = array($this->gettime(), $this->gettime());
+        $db->put($key, implode(',', $times));
+      }
+      $res .= '.' . $this->bankmsg($t->GETTIME, $id, $times[0]);
+      $res .= '.' . $this->bankmsg($t->GETTIME, $id, $times[1]);
+    }
+    return $res;
+  }
+
   /*** End request processing ***/
 
   // Patterns for non-request data
@@ -751,7 +861,9 @@ class server {
                         $t->ATOUTBOXHASH => array($t->MSG),
                         $t->ATBALANCE => array($t->MSG),
                         $t->ATSPEND => array($t->MSG),
-                        $t->ATASSET => array($t->MSG)
+                        $t->ATASSET => array($t->MSG),
+                        $t->REQ => array($t->ID, $t->REQ),
+                        $t->GETTIME => array($t->ID, $t->TIME)
                         );
       $this->patterns = $patterns;
     }
@@ -764,7 +876,7 @@ class server {
     $patterns = $this->patterns();
     $pattern = $patterns[$req[1]];
     if (!$pattern) return "Unknown request: '" . $req[1] . "'";
-    $pattern = array_merge(array($t->CUSTOMER,$t->REQ), $pattern);
+    $pattern = array_merge(array($t->CUSTOMER,$t->REQUEST), $pattern);
     $args = $parser->matchargs($req, $pattern);
     if (!$args) {
       return "Request doesn't match pattern: " .
@@ -778,6 +890,16 @@ class server {
     return $args;
   }
 
+  // Parse and match a message.
+  // Returns an array mapping parameter names to values.
+  // Returns a string if parsing or matching fails.
+  function match_message($msg) {
+    $parser = $this->parser;
+    $reqs = $parser->parse($msg);
+    if (!$reqs) return $parser->errmsg || "Parse failed";
+    return $this->match_pattern($reqs[0]);
+  }
+
   function commands() {
     $t = $this->t;
     if (!$this->commands) {
@@ -786,8 +908,8 @@ class server {
                      $t->ID => array($t->BANKID,$t->ID),
                      $t->REGISTER => array($t->BANKID,$t->PUBKEY,$t->NAME=>1),
                      $t->GETREQ => array($t->BANKID),
-                     $t->TIME => array($t->BANKID,$t->REQ),
-                     $t->GETFEES => array($t->BANKID,$t->REQ,$t->OPERATION),
+                     $t->GETTIME => array($t->BANKID,$t->REQ),
+                     $t->GETFEES => array($t->BANKID,$t->REQ,$t->OPERATION=>1),
                      $t->SPEND => $patterns[$t->SPEND],
                      $t->INBOX => array($t->BANKID,$t->REQ),
                      $t->PROCESSINBOX => array($t->BANKID,$t->TIMELIST),
@@ -820,7 +942,7 @@ class server {
       return $this->failmsg($msg, "Unknown request: $req");
     }
     $method = $method_pattern[0];
-    $pattern = array_merge(array($t->CUSTOMER,$t->REQ), $method_pattern[1]);
+    $pattern = array_merge(array($t->CUSTOMER,$t->REQUEST), $method_pattern[1]);
     $args = $this->parser->matchargs($parses[0], $pattern);
     if (!$args) {
       return $this->failmsg($msg,
@@ -896,7 +1018,9 @@ function process($msg) {
 
   echo "\n=== Msg ===\n$msg\n";
   echo "=== Response ===\n";
-  echo $server->process($msg);
+  $res = $server->process($msg);
+  echo $res;
+  return $res;
 }
 
 // Fake a spend of tokens to the customer
@@ -932,19 +1056,29 @@ if (!$db->get($assetbalancekey)) {
 
 $db->put($t->TIME, 5);
 
-//echo process(custmsg('bankid',$pubkey));
-//echo process(custmsg("register",$bankid,$pubkey,"George Jetson"));
-//echo process(custmsg2("register",$bankid,$pubkey2,"Jane Jetson"));
-//echo process(custmsg('id',$bankid,$id));
+//process(custmsg('bankid',$pubkey));
+//process(custmsg("register",$bankid,$pubkey,"George Jetson"));
+//process(custmsg2("register",$bankid,$pubkey2,"Jane Jetson"));
+//process(custmsg('id',$bankid,$id));
 
-//return;
+$msg = process(custmsg('getreq', $bankid));
+$args = $server->match_message($msg);
+if (is_string($args)) echo "Failure parsing or matching: $args\n";
+else {
+  $req = bcadd($args['req'], 1);
+  //process(custmsg('gettime', $bankid, $req));
+  //process(custmsg('getfees', $bankid, $req));
+  process(custmsg('inbox', $bankid, $req));
+}
+
+return;
 
 $spend = custmsg('spend',$bankid,4,$id2,$server->tokenid,5,"Hello Big Boy!");
 $bal = custmsg('balance',$bankid,4,$server->tokenid,13);
 $hash = $server->outboxhash($id, 4, $spend);
 $hash = custmsg('outboxhash', $bankid, 4, $hash);
 $db->put($server->accttimekey($id), 4);
-echo process("$spend.$bal.$hash");
+process("$spend.$bal.$hash");
 
 // Copyright 2008 Bill St. Clair
 //
