@@ -281,22 +281,14 @@ Query Inbox
   bank-signed timestamp less than /account/<id>/last. This forces
   customers to complete inbox transactions, and be in sync with the
   bank about their balances and outbox contents, if they want to be
-  able to do spends. There is one exception. The customer will always
-  be allowed to spend each assetid to the issuer of that assetid, so
-  that there's always a way to "cash out". Since the bank signs all
-  incoming inbox entries, with a newly allocated timestamp, if the
-  customer gets two timestamps before processing the inbox, then any
-  inbox entries that arrive before his inbox processing and subsequent
-  spend are done will have timestamps greater than the two put ther by
-  the inbox query, so he'll be allowed to use the second one for a
-  spend, even if his inbox is very busy.
+  able to do spends.
 
 Process Inbox
 -------------
 
   Customer sends:
 
-(<id>,pbrocessinbox,<bankid>,time8#>,<time6#>|<time7#>|<time8#>|<time9#>).
+(<id>,processinbox,<bankid>,time8#>,<time6#>|<time7#>|<time8#>|<time9#>).
   (<id>,spend|accept,<bankid>,<id4>,<time4#>,note:<note42>).
   (<id>,spend|reject,<bankid,<id5>,<time5#>,note:<note52>).
   (<id>,balance,<bankid>,<time8#>,<assetid>,<amount>,acct:<acct>).
