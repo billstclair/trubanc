@@ -1,13 +1,19 @@
+bankmsg() is quoting all the args. It should use match_pattern to
+error check and determine which arg is a t->MSG. Don't quote that
+one. This will require changes to unpack_bankmsg, since all the
+parsing will be done with one call to $parser->parse().
+
 Error codes on $this->failmsg()
 
-For spend
+$t->SPEND
 ---------
 
 Right now, spends to the bank are rejected right away.
 
-Some alternatives:
+Alternatives:
 
-1) Accept spends to the bank right away, with no inbox or outbox.
+1) Accept spends to the bank right away, with no inbox or
+outbox. Credit the bank's accounts.
 
 2) Reject spends to the bank, but keep the proferred tokens. This would likely anger people, but possibly no more than losing tokens when another customer rejects your spend.
 

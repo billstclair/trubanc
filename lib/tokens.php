@@ -34,6 +34,7 @@ class tokens {
   var $GETTIME = 'gettime';
   var $GETFEES = 'getfees';
   var $SPEND = 'spend';
+  var $GETINBOX = 'getinbox';
   var $PROCESSINBOX = 'processinbox';
   var $SPENDACCEPT = 'spend|accept';
   var $SPENDREJECT = 'spend|reject';
@@ -48,7 +49,7 @@ class tokens {
   var $ATBALANCE = '@balance';
   var $ATSPEND = '@spend';
   var $ATASSET = '@asset';
-  var $ATINBOX = '@inbox';
+  var $ATGETINBOX = '@getinbox';
   var $ATPROCESSINBOX = '@processinbox';
 
   // request parameter names

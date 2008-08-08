@@ -255,14 +255,14 @@ Query Inbox
 
   Customer sends:
 
-(<id>,inbox,<bankid>,<req#>)
+(<id>,getinbox,<bankid>,<req#>)
 
   Bank compares <req#> to /account/<id>/req. If <req#>
   is greater, bank sets /account/<id>/req to <req#> and
   responds with contents of /account/<id>/inbox/, separated by
   periods, plus two timestamps:
 
-(<bankid>,@inbox(<id>,inbox,<bankid>,<req#>).
+(<bankid>,@getinbox,(<id>,getinbox,<bankid>,<req#>).
   (<bankid>,inbox,<time6#>,(<id2>,spend|accept,<bankid>,<time2#>,note:<note22>,acct:<acct2>)).
   (<bankid>,inbox,<time7#>,(<id3>,spend|reject,<bankid>,<time3#>,note:<note32>)).
   (<bankid>,inbox,<time8#>,(<id4>,spend,<bankid>,<time4#>,note:<note4>)).

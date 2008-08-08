@@ -42,7 +42,7 @@ class server {
     $db = $this->db;
     $t = $this->t;
     $lock = $db->lock($t->TIME);
-    $res = $db->get($t->TIME) + 1;
+    $res = bcadd($db->get($t->TIME), 1);
     $db->put($t->TIME, $res);
     $db->unlock($lock);
     return $res;
@@ -124,7 +124,9 @@ class server {
   }
 
   function outboxhashmsg($id, $transtime) {
-    return $this->bankmsg($this->t->OUTBOXHASH, $this->getacctlast($id),
+    return $this->bankmsg($this->t->OUTBOXHASH,
+                          $this->bankid,
+                          $this->getacctlast($id),
                           $this->outboxhash($id, $transtime));
   }
 
@@ -178,7 +180,7 @@ class server {
       $pubkey = $ssl->privkey_to_pubkey($privkey);
       $bankid = $ssl->pubkey_id($pubkey);
       $this->bankid = $bankid;
-      $db->put($t->TIME, $this->bankmsg($t->TIME, '0'));
+      $db->put($t->TIME, 0);
       $db->put($t->BANKID, $this->bankmsg($t->BANKID, $bankid));
       $regmsg = $this->bankmsg($t->REGISTER, $bankid, "\n$pubkey", $bankname);
       $regmsg = $this->bankmsg($t->ATREGISTER, $regmsg);
@@ -209,7 +211,6 @@ class server {
     } else {
       $privkey = $ssl->load_private_key($db->get($t->PRIVKEY), $passphrase);
       $this->privkey = $privkey;
-      // Should change the numeric indices to names, and call match_pattern in get_signed_db_item
       $this->bankid = $this->unpack_bank_param($db, $t->BANKID);
       $this->tokenid = $this->unpack_bank_param($db, $t->TOKENID);
       $this->regfee = $this->unpack_bank_param($db, $t->REGFEE, $t->AMOUNT);
@@ -223,36 +224,46 @@ class server {
     return $this->unpack_bankmsg($db->get($type), $type, false, $key, true);
   }
 
-  // Get a signed item from the database
-  function get_signed_db_item($db, $bankid, $key, $index=2, $compares=false) {
-    $msg = $this->db->get($key);
-    if (!$msg) die("No value for /$key\n");
-    $req = $this->parser->parse($msg);
-    $req = $req[0];
-    if (!$req) die("While parsing $msg: " . $parser->errmsg . "\n");
-    if ($bankid != 0 && $req[0] != $bankid) die("Wrong bankid, $bankid, in $msg\n");
-    if ($req[1] != $key) die("Key should be '$key', not '" . $req[1] . "' in $msg\n");
-    if ($compares) {
-      foreach ($compares as $idx => $value) {
-        if ($req[$idx] != $value) die("\$req[$idx] should be '$value', not '"
-                                      . $req[$idx] . "' in $msg\n");
-      }
-    }
-    return $req[$index];
-  }
-
   // Bank sign a message
   function banksign($msg) {
     $sig = $this->ssl->sign($msg, $this->privkey);
     return "$msg:\n$sig";
   }
 
-  // Make a bank signed message from $array
+
+  // Make an unsigned message from the args.
   // Takes as many args as you care to pass.
+  function makemsg() {
+    $t = $this->t;
+    $utility = $this->utility;
+
+    $req = func_get_args();
+    $args = $this->match_pattern($req);
+    // I don't like this at all, but I don't know what else to do
+    if (!$args) return call_user_func_array(array($this, 'failmsg'), $req);
+    if (is_string($args)) return $this->failmsg($args);
+    $msg = '(';
+    $skip = false;
+    foreach ($args as $k => $v) {
+      if (is_int($k) && !$skip) {
+        if ($msg != '(') $msg .= ',';
+        $msg .= $utility->escape($v);
+      } elseif ($k == $t->MSG) {
+        $skip = true;
+        $msg .= ",$v";
+      }
+    }
+    $msg .= ')';
+    return $msg;
+  }
+
+  // Make a bank signed message from the args.
+  // Takes as many args as you care to pass
   function bankmsg() {
-    $args = func_get_args();
-    $msg = array_merge(array($this->bankid), $args);
-    return $this->banksign($this->utility->makemsg($msg));
+    $req = func_get_args();
+    $req = array_merge(array($this->bankid), $req);
+    $msg = call_user_func_array(array($this, 'makemsg'), $req);
+    return $this->banksign($msg);
   }
 
   // Takes as many args as you care to pass
@@ -293,11 +304,9 @@ class server {
       return $args;
     }
 
-    $msg = $args[$t->MSG];
+    $msg = $args[$t->MSG];      // this is already parsed
     if (!$msg) return $this->maybedie("No wrapped message", $fatal);
-    $reqs = $parser->parse($msg);
-    if (!$reqs) return $this->maybedie($parser->errmsg, $fatal);
-    $req = $reqs[0];
+    $req = $msg;
     $args = $this->match_pattern($req);
     if (is_string($args)) return $this->maybedie("While matching wrapped customer message: $args", $fatal);
     if (is_string($subtype) && !$args[$t->REQUEST] == $subtype) {
@@ -785,7 +794,7 @@ class server {
   }
 
   // Query inbox
-  function do_inbox($args, $reqs, $msg) {
+  function do_getinbox($args, $reqs, $msg) {
     $t = $this->t;
     $db = $this->db;
 
@@ -795,22 +804,22 @@ class server {
       return $this->failmsg($msg, "New req <= old req");
     }
     $lock = $db->lock($this->accttimekey($id));
-    $res = $this->do_inbox_internal($msg, $id);
+    $res = $this->do_getinbox_internal($msg, $id);
     $db->unlock($lock);
     return $res;
   }
 
-  function do_inbox_internal($msg, $id) {
+  function do_getinbox_internal($msg, $id) {
     $t = $this->t;
     $db = $this->db;
 
     $inbox = $this->scaninbox($id);
-    $res = $this->bankmsg($t->ATINBOX, $msg);
+    $res = $this->bankmsg($t->ATGETINBOX, $msg);
     foreach ($inbox as $inmsg) {
       $res .= '.' . $inmsg;
       $args = $this->match_message($inmsg);
       if ($args && !is_string($args)) {
-        $args = $this->match_message($args[$t->MSG]);
+        $args = $this->match_pattern($args[$t->MSG]);
       }
       if (!$args || is_string($args) ||
           $args[$t->ID] != $id) {
@@ -851,6 +860,8 @@ class server {
                         $t->ASSET => array($t->BANKID,$t->ASSET,
                                            $t->SCALE,$t->PRECISION,$t->NAME),
 
+                        $t->REGISTER => array($t->BANKID,$t->PUBKEY,$t->NAME=>1),
+
                         // Bank signed messages
                         $t->TOKENID => array($t->TOKENID),
                         $t->BANKID => array($t->BANKID),
@@ -859,6 +870,7 @@ class server {
                         $t->INBOX => array($t->TIME, $t->MSG),
                         $t->ATREGISTER => array($t->MSG),
                         $t->ATOUTBOXHASH => array($t->MSG),
+                        $t->ATGETINBOX => array($t->MSG),
                         $t->ATBALANCE => array($t->MSG),
                         $t->ATSPEND => array($t->MSG),
                         $t->ATASSET => array($t->MSG),
@@ -906,12 +918,12 @@ class server {
       $patterns = $this->patterns();
       $names = array($t->BANKID => array($t->PUBKEY),
                      $t->ID => array($t->BANKID,$t->ID),
-                     $t->REGISTER => array($t->BANKID,$t->PUBKEY,$t->NAME=>1),
+                     $t->REGISTER => $patterns[$t->REGISTER],
                      $t->GETREQ => array($t->BANKID),
                      $t->GETTIME => array($t->BANKID,$t->REQ),
                      $t->GETFEES => array($t->BANKID,$t->REQ,$t->OPERATION=>1),
                      $t->SPEND => $patterns[$t->SPEND],
-                     $t->INBOX => array($t->BANKID,$t->REQ),
+                     $t->GETINBOX => array($t->BANKID,$t->REQ),
                      $t->PROCESSINBOX => array($t->BANKID,$t->TIMELIST),
                      $t->GETASSET => array($t->BANKID,$t->ASSET,$t->REQ),
                      $t->ASSET => array($t->BANKID,$t->ASSET,$t->SCALE,$t->PRECISION,$t->ASSETNAME),
@@ -1068,10 +1080,10 @@ else {
   $req = bcadd($args['req'], 1);
   //process(custmsg('gettime', $bankid, $req));
   //process(custmsg('getfees', $bankid, $req));
-  process(custmsg('inbox', $bankid, $req));
+  //process(custmsg('getinbox', $bankid, $req));
 }
 
-return;
+//return;
 
 $spend = custmsg('spend',$bankid,4,$id2,$server->tokenid,5,"Hello Big Boy!");
 $bal = custmsg('balance',$bankid,4,$server->tokenid,13);
