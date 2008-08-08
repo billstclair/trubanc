@@ -1,7 +1,4 @@
-bankmsg() is quoting all the args. It should use match_pattern to
-error check and determine which arg is a t->MSG. Don't quote that
-one. This will require changes to unpack_bankmsg, since all the
-parsing will be done with one call to $parser->parse().
+do_processinbox()
 
 Error codes on $this->failmsg()
 

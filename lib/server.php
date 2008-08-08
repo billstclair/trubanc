@@ -638,6 +638,7 @@ class server {
     if ($id != $id2) {
       // Spends to yourself are free
       $tokens = $this->tranfee;
+      $feemsg = "." . $this->bankmsg($t->TRANFEE, $time, $tokenid, $tokens);
     }
 
     $bals = array();
@@ -720,6 +721,11 @@ class server {
       }
     }
 
+    // outboxhash must be included
+    if (!$outboxhashmsg) {
+      return $this->failmsg($msg, $t->OUTBOXHASH . " missing");
+    }
+
     // Issuer balances must stay negative.
     // Regular balances must stay positive.
     foreach ($negbals as $negacct) {
@@ -754,7 +760,7 @@ class server {
 
     // All's well with the world. Commit this baby.
     $newtime = $this->gettime();
-    $outbox_item = $this->bankmsg($t->ATSPEND, $spendmsg);
+    $outbox_item = $this->bankmsg($t->ATSPEND, $spendmsg) . $feemsg;
     $inbox_item = $this->bankmsg($t->INBOX, $newtime, $spendmsg);
     $res = $outbox_item;
     
@@ -1073,6 +1079,7 @@ $db->put($t->TIME, 5);
 //process(custmsg2("register",$bankid,$pubkey2,"Jane Jetson"));
 //process(custmsg('id',$bankid,$id));
 
+/*
 $msg = process(custmsg('getreq', $bankid));
 $args = $server->match_message($msg);
 if (is_string($args)) echo "Failure parsing or matching: $args\n";
@@ -1082,6 +1089,7 @@ else {
   //process(custmsg('getfees', $bankid, $req));
   //process(custmsg('getinbox', $bankid, $req));
 }
+*/
 
 //return;
 
