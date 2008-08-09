@@ -446,15 +446,21 @@ class server {
     return false;
   }
 
-  function checkreq($id, $req) {
+  // True return is an error string
+  function checkreq($args, $msg) {
+    $t = $this->t;
     $db = $this->db;
+
+    $id = $args[$t->CUSTOMER];
+    $req = $args[$t->REQ];
     $reqkey = $this->acctreqkey($id);
-    $res = $req;
+    $res = false;
     $lock = $db->lock($reqkey);
     $oldreq = $db->get($reqkey);
-    if (bccomp($req, $oldreq) <= 0) $res = false;
+    if (bccomp($req, $oldreq) <= 0) $res = "New req <= old req";
     else $db->put($reqkey, $req);
     $db->unlock($lock);
+    if ($res) $res = $this->failmsg($msg, $res);
     return $res;
   }
 
@@ -549,24 +555,22 @@ class server {
 
   // Process a time request
   function do_gettime($args, $reqs, $msg) {
-    $t = $this->t;
     $db = $this->db;
 
-    $id = $args[$t->CUSTOMER];
-    $req = $args[$t->REQ];
+    $err = $this->checkreq($args, $msg);
+    if ($err) return $err;
+
     $lock = $db->lock($this->accttimekey($id));
-    $res = $this->do_gettime_internal($msg, $id, $req);
+    $res = $this->do_gettime_internal($msg, $args);
     $db->unlock($lock);
     return $res;
   }
 
-  function do_gettime_internal($msg, $id, $req) {
+  function do_gettime_internal($msg, $args) {
     $t = $this->t;
     $db = $this->db;
 
-    if (!$this->checkreq($id, $req)) {
-      return $this->failmsg($msg, "New req <= old req");
-    }
+    $id = $args[$t->CUSTOMER];
     $time = $this->gettime();
     $db->put($this->accttimekey($id), $time);
     return $this->bankmsg($t->TIME, $id, $time);
@@ -576,11 +580,9 @@ class server {
     $t = $this->t;
     $db = $this->db;
 
-    $id = $args[$t->CUSTOMER];
-    $req = $args[$t->REQ];
-    if (!$this->checkreq($id, $req)) {
-      return $this->failmsg($msg, "New req <= old req");
-    }
+    $err = $this->checkreq($args, $msg);
+    if ($err) return $err;
+
     return $db->get($t->REGFEE) . "." . $db->get($t->TRANFEE);
   }
 
@@ -820,11 +822,10 @@ class server {
     $t = $this->t;
     $db = $this->db;
 
+    $err = $this->checkreq($args, $msg);
+    if ($err) return $err;
+
     $id = $args[$t->CUSTOMER];
-    $req = $args[$t->REQ];
-    if (!$this->checkreq($id, $req)) {
-      return $this->failmsg($msg, "New req <= old req");
-    }
     $lock = $db->lock($this->accttimekey($id));
     $res = $this->do_getinbox_internal($msg, $id);
     $db->unlock($lock);
@@ -867,6 +868,13 @@ class server {
     return $res;
   }
 
+  function do_processinbox($args, $reqs, $msg) {
+    $t = $this->t;
+    $db = $this->db;
+
+    $id = $args[$t->CUSTOMER];
+  }
+
   /*** End request processing ***/
 
   // Patterns for non-request data
@@ -889,6 +897,7 @@ class server {
                         $t->BANKID => array($t->BANKID),
                         $t->REGFEE => array($t->BANKID, $t->TIME, $t->ASSET, $t->AMOUNT),
                         $t->TRANFEE => array($t->BANKID, $t->TIME, $t->ASSET, $t->AMOUNT),
+                        $t->TIME => array($t->ID, $t->TIME),
                         $t->INBOX => array($t->TIME, $t->MSG),
                         $t->ATREGISTER => array($t->MSG),
                         $t->ATOUTBOXHASH => array($t->MSG),
@@ -915,7 +924,7 @@ class server {
     $args = $parser->matchargs($req, $pattern);
     if (!$args) {
       $msg = $parser->get_parsemsg($req);
-      return "Request doesn't match pattern for " . $req[1] . ": " .
+      return "Request doesn't match pattern for '" . $req[1] . "': " .
         $parser->formatpattern($pattern) . " $msg";
     }
     $argsbankid = $args[$t->BANKID];
@@ -1097,7 +1106,6 @@ $db->put($t->TIME, 5);
 //process(custmsg2("register",$bankid,$pubkey2,"Jane Jetson"));
 //process(custmsg('id',$bankid,$id));
 
-/*
 $msg = process(custmsg('getreq', $bankid));
 $args = $server->match_message($msg);
 if (is_string($args)) echo "Failure parsing or matching: $args\n";
@@ -1107,9 +1115,8 @@ else {
   //process(custmsg('getfees', $bankid, $req));
   //process(custmsg('getinbox', $bankid, $req));
 }
-*/
 
-//return;
+return;
 
 $spend = custmsg('spend',$bankid,4,$id2,$server->tokenid,5,"Hello Big Boy!");
 $fee = custmsg('tranfee',$bankid,4,$server->tokenid,2);
