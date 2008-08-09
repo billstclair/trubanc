@@ -923,10 +923,66 @@ class server {
     }
 
     $bals = array();
-    $outboxkey = $this->outboxkey($id);
+    // Refund the transaction fees for accepted spends
     foreach ($accepts as $itemargs) {
-      $spendtime = $itemargs[$time];
+      $spendfeeargs = $this->getoutboxargs($itemargs[$time]);
+      if (is_string($spendfeeargs)) {
+        return $this->failmsg($msg, $spendfeeargs);
+      }
+      $feeargs = $spendfeeargs[$t->TRANFEE];
+      $asset = $feeargs[$t->ASSET];
+      $amt = $feeargs[$t->AMOUNT];
+      $bals[$asset] = bcadd($bals[$asset], $amt);
     }
+
+    // Credit the spend amounts for rejected spends, but do NOT
+    // refund the transaction fees
+    foreach ($rejects as $itemargs) {
+      $spendfeeargs = $this->getoutboxargs($itemargs[$time]);
+      if (is_string($spendfeeargs)) {
+        return $this->failmsg($msg, $spendfeeargs);
+      }
+      $spendargs = $spendfeeargs['spendargs'];
+      $asset = $spendargs[$t->ASSET];
+      $amt = $spendargs[$t->AMOUNT];
+      $bals[$asset] = bcadd($bals[$asset], $amt);
+    }
+
+    // Go through the rest of the processinbox items, collecting
+    // accept and reject instructions and balances.
+  }
+
+  function get_outbox_args($id, $time) {
+    $t = $this->t;
+    $db = $this->db;
+    $outboxkey = $this->outboxkey($id);
+
+    $spendtime = $itemargs[$time];
+    $spendmsg = $db->get("$outboxkey/$spendtime");
+    if (!$spendmsg) return "Can't find outbox item: $spendtime";
+    $reqs = $parser->parse($spendmsg);
+    if (!$reqs) return $parser->errmsg;
+    if (count($reqs) != 2) {
+      return "Expected 2 items in outbox entry";
+    }
+    $spendargs = $this->match_pattern($reqs[0]);
+    $feeargs = $this->match_pattern($reqs[1]);
+    if ($spendargs[$t->CUSTOMER] != $bankid ||
+        $spendargs[$t->REQUEST] != $t->ATSPEND ||
+        $feeargs[$t->CUSTOMER] != $bankid ||
+        $feeargs[$t->REQUEST] != $t->ATTRANFEE) {
+      return "Outbox corrupted";
+    }
+    $spendargs = $this->match_pattern($spendargs[$t->MSG]);
+    $feeargs = $this->match_pattern($feeargs[$t->MSG]);
+    if ($spendargs[$t->CUSTOMER] != $id ||
+        $spendargs[$t->REQUEST] != $t->SPEND ||
+        $feeargs[$t->CUSTOMER] != $id ||
+        $feeargs[$t->REQUEST] != $t->TRANFEE) {
+      return "Outbox inner messages corrupted";
+    }
+    return array($t->SPEND => $spendargs,
+                 $t->TRANFEE => $feeargs); 
   }
 
   /*** End request processing ***/
