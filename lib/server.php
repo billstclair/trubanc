@@ -194,9 +194,9 @@ class server {
       $asset = $this->bankmsg($t->ASSET, $bankid, $tokenid, 0, 0, $token_name);
       $db->put($t->ASSET . "/$tokenid", $this->bankmsg($t->ATASSET, $asset));
       $this->regfee = 10;
-      $db->put($t->REGFEE, $this->bankmsg($t->REGFEE, 0, $tokenid, $this->regfee));
+      $db->put($t->REGFEE, $this->bankmsg($t->REGFEE, $bankid, 0, $tokenid, $this->regfee));
       $this->tranfee = 2;
-      $db->put($t->TRANFEE, $this->bankmsg($t->TRANFEE, 0, $tokenid, $this->tranfee));
+      $db->put($t->TRANFEE, $this->bankmsg($t->TRANFEE, $bankid, 0, $tokenid, $this->tranfee));
       $accountdir = $t->ACCOUNT . "/$bankid";
       $db->put($this->accttimekey($bankid), 0);
       $db->put($this->acctlastkey($bankid), 0);
@@ -635,10 +635,10 @@ class server {
 
     $tokens = 0;
     $tokenid = $this->tokenid;
+    $feemsg = '';
     if ($id != $id2) {
       // Spends to yourself are free
       $tokens = $this->tranfee;
-      $feemsg = "." . $this->bankmsg($t->TRANFEE, $time, $tokenid, $tokens);
     }
 
     $bals = array();
@@ -663,7 +663,17 @@ class server {
       $reqtime = $reqargs[$t->TIME];
       if ($reqtime != $time) return $this->failmsg($msg, "Timestamp mismatch");
       if ($reqid != $id) return $this->failmsg($msg, "ID mismatch");
-      if ($reqreq == $t->BALANCE) {
+      if ($reqreq == $t->TRANFEE) {
+        if ($feemsg) {
+          return $this->failmsg($msg, $t->TRANFEE . ' appeared multiple times');
+        }
+        $tranasset = $reqargs[$t->ASSET];
+        $tranamt = $reqargs[$t->AMOUNT];
+        if ($tranasset != $tokenid || $tranamt != $tokens) {
+          return $this->failmsg($msg, "Mismatched tranfee asset or amount");
+        }
+        $feemsg = $this->bankmsg($t->ATTRANFEE, $parser->get_parsemsg($req));
+      } elseif ($reqreq == $t->BALANCE) {
         $balasset = $reqargs[$t->ASSET];
         $balamount = $reqargs[$t->AMOUNT];
         if (bccomp($balamount, 0) < 0) {
@@ -717,8 +727,14 @@ class server {
         $hash = $reqargs[$t->HASH];
       } else {
         return $this->failmsg($msg, "$reqreq not valid for spend. Only " .
-                              $t->BALANCE . " and " . $t->OUTBOXHASH);
+                              $t->TRANFEE . ', ' . $t->BALANCE . ", and " .
+                              $t->OUTBOXHASH);
       }
+    }
+
+    // tranfee must be included if there's a transaction fee
+    if ($tokens != 0 && !$feemsg) {
+      return $this->failmsg($msg, $t->TRANFEE . " missing");
     }
 
     // outboxhash must be included
@@ -760,7 +776,8 @@ class server {
 
     // All's well with the world. Commit this baby.
     $newtime = $this->gettime();
-    $outbox_item = $this->bankmsg($t->ATSPEND, $spendmsg) . $feemsg;
+    $outbox_item = $this->bankmsg($t->ATSPEND, $spendmsg);
+    if ($feemsg) $outbox_item .= ".$feemsg";
     $inbox_item = $this->bankmsg($t->INBOX, $newtime, $spendmsg);
     $res = $outbox_item;
     
@@ -773,7 +790,6 @@ class server {
     // Update balances
     $balancekey = $this->balancekey($id);
     foreach ($acctbals as $acct => $balances) {
-      if (!$acct) $acct = $t->MAIN;
       $acctdir = "$balancekey/$acct";
       foreach ($balances as $balasset => $balance) {
         $balance = $this->bankmsg($t->ATBALANCE, $balance);
@@ -871,14 +887,15 @@ class server {
                         // Bank signed messages
                         $t->TOKENID => array($t->TOKENID),
                         $t->BANKID => array($t->BANKID),
-                        $t->REGFEE => array($t->TIME, $t->ASSET, $t->AMOUNT),
-                        $t->TRANFEE => array($t->TIME, $t->ASSET, $t->AMOUNT),
+                        $t->REGFEE => array($t->BANKID, $t->TIME, $t->ASSET, $t->AMOUNT),
+                        $t->TRANFEE => array($t->BANKID, $t->TIME, $t->ASSET, $t->AMOUNT),
                         $t->INBOX => array($t->TIME, $t->MSG),
                         $t->ATREGISTER => array($t->MSG),
                         $t->ATOUTBOXHASH => array($t->MSG),
                         $t->ATGETINBOX => array($t->MSG),
                         $t->ATBALANCE => array($t->MSG),
                         $t->ATSPEND => array($t->MSG),
+                        $t->ATTRANFEE => array($t->MSG),
                         $t->ATASSET => array($t->MSG),
                         $t->REQ => array($t->ID, $t->REQ),
                         $t->GETTIME => array($t->ID, $t->TIME)
@@ -897,8 +914,9 @@ class server {
     $pattern = array_merge(array($t->CUSTOMER,$t->REQUEST), $pattern);
     $args = $parser->matchargs($req, $pattern);
     if (!$args) {
-      return "Request doesn't match pattern: " .
-        $parser->formatpattern($pattern);
+      $msg = $parser->get_parsemsg($req);
+      return "Request doesn't match pattern for " . $req[1] . ": " .
+        $parser->formatpattern($pattern) . " $msg";
     }
     $argsbankid = $args[$t->BANKID];
     $bankid = $this->bankid;
@@ -1094,11 +1112,12 @@ else {
 //return;
 
 $spend = custmsg('spend',$bankid,4,$id2,$server->tokenid,5,"Hello Big Boy!");
+$fee = custmsg('tranfee',$bankid,4,$server->tokenid,2);
 $bal = custmsg('balance',$bankid,4,$server->tokenid,13);
 $hash = $server->outboxhash($id, 4, $spend);
 $hash = custmsg('outboxhash', $bankid, 4, $hash);
 $db->put($server->accttimekey($id), 4);
-process("$spend.$bal.$hash");
+process("$spend.$fee.$bal.$hash");
 
 // Copyright 2008 Bill St. Clair
 //

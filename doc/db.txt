@@ -23,7 +23,7 @@ $dbdir/
                    -- default: 10 (pubkey/<id> (2),
                                   account/<id>/(time, last, req, outboxhash),
                                   and a few for good luck)
-  tranfee=(<bankid>,tranfee,<time#>,<tokenid>,<amount>)
+  tranfee=(<bankid>,tranfee,<bankid>,<time#>,<tokenid>,<amount>)
                    -- Usage tokens paid for a transaction.
                    -- Returned when the transaction completes.
                    -- Given to recipient when he rejects a spend (anti-spam)
@@ -56,9 +56,9 @@ $dbdir/
           <assetid>=(<bankid>,@balance,(<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>))
       outbox/
         <time2#>=(<bankid>,@spend,(<id>,spend,<bankid>,<time2#>,<id2>,<assetid2>,<amount2>,note:<note2>,acct:<acct2>)).
-                 (<bankid>,tranfee,<time2#>,<tokenid>,<amount2fee>)
+                 (<bankid>,@tranfee,(<id>,tranfee,<bankid>,<time2#>,<tokenid>,<amount2fee>))
         <time3#>=(<bankid>,@spend,(<id>,spend,<bankid>,<time3#>,<id3>,<assetid3>,<amount3>,note:<note3>,acct:<acct3>)).
-                 (<bankid>,tranfee,<time3#>,<tokenid>,<amount3fee>)
+                 (<bankid>,@tranfee,(<id>,tranfee,<bankid>,<time3#>,<tokenid>,<amount3fee>))
       outboxhash=(<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time#>,<hash>))
       inbox/
         <time5#>=(<bankid>,inbox,<time5#>,(<id2>,spend|accept,<bankid>,<time2#>,<id>,note:<note22>,acct:<acct2>))
@@ -224,6 +224,7 @@ Spend
   it work.
 
 (<id>,spend,<bankid>,<time#>,<id2>,<assetid>,<amount>,note:<note>>).
+  (<id>,tranfee,<bankid>,<time#>,<tokenid>,<amount2fee>).
   (<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>).
   (<id>,balance,<bankid>,<time#>,<assetid2>,<amount2>,acct:<acct2>).
   ...
@@ -241,7 +242,7 @@ Spend
   sends:
 
 (<bankid>,@spend,(<id>,spend,<time#>,<id2>,<bankid>,<assetid>,<amount>,note:<note>,acct:<acct>)).
-  (<bankid>,tranfee,<time#>,<tokenid>,<amount2fee>).
+  (<bankid>,@tranfee,(<id>,tranfee,<bankid>,<time#>,<tokenid>,<amount2fee>)).
   (<bankid>,@balance,(<id>,balance,<time#>,<bankid>,<assetid>,<amount>,acct:<acct>)).
   (<bankid>,@balance,(<id>,balance,<time#>,<bankid>,assetid2>,<amount2>,acct:<acct2>)).
   ...

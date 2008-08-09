@@ -48,6 +48,7 @@ class tokens {
   var $ATOUTBOXHASH = '@outboxhash';
   var $ATBALANCE = '@balance';
   var $ATSPEND = '@spend';
+  var $ATTRANFEE = '@tranfee';
   var $ATASSET = '@asset';
   var $ATGETINBOX = '@getinbox';
   var $ATPROCESSINBOX = '@processinbox';
