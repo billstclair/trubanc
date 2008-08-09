@@ -61,7 +61,7 @@ $dbdir/
                  (<bankid>,@tranfee,(<id>,tranfee,<bankid>,<time3#>,<tokenid>,<amount3fee>))
       outboxhash=(<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time#>,<hash>))
       inbox/
-        <time5#>=(<bankid>,inbox,<time5#>,(<id2>,spend|accept,<bankid>,<time2#>,<id>,note:<note22>,acct:<acct2>))
+        <time5#>=(<bankid>,inbox,<time5#>,(<id2>,spend|accept,<bankid>,<time2#>,<id>,note:<note22>))
         <time6#>=(<bankid>,inbox,<time6#>,(<id3>,spend|reject,<bankid>,<time3#>,<id>,note:<note32>))
         <time7#>=(<bankid>,inbox,<time7#>,(<id4>,spend,<bankid>,<time4#>,<id>,<assetid4>,<amount4>,note:<note4>))
 
@@ -253,11 +253,22 @@ If they don't match, bank returns:
 
 (<bankid>,failed,(<id>,spend,<bankid>,<time#>,<id2>,<assetid>,<amount>,note:<note>,acct:<acct>),errcode:<errcode>,reason:<reason>)
 
-  If the bank charges non-refunable fees for spends, those will be
+  If the bank charges non-refunable fees for spends, they must be
+  included with the customer's spend message, and they will be
   included in the return message, signed with the same timestamp as
-  the customer's spend message. The fees are included in case they
-  change between the time the spend is initiated, and when it is
-  closed.
+  the customer's spend message.
+
+  The refundable fees are stored in the outbox and included in the
+  bank response in case they change between the time the spend is
+  initiated and when it is closed. Note that the bank does NOT credit
+  its own account with the refundable fees. Those are left in the
+  outbox, pending acceptance or rejection of the spend. If accepted,
+  the fees are credited back to the customer account. If the recipient
+  rejects, they are credited to his account at rejection time. Hence,
+  auditing the transaction fee asset requires looking at accounts,
+  outbox items, and inbox items. spend|reject inbox items cancel out
+  the fees in the corresponding outbox item. spend_accept inbox items
+  do not.
 
 Query Inbox
 ------------
@@ -272,7 +283,7 @@ Query Inbox
   periods, plus two timestamps:
 
 (<bankid>,@getinbox,(<id>,getinbox,<bankid>,<req#>).
-  (<bankid>,inbox,<time6#>,(<id2>,spend|accept,<bankid>,<time2#>,note:<note22>,acct:<acct2>)).
+  (<bankid>,inbox,<time6#>,(<id2>,spend|accept,<bankid>,<time2#>,note:<note22>)).
   (<bankid>,inbox,<time7#>,(<id3>,spend|reject,<bankid>,<time3#>,note:<note32>)).
   (<bankid>,inbox,<time8#>,(<id4>,spend,<bankid>,<time4#>,note:<note4>)).
   (<bankid>,inbox,<time9#>,(<id5>,spend,<bankid>,time5#>,note:<note5>)).

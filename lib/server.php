@@ -787,11 +787,12 @@ class server {
     $inbox_item = $this->bankmsg($t->INBOX, $newtime, $spendmsg);
     $res = $outbox_item;
     
-    // Pay bank's fees
-    if ($tokens != 0) {
-      $err = $this->add_to_bank_balance($this->tokenid, $tokens);
-      if ($err) return $this->failmsg($msg, $err);
-    }
+    // I considered adding the transaction tokens to the bank
+    // balances here, but am just leaving them in the outbox,
+    // to be credited to this customer, if the spend is accepted,
+    // or to the recipient, if he rejects it.
+    // This means that auditing has to consider balances, outbox
+    // fees, and inbox spend items.
 
     // Update balances
     $balancekey = $this->balancekey($id);
@@ -890,6 +891,7 @@ class server {
     $parser = $this->parser;
 
     // $t->PROCESSINBOX => array($t->BANKID,$t->TIME,$t->TIMELIST),
+    $id = $args[$t->CUSTOMER];
     $time = $args[$t->TIME];
     $timelist = $args[$t->TIMELIST];
     $times = explode('|', $timelist);
@@ -910,13 +912,21 @@ class server {
       $item = $db->get("$inboxkey/$inboxtime");
       if (!$item) return $this->failmsg($msg, "Inbox entry not found: $inboxtime");
       $itemargs = $this->unpack_bankmsg($item, $t->INBOX, true);
-      $request = $itemargs[$REQUEST];
+      if ($itemargs[$t->ID] != $id) {
+        return $this->failmsg($msg, "Inbox corrupt. Item found for other customer");
+      }
+      $request = $itemargs[$t->REQUEST];
       if ($request == $t->SPEND) $spends[$inboxtime] = $itemargs;
       elseif ($request == $t->SPENDACCEPT) $accepts[$inboxtime] = $itemargs;
       elseif ($request == $t->SPENDREJECT) $rejects[$inboxtime] = $itemargs;
       else return $this->failmsg($msg, "Inbox corrupted. Found '$request' item");
     }
 
+    $bals = array();
+    $outboxkey = $this->outboxkey($id);
+    foreach ($accepts as $itemargs) {
+      $spendtime = $itemargs[$time];
+    }
   }
 
   /*** End request processing ***/
@@ -935,6 +945,8 @@ class server {
                                            $t->SCALE,$t->PRECISION,$t->NAME),
 
                         $t->REGISTER => array($t->BANKID,$t->PUBKEY,$t->NAME=>1),
+                        $t->SPENDACCEPT => array($t->BANKID,$t->TIME,$t->id,$t->NOTE=>1),
+                        $t->SPENDREJECT => array($t->BANKID,$t->TIME,$t->id,$t->NOTE=>1),
 
                         // Bank signed messages
                         $t->TOKENID => array($t->TOKENID),
