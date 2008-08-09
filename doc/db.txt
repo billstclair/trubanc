@@ -297,7 +297,7 @@ Process Inbox
 
   Customer sends:
 
-(<id>,processinbox,<bankid>,time11#>,<time6#>|<time7#>|<time8#>|<time9#>).
+(<id>,processinbox,<bankid>,<time11#>,<time6#>|<time7#>|<time8#>|<time9#>).
   (<id>,spend|accept,<bankid>,<id4>,<time4#>,note:<note42>).
   (<id>,spend|reject,<bankid,<id5>,<time5#>,note:<note52>).
   (<id>,balance,<bankid>,<time11#>,<assetid>,<amount>,acct:<acct>).

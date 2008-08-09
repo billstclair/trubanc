@@ -590,6 +590,7 @@ class server {
   function do_spend($args, $reqs, $msg) {
     $t = $this->t;
     $db = $this->db;
+
     $id = $args[$t->CUSTOMER];
     $lock = $db->lock($this->accttimekey($id));
     $res = $this->do_spend_internal($args, $reqs, $msg);
@@ -613,7 +614,10 @@ class server {
 
     // Burn the transaction, even if balances don't match.
     $accttime = $this->deq_time($id, $time);
-    if (!$accttime) return $this->failmsg($msg, "Timestamp not enqueued");
+    if (!$accttime) return $this->failmsg($msg, "No timestamp enqueued");
+    if ($accttime != $time) {
+      return $this->failmsg($msg, "Timestamp mismatch against enqueued");
+    }
 
     if ($id2 == $bankid) {
       return $this->failmsg($msg, "Spends to the bank are not allowed.");
@@ -873,6 +877,46 @@ class server {
     $db = $this->db;
 
     $id = $args[$t->CUSTOMER];
+    $lock = $db->lock($this->accttimekey($id));
+    $res = $this->do_processinbox_internal($args, $reqs, $msg);
+    $db->unlock($lock);
+    return $res;
+  }
+
+  function do_processinbox_internal($args, $reqs, $msg) {
+    $t = $this->t;
+    $db = $this->db;
+    $bankid = $this->bankid;
+    $parser = $this->parser;
+
+    // $t->PROCESSINBOX => array($t->BANKID,$t->TIME,$t->TIMELIST),
+    $time = $args[$t->TIME];
+    $timelist = $args[$t->TIMELIST];
+    $times = explode('|', $timelist);
+
+    // Burn the transaction, even if balances don't match.
+    $accttime = $this->deq_time($id, $time);
+    if (!$accttime) return $this->failmsg($msg, "No timestamp enqueued");
+    if ($accttime != $time) {
+      return $this->failmsg($msg, "Timestamp mismatch against enqueued");
+    }
+
+    $spends = array();
+    $accepts = array();
+    $rejects = array();
+
+    $inboxkey = $this->inboxkey($id);
+    foreach ($timelist as $inboxtime) {
+      $item = $db->get("$inboxkey/$inboxtime");
+      if (!$item) return $this->failmsg($msg, "Inbox entry not found: $inboxtime");
+      $itemargs = $this->unpack_bankmsg($item, $t->INBOX, true);
+      $request = $itemargs[$REQUEST];
+      if ($request == $t->SPEND) $spends[$inboxtime] = $itemargs;
+      elseif ($request == $t->SPENDACCEPT) $accepts[$inboxtime] = $itemargs;
+      elseif ($request == $t->SPENDREJECT) $rejects[$inboxtime] = $itemargs;
+      else return $this->failmsg($msg, "Inbox corrupted. Found '$request' item");
+    }
+
   }
 
   /*** End request processing ***/
@@ -957,7 +1001,7 @@ class server {
                      $t->GETFEES => array($t->BANKID,$t->REQ,$t->OPERATION=>1),
                      $t->SPEND => $patterns[$t->SPEND],
                      $t->GETINBOX => array($t->BANKID,$t->REQ),
-                     $t->PROCESSINBOX => array($t->BANKID,$t->TIMELIST),
+                     $t->PROCESSINBOX => array($t->BANKID,$t->TIME,$t->TIMELIST),
                      $t->GETASSET => array($t->BANKID,$t->ASSET,$t->REQ),
                      $t->ASSET => array($t->BANKID,$t->ASSET,$t->SCALE,$t->PRECISION,$t->ASSETNAME),
                      $t->GETOUTBOX => array($t->BANKID,$t->REQ),
@@ -1113,7 +1157,7 @@ else {
   $req = bcadd($args['req'], 1);
   //process(custmsg('gettime', $bankid, $req));
   //process(custmsg('getfees', $bankid, $req));
-  //process(custmsg('getinbox', $bankid, $req));
+  process(custmsg('getinbox', $bankid, $req));
 }
 
 return;
