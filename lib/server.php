@@ -23,6 +23,8 @@ class server {
   var $privkey;
   var $bankid;
 
+  var $unpack_reqs_key = 'unpack_reqs';
+
   // $db is an object that does put(key, value), get(key), and dir(key)
   // $ssl is an object that does the protocol of ssl.php
   // $bankname is used to initialize the bank name in a new database. Ignored otherwise.
@@ -301,12 +303,12 @@ class server {
         $res = $args[$idx];
         return $this->maybedie($res, $fatal && !$res);
       }
+      $args[$this->unpack_reqs_key] = $reqs; // save parse results
       return $args;
     }
 
-    $msg = $args[$t->MSG];      // this is already parsed
-    if (!$msg) return $this->maybedie("No wrapped message", $fatal);
-    $req = $msg;
+    $req = $args[$t->MSG];      // this is already parsed
+    if (!$req) return $this->maybedie("No wrapped message", $fatal);
     $args = $this->match_pattern($req);
     if (is_string($args)) return $this->maybedie("While matching wrapped customer message: $args", $fatal);
     if (is_string($subtype) && !$args[$t->REQUEST] == $subtype) {
@@ -317,6 +319,7 @@ class server {
       $res = $args[$idx];
       return $this->maybedie($res, $fatal && !$res);
     }
+    $args[$this->unpack_reqs_key] = $reqs; // save parse results
     return $args;
   }
 
@@ -656,12 +659,8 @@ class server {
     $negbals = array();
 
     $outboxhash = false;
-    $first = true;
-    foreach ($reqs as $req) {
-      if ($first) {
-        $first = false;
-        continue;
-      }
+    for ($i=1; $i<count($reqs); $i++) {
+      $req = $reqs[$i];
       $reqargs = $this->match_pattern($req);
       if (is_string($req_args)) return $this->failmsg($msg, $reqargs); // match error
       $reqid = $reqargs[$t->CUSTOMER];
@@ -783,8 +782,11 @@ class server {
     // All's well with the world. Commit this baby.
     $newtime = $this->gettime();
     $outbox_item = $this->bankmsg($t->ATSPEND, $spendmsg);
-    if ($feemsg) $outbox_item .= ".$feemsg";
     $inbox_item = $this->bankmsg($t->INBOX, $newtime, $spendmsg);
+    if ($feemsg) {
+      $outbox_item .= ".$feemsg";
+      $inbox_item .= ".$feemsg";
+    }
     $res = $outbox_item;
     
     // I considered adding the transaction tokens to the bank
@@ -916,13 +918,18 @@ class server {
         return $this->failmsg($msg, "Inbox corrupt. Item found for other customer");
       }
       $request = $itemargs[$t->REQUEST];
-      if ($request == $t->SPEND) $spends[$inboxtime] = $itemargs;
+      if ($request == $t->SPEND) {
+        $spends[$inboxtime] = $itemargs;
+        $reqs = $itemargs[$this->$unpack_reqs_key];
+        // *** Need to save the the fee, $reqs[1], somewhere
+      }
       elseif ($request == $t->SPENDACCEPT) $accepts[$inboxtime] = $itemargs;
       elseif ($request == $t->SPENDREJECT) $rejects[$inboxtime] = $itemargs;
       else return $this->failmsg($msg, "Inbox corrupted. Found '$request' item");
     }
 
     $bals = array();
+
     // Refund the transaction fees for accepted spends
     foreach ($accepts as $itemargs) {
       $spendfeeargs = $this->getoutboxargs($itemargs[$time]);
@@ -948,8 +955,27 @@ class server {
       $bals[$asset] = bcadd($bals[$asset], $amt);
     }
 
+    $acctbals = array();
+
     // Go through the rest of the processinbox items, collecting
     // accept and reject instructions and balances.
+    for ($i=1; $i<count($reqs); $i++) {
+      $req = $reqs[$i];
+      $args = $this->match_pattern($req);
+      if ($args[$t->CUSTOMER] != $id) {
+        return $this->failmsg
+          ($msg, "Item not from same customer as " . $t->PROCESSINBOX);
+      }
+      $request = $args[$t->REQUEST];
+      if ($request == $t->SPENDACCEPT) {
+      } elseif ($request == $t->SPENDREJECT) {
+      } elseif ($request == $t->BALANCE) {
+      } else {
+        return $this->failmsg($msg, "$request not valid for " . $t->PROCESSINBOX .
+                              " Only " . $t->SPENDACCEPT . ", " . $t->SPENDREJECT .
+                              ", &" . $t->BALANCE);
+      }
+    }
   }
 
   function get_outbox_args($id, $time) {
