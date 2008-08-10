@@ -976,10 +976,17 @@ class server {
           ($msg, "Item not from same customer as " . $t->PROCESSINBOX);
       }
       $request = $args[$t->REQUEST];
-      if ($request == $t->SPENDACCEPT) {
+      if ($request == $t->SPENDACCEPT ||
+          $request == $T->SPENDREJECT) {
         // $t->SPENDACCEPT => array($t->BANKID,$t->TIME,$t->id,$t->NOTE=>1),
-      } elseif ($request == $t->SPENDREJECT) {
         // $t->SPENDREJECT => array($t->BANKID,$t->TIME,$t->id,$t->NOTE=>1),
+        $itemtime = $args[$t->TIME];
+        $inboxpair = $spends[$itemtime];
+        if (!$inboxpair || count($inboxpair) != 2) {
+          return $this->failmsg($msg, "'$request' not matched in '" .
+                                $t->PROCESSINBOX . "' item");
+        }
+        
       } elseif ($request == $t->BALANCE) {
         // $t->BALANCE => array($t->BANKID,$t->TIME, $t->ASSET, $t->AMOUNT, $t->ACCT=>1),
       } else {
@@ -1291,3 +1298,4 @@ process("$spend.$fee.$bal.$hash");
 // and limitations under the License.
 
 ?>
+

@@ -332,6 +332,8 @@ customer sent, updates /account/<id>/outboxhash with the outboxhash
 item the customer sent, and sends back:
 
 (<bankid,@processinbox,(<id>,processinbox,<bankid>,<time11#>,<time7#>|<time8#>|<time9#>).
+  (<bankid>,@spend|accept,(<id>,spend|accept,<bankid>,<id4>,<time4#>,note:<note42>)).
+  (<bankid,@spend|reject,(<id>,spend|reject,<bankid,<id5>,<time5#>,note:<note52>)).
   (<bankid>,@balance,(<id>,balance,<bankid>,<time11#>,<assetid>,<amount>,acct:<acct>)).
   (<bankid>,@balance,(<id>,balance,<bankid>,time11#>,assetid2>,<amount2>,acct:<acct2>)).
   ...
