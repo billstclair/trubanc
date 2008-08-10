@@ -906,6 +906,7 @@ class server {
     }
 
     $spends = array();
+    $fees = array();
     $accepts = array();
     $rejects = array();
 
@@ -919,9 +920,17 @@ class server {
       }
       $request = $itemargs[$t->REQUEST];
       if ($request == $t->SPEND) {
-        $spends[$inboxtime] = $itemargs;
+        $itemtime = $itemargs[$t->TIME];
+        $spends[$itemtime] = array($inboxtime, $itemargs);
         $reqs = $itemargs[$this->$unpack_reqs_key];
-        // *** Need to save the the fee, $reqs[1], somewhere
+        $feereq = $req[1];
+        if ($feereq) {
+          $feeargs = $this->unpack_bankmsg($feereq, $t->ATTRANFEE, true);
+          if (!$feeargs || $feeargs[$t->REQUEST] != $t->TRANFEE) {
+            return $this->failmsg($msg, "Inbox corrupt. Fee not properly encoded");
+          }
+          $fees[$itemtime] = $feeargs;
+        }
       }
       elseif ($request == $t->SPENDACCEPT) $accepts[$inboxtime] = $itemargs;
       elseif ($request == $t->SPENDREJECT) $rejects[$inboxtime] = $itemargs;
@@ -968,8 +977,11 @@ class server {
       }
       $request = $args[$t->REQUEST];
       if ($request == $t->SPENDACCEPT) {
+        // $t->SPENDACCEPT => array($t->BANKID,$t->TIME,$t->id,$t->NOTE=>1),
       } elseif ($request == $t->SPENDREJECT) {
+        // $t->SPENDREJECT => array($t->BANKID,$t->TIME,$t->id,$t->NOTE=>1),
       } elseif ($request == $t->BALANCE) {
+        // $t->BALANCE => array($t->BANKID,$t->TIME, $t->ASSET, $t->AMOUNT, $t->ACCT=>1),
       } else {
         return $this->failmsg($msg, "$request not valid for " . $t->PROCESSINBOX .
                               " Only " . $t->SPENDACCEPT . ", " . $t->SPENDREJECT .
