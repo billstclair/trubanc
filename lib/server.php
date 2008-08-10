@@ -964,12 +964,17 @@ class server {
       $bals[$asset] = bcadd($bals[$asset], $amt);
     }
 
+    $inboxmsgs = array();
     $acctbals = array();
+    $res = $this->bankmsg($t->ATPROCESSINBOX, $msg);
+    $balancekey = $this->balancekey($id);
+    $tokens = 0;
 
     // Go through the rest of the processinbox items, collecting
     // accept and reject instructions and balances.
     for ($i=1; $i<count($reqs); $i++) {
       $req = $reqs[$i];
+      $reqmsg = $parser->get_parsemsg($req);
       $args = $this->match_pattern($req);
       if ($args[$t->CUSTOMER] != $id) {
         return $this->failmsg
@@ -981,20 +986,61 @@ class server {
         // $t->SPENDACCEPT => array($t->BANKID,$t->TIME,$t->id,$t->NOTE=>1),
         // $t->SPENDREJECT => array($t->BANKID,$t->TIME,$t->id,$t->NOTE=>1),
         $itemtime = $args[$t->TIME];
+        $otherid = $args[$t->ID];
         $inboxpair = $spends[$itemtime];
         if (!$inboxpair || count($inboxpair) != 2) {
           return $this->failmsg($msg, "'$request' not matched in '" .
                                 $t->PROCESSINBOX . "' item");
         }
-        
+        $itemargs = $inboxpair[1];
+        if ($request == $t->SPENDACCEPT) {
+          // Accepting the payment. Credit it.
+          $itemasset = $itemargs[$t->ASSET];
+          $itemamt = $itemargs[$t->AMOUNT];
+          $bals[$itemasset] = bcadd($bals[$itemasset], $itemamt);
+          $res .= '.' . $this->bankmsg($t->ATSPENDACCEPT, $reqmsg);
+        } else {
+          // Rejecting the payment. Credit the fee.
+          $feeargs = $fees[$itemtime];
+          if ($feeargs) {
+            $feeasset = $feeargs[$t->ASSET];
+            $feeamt = $feeargs[$t->AMOUNT];
+            $bals[$feeasset] = bcadd($bals[$feeasset], $feeamt);
+          }
+          $res .= '.' . $this->bankmsg($t->ATSPENDREJECT, $reqmsg);
+        }
+        $inboxmsgs[$otherid] = $this->bankmsg($t->INBOX, $this->gettime(), $reqmsg);
       } elseif ($request == $t->BALANCE) {
         // $t->BALANCE => array($t->BANKID,$t->TIME, $t->ASSET, $t->AMOUNT, $t->ACCT=>1),
+        
+        if ($args[$t->TIME] != $time) {
+          return $this->failmsg($msg, "Time mismatch on balance item");
+        }
+        $balasset = $args[$t->ASSET];
+        $balamount = $args[$t->AMOUNT];
+        $acct = $args[$t->ACCT];
+        if (!$itemacct) $itemacct = $t->MAIN;
+        $assetbalancekey = $this->assetbalancekey($id, $balasset, $acct)
+        $acctmsg = $db->get($assetbalancekey);
+        if (!$acctmsg) $tokens++;
+        else {
+          // Continue here
+        }
+        $acctargs = $this->unpack_bankmsg($acctmsg, $t->ATBALANCE, $t->BALANCE);
+        $bals[$itemasset] = bcsub($bals[$itemasset], $itemamt);
+        $balmsg = $this->banksign($t->ATBALANCE, $reqmsg);
+        $res .= ".$balmsg";
+        if ($acctbals[$itemacct][$itemasset]) {
+          return $this->failmsg($msg, "Duplicate acct/asset balance pair");
+        }
+        $acctbals[$itemacct][$itemasset] = $balmsg;
       } else {
         return $this->failmsg($msg, "$request not valid for " . $t->PROCESSINBOX .
                               " Only " . $t->SPENDACCEPT . ", " . $t->SPENDREJECT .
                               ", &" . $t->BALANCE);
       }
     }
+    return $res;
   }
 
   function get_outbox_args($id, $time) {
