@@ -790,7 +790,7 @@ class server {
     }
 
     // Charge the transaction and new balance file tokens;
-    $bals[$tokenid] -= $tokens;
+    $bals[$tokenid] = bcsub($bals[$tokenid], $tokens);
 
     $errmsg = "";
     $first = true;
@@ -974,24 +974,26 @@ class server {
 
     // Refund the transaction fees for accepted spends
     foreach ($accepts as $itemargs) {
-      $spendfeeargs = $this->getoutboxargs($itemargs[$time]);
+      $spendfeeargs = $this->get_outbox_args($itemargs[$t->TIME]);
       if (is_string($spendfeeargs)) {
         return $this->failmsg($msg, $spendfeeargs);
       }
-      $feeargs = $spendfeeargs[$t->TRANFEE];
-      $asset = $feeargs[$t->ASSET];
-      $amt = $feeargs[$t->AMOUNT];
-      $bals[$asset] = bcadd($bals[$asset], $amt);
+      $feeargs = $spendfeeargs[1];
+      if ($feeargs) {
+        $asset = $feeargs[$t->ASSET];
+        $amt = $feeargs[$t->AMOUNT];
+        $bals[$asset] = bcadd($bals[$asset], $amt);
+      }
     }
 
     // Credit the spend amounts for rejected spends, but do NOT
     // refund the transaction fees
     foreach ($rejects as $itemargs) {
-      $spendfeeargs = $this->getoutboxargs($itemargs[$time]);
+      $spendfeeargs = $this->get_outbox_args($itemargs[$t->TIME]);
       if (is_string($spendfeeargs)) {
         return $this->failmsg($msg, $spendfeeargs);
       }
-      $spendargs = $spendfeeargs['spendargs'];
+      $spendargs = $spendfeeargs[0];
       $asset = $spendargs[$t->ASSET];
       $amt = $spendargs[$t->AMOUNT];
       $bals[$asset] = bcadd($bals[$asset], $amt);
@@ -1049,7 +1051,9 @@ class server {
           }
           $res .= '.' . $this->bankmsg($t->ATSPENDREJECT, $reqmsg);
         }
-        $inboxmsgs[$otherid] = $this->bankmsg($t->INBOX, $this->gettime(), $reqmsg);
+        $inboxtime = $this->gettime();
+        $inboxmsgs[] = array($otherid, $inboxtime,
+                             $this->bankmsg($t->INBOX, $inboxtime, $reqmsg));
       } elseif ($request == $t->BALANCE) {
         $errmsg = $this->handle_balance_msg($id, $reqmsg, $args, $state);
         if ($errmsg) return $this->failmsg($msg, $errmsg);
@@ -1077,42 +1081,79 @@ class server {
       }
     }
 
-    // Continue here, with code at $bals[$tokenid] in do_spend_internal()
+    // Charge the new balance file tokens
+    $tokenid = $this->tokenid;
+    $bals[$tokenid] = bcsub($bals[$tokenid], $tokens);
+
+    $errmsg = "";
+    $first = true;
+    // Check that the balances in the spend message, match the current balance,
+    // minus amount spent minus fees.
+    foreach ($bals as $balasset => $balamount) {
+      if ($balamount != 0) {
+        $name = $this->lookup_asset_name($balasset);
+        if (!$first) $errmsg .= ', ';
+        $first = false;
+        $errmsg .= "$name: $balamount";
+      }
+    }
+    if ($errmsg != '') return $this->failmsg($msg, "Balance discrepanies: $errmsg");
+
+    // All's well with the world. Commit this baby.
+    // Update balances
+    $balancekey = $this->balancekey($id);
+    foreach ($acctbals as $acct => $balances) {
+      $acctdir = "$balancekey/$acct";
+      foreach ($balances as $balasset => $balance) {
+        $balance = $this->bankmsg($t->ATBALANCE, $balance);
+        $res .= ".$balance";
+        $db->put("$acctdir/$balasset", $balance);
+      }
+    }
+
+    // Update accepted and rejected spenders' inboxes
+    foreach ($inboxmsgs as $inboxmsg) {
+      $otherid = $inboxmsg[0];
+      $inboxtime = $inboxmsg[1];
+      $inboxmsg = $inboxmsg[2];
+      $inboxkey = $this->inboxkey($otherid);
+      $db->put("$inboxkey/$inboxtime", $inboxmsg);
+    }
+
+    // Remove no longer needed inbox and outbox entries
 
     return $res;
   }
 
-  function get_outbox_args($id, $time) {
+  function get_outbox_args($id, $spendtime) {
     $t = $this->t;
     $db = $this->db;
     $outboxkey = $this->outboxkey($id);
 
-    $spendtime = $itemargs[$time];
     $spendmsg = $db->get("$outboxkey/$spendtime");
     if (!$spendmsg) return "Can't find outbox item: $spendtime";
     $reqs = $parser->parse($spendmsg);
     if (!$reqs) return $parser->errmsg;
-    if (count($reqs) != 2) {
-      return "Expected 2 items in outbox entry";
-    }
     $spendargs = $this->match_pattern($reqs[0]);
-    $feeargs = $this->match_pattern($reqs[1]);
+    $feeargs = false;
+    if (count($reqs) > 1) $feeargs = $this->match_pattern($reqs[1]);
     if ($spendargs[$t->CUSTOMER] != $bankid ||
         $spendargs[$t->REQUEST] != $t->ATSPEND ||
-        $feeargs[$t->CUSTOMER] != $bankid ||
-        $feeargs[$t->REQUEST] != $t->ATTRANFEE) {
+        ($feeargs &&
+         ($feeargs[$t->CUSTOMER] != $bankid ||
+          $feeargs[$t->REQUEST] != $t->ATTRANFEE))) {
       return "Outbox corrupted";
     }
     $spendargs = $this->match_pattern($spendargs[$t->MSG]);
-    $feeargs = $this->match_pattern($feeargs[$t->MSG]);
+    if ($feeargs) $feeargs = $this->match_pattern($feeargs[$t->MSG]);
     if ($spendargs[$t->CUSTOMER] != $id ||
         $spendargs[$t->REQUEST] != $t->SPEND ||
-        $feeargs[$t->CUSTOMER] != $id ||
-        $feeargs[$t->REQUEST] != $t->TRANFEE) {
+        ($feeargs &&
+         ($feeargs[$t->CUSTOMER] != $id ||
+          $feeargs[$t->REQUEST] != $t->TRANFEE))) {
       return "Outbox inner messages corrupted";
     }
-    return array($t->SPEND => $spendargs,
-                 $t->TRANFEE => $feeargs); 
+    return array($spendargs, $feeargs); 
   }
 
   /*** End request processing ***/
