@@ -929,7 +929,7 @@ class server {
     $id = $args[$t->CUSTOMER];
     $time = $args[$t->TIME];
     $timelist = $args[$t->TIMELIST];
-    $times = explode('|', $timelist);
+    $inboxtimes = explode('|', $timelist);
 
     // Burn the transaction, even if balances don't match.
     $accttime = $this->deq_time($id, $time);
@@ -944,7 +944,7 @@ class server {
     $rejects = array();
 
     $inboxkey = $this->inboxkey($id);
-    foreach ($timelist as $inboxtime) {
+    foreach ($inboxtimes as $inboxtime) {
       $item = $db->get("$inboxkey/$inboxtime");
       if (!$item) return $this->failmsg($msg, "Inbox entry not found: $inboxtime");
       $itemargs = $this->unpack_bankmsg($item, $t->INBOX, true);
@@ -974,7 +974,9 @@ class server {
 
     // Refund the transaction fees for accepted spends
     foreach ($accepts as $itemargs) {
-      $spendfeeargs = $this->get_outbox_args($itemargs[$t->TIME]);
+      $outboxtime = $itemargs[$t->TIME];
+      $outboxtimes[] = $outboxtime;
+      $spendfeeargs = $this->get_outbox_args($outboxtime);
       if (is_string($spendfeeargs)) {
         return $this->failmsg($msg, $spendfeeargs);
       }
@@ -986,10 +988,14 @@ class server {
       }
     }
 
+    $outboxtimes = array();
+
     // Credit the spend amounts for rejected spends, but do NOT
     // refund the transaction fees
     foreach ($rejects as $itemargs) {
-      $spendfeeargs = $this->get_outbox_args($itemargs[$t->TIME]);
+      $outboxtime = $itemargs[$t->TIME];
+      $outboxtimes[] = $outboxtime;
+      $spendfeeargs = $this->get_outbox_args($outboxtime);
       if (is_string($spendfeeargs)) {
         return $this->failmsg($msg, $spendfeeargs);
       }
@@ -1121,6 +1127,15 @@ class server {
     }
 
     // Remove no longer needed inbox and outbox entries
+    // Probably should have a bank config parameter to archive these somewhere.
+    foreach ($inboxtimes as $inboxtime) {
+      $db->put("$inboxkey/$inboxtime", '');
+    }
+
+    $outboxkey = $this->outboxkey($id);
+    foreach ($outboxtimes as $outboxtime) {
+      $db->put("$outboxkey/$outboxtime", '');
+    }
 
     return $res;
   }
