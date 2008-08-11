@@ -467,6 +467,67 @@ class server {
     return $res;
   }
 
+  // Deal with an (<id>,balance,...) item from the customer for a
+  // spend or processinbox request.
+  // $id: the customer id
+  // $msg: the signed (<id>,balance,...) message, as a string
+  // $args: parser->parse(), then server->match_pattern() output on $balmsg
+  // &$state: an array of input and outputs:
+  //   'acctbals' => array(<acct> => array(<asset> => $msg))
+  //   'bals => array(<asset> => <amount>)
+  //   'tokens' => total new /account/<id>/balance/<acct>/<asset> files
+  //   'oldneg' => array(<asset> => <acct>), negative balances in current account
+  //   'newneg' => array(<asset> => <acct>), negative balances in updated account
+  // Returns an error string on error, or false on no error.
+  function handle_balance_msg($id, $msg, $args, &$state) {
+    $t = $this->t;
+    $db = $this->db;
+
+    $asset = $args[$t->ASSET];
+    $amount = $args[$t->AMOUNT];
+    $acct = $args[$t->ACCT];
+    if (!$acct) $acct = $t->MAIN;
+
+    if (!$this->is_asset($asset)) return "Unknown asset id: $balasset";
+    if (!is_numeric($amount)) return "Not a number: $amount";
+    if (!$this->is_acct_name($acct)) {
+      return "<acct> may contain only letters and digits: $acct";
+    }
+    if ($state['acctbals'][$acct][$balasset]) {
+      return $this->failmsg($msg, "Duplicate acct/asset balance pair");
+    }
+    $state['acctbals'][$acct][$balasset] = $msg;
+    $state['bals'][$balasset] = bcsub($state['bals'][$balasset], $amount);
+    if (bccomp($amount, 0) < 0) {
+      if ($state['newneg'][$asset]) {
+        return 'Multiple new negative balances for asset: $asset';
+      }
+      $state['newneg'][$asset] = $acct;
+    }
+
+    $assetbalancekey = $this->assetbalancekey($id, $asset, $acct);
+    $acctmsg = $db->get($assetbalancekey);
+    if (!$acctmsg) $state['tokens']++;
+    else {
+      $acctargs = $this->unpack_bankmsg($acctmsg, $t->ATBALANCE, $t->BALANCE);
+      if (is_string($acctargs) || !$acctargs ||
+          $acctargs[$t->ASSET] != $asset ||
+          $acctargs[$t->CUSTOMER] != $id) {
+        return "Balance entry corrupted for acct: $acct, asset: " .
+          $this->lookup_asset_name($balasset) . " - $acctmsg";
+      }
+      $amount = $acctargs[$t->AMOUNT];
+      $state['bals'][$asset] = bcadd($state['bals'][$asset], $amount);
+      if (bccomp($amount,  0) < 0) {
+        if ($state['oldneg'][$asset]) {
+          return "Account corrupted. Multiple negative balances for asset: $asset";
+        }
+        $state['oldneg'][$asset] = $acct;
+      }
+    }
+    return false;
+  }
+
   /*** Request processing ***/
  
   // Look up the bank's public key
@@ -656,19 +717,25 @@ class server {
       $bals[$assetid] = bcsub(0, $amount);
     }
     $acctbals = array();
-    $negbals = array();
+    $oldneg = array();
+    $newneg = array();
 
+    $state = array('acctbals' => $acctbals,
+                   'bals' => $bals,
+                   'tokens' => $tokens,
+                   'oldneg' => $oldneg,
+                   'newneg' => $newneg);
     $outboxhash = false;
     for ($i=1; $i<count($reqs); $i++) {
       $req = $reqs[$i];
       $reqargs = $this->match_pattern($req);
       if (is_string($req_args)) return $this->failmsg($msg, $reqargs); // match error
       $reqid = $reqargs[$t->CUSTOMER];
-      $reqreq = $reqargs[$t->REQUEST];
+      $request = $reqargs[$t->REQUEST];
       $reqtime = $reqargs[$t->TIME];
       if ($reqtime != $time) return $this->failmsg($msg, "Timestamp mismatch");
       if ($reqid != $id) return $this->failmsg($msg, "ID mismatch");
-      if ($reqreq == $t->TRANFEE) {
+      if ($request == $t->TRANFEE) {
         if ($feemsg) {
           return $this->failmsg($msg, $t->TRANFEE . ' appeared multiple times');
         }
@@ -678,64 +745,28 @@ class server {
           return $this->failmsg($msg, "Mismatched tranfee asset or amount");
         }
         $feemsg = $this->bankmsg($t->ATTRANFEE, $parser->get_parsemsg($req));
-      } elseif ($reqreq == $t->BALANCE) {
-        $balasset = $reqargs[$t->ASSET];
-        $balamount = $reqargs[$t->AMOUNT];
-        if (bccomp($balamount, 0) < 0) {
-          $negbals[$acct][$balasset] = true;
-        }
-        $acct = $reqargs[$t->ACCT];
-        if (!$acct) $acct = $t->MAIN;
-        if (!$this->is_asset($balasset)) {
-          return $this->failmsg($msg, "Unknown asset id: $balasset");
-        }
-        if (!is_numeric($balamount)) {
-          return $this->failmsg($msg, "Not a number: $balamount");
-        }
-        if (!$this->is_acct_name($acct)) {
-          return $this->failmsg($msg, "Acct may contain only letters and digits: $acct");
-        }
-        if ($acctbals[$acct][$balasset]) {
-          return $this->failmsg($msg, "Duplicate acct/asset balance pair");
-        }
-
-        // Remember user's balance message, and subtract it from the total
-        // for this asset.
-        $acctbals[$acct][$balasset] = $parser->get_parsemsg($req);
-        $bals[$balasset] = bcsub($bals[$balasset], $balamount);
-
-        $assetbalancekey = $this->assetbalancekey($id, $balasset, $acct);
-        $acctmsg = $db->get($assetbalancekey);
-        if (!$acctmsg) $tokens++;
-        else {
-          $acctargs = $this->unpack_bankmsg($acctmsg, $t->ATBALANCE, $t->BALANCE);
-          if (is_string($acctargs) || !$acctargs ||
-              $acctargs[$t->ASSET] != $balasset ||
-              $acctargs[$t->CUSTOMER] != $id) {
-            return $this->failmsg
-              ($msg, "Balance entry corrupted for acct: $acct, asset: " .
-               $this->lookup_asset_name($balasset) . " - $acctmsg");
-          }
-          $amount = $acctargs[$t->AMOUNT];
-          // Add the current balance to the total for this asset
-          $bals[$balasset] = bcadd($bals[$balasset], $amount);
-          if (bccomp($amount,  0) < 0) {
-            if ($negbals[$acct][$balasset]) unset($negbals[$acct][$balasset]);
-            else $negbals[$acct][$balasset] = true;
-          }
-        }
-      } elseif ($reqreq == $t->OUTBOXHASH) {
+      } elseif ($request == $t->BALANCE) {
+        $reqmsg = $parser->get_parsemsg($req);
+        $errmsg = $this->handle_balance_msg($id, $reqmsg, $reqargs, $state);
+        if ($errmsg) return $this->failmsg($msg, $errmsg);
+      } elseif ($request == $t->OUTBOXHASH) {
         if ($outboxhashreq) {
           return $this->failmsg($msg, $t->OUTBOXHASH . " appeared multiple times");
         }
         $outboxhashmsg = $parser->get_parsemsg($req);
         $hash = $reqargs[$t->HASH];
       } else {
-        return $this->failmsg($msg, "$reqreq not valid for spend. Only " .
+        return $this->failmsg($msg, "$request not valid for spend. Only " .
                               $t->TRANFEE . ', ' . $t->BALANCE . ", and " .
                               $t->OUTBOXHASH);
       }
     }
+
+    $acctbals = $state['acctbals'];
+    $bals = $state['bals'];
+    $tokens = $state['tokens'];
+    $oldneg = $state['oldneg'];
+    $newneg = $state['newneg'];
 
     // tranfee must be included if there's a transaction fee
     if ($tokens != 0 && !$feemsg) {
@@ -747,12 +778,14 @@ class server {
       return $this->failmsg($msg, $t->OUTBOXHASH . " missing");
     }
 
-    // Issuer balances must stay negative.
-    // Regular balances must stay positive.
-    foreach ($negbals as $negacct) {
-      if (count($negacct) > 0) {
-        return $this->failmsg
-          ($msg, "Negative balances may not be made positive, and vice-versa");
+    // Check that we have exactly as many negative balances after the transaction
+    // as we had before.
+    if (count($oldneg) != count($newneg)) {
+      return $this->failmsg($msg, "Negative balance count not conserved");
+    }
+    foreach ($oldneg as $asset => $acct) {
+      if (!$newneg[$asset]) {
+        return $this->failmsg($msg, "Negative balance assets not conserved");
       }
     }
 
@@ -967,8 +1000,15 @@ class server {
     $inboxmsgs = array();
     $acctbals = array();
     $res = $this->bankmsg($t->ATPROCESSINBOX, $msg);
-    $balancekey = $this->balancekey($id);
     $tokens = 0;
+    $oldneg = array();
+    $newneg = array();
+
+    $state = array('acctbals' => $acctbals,
+                   'bals' => $bals,
+                   'tokens' => $tokens,
+                   'oldneg' => $oldneg,
+                   'newneg' => $newneg);
 
     // Go through the rest of the processinbox items, collecting
     // accept and reject instructions and balances.
@@ -997,7 +1037,7 @@ class server {
           // Accepting the payment. Credit it.
           $itemasset = $itemargs[$t->ASSET];
           $itemamt = $itemargs[$t->AMOUNT];
-          $bals[$itemasset] = bcadd($bals[$itemasset], $itemamt);
+          $state['bals'][$itemasset] = bcadd($state['bals'][$itemasset], $itemamt);
           $res .= '.' . $this->bankmsg($t->ATSPENDACCEPT, $reqmsg);
         } else {
           // Rejecting the payment. Credit the fee.
@@ -1005,41 +1045,40 @@ class server {
           if ($feeargs) {
             $feeasset = $feeargs[$t->ASSET];
             $feeamt = $feeargs[$t->AMOUNT];
-            $bals[$feeasset] = bcadd($bals[$feeasset], $feeamt);
+            $state['bals'][$feeasset] = bcadd($state['bals'][$feeasset], $feeamt);
           }
           $res .= '.' . $this->bankmsg($t->ATSPENDREJECT, $reqmsg);
         }
         $inboxmsgs[$otherid] = $this->bankmsg($t->INBOX, $this->gettime(), $reqmsg);
       } elseif ($request == $t->BALANCE) {
-        // $t->BALANCE => array($t->BANKID,$t->TIME, $t->ASSET, $t->AMOUNT, $t->ACCT=>1),
-        
-        if ($args[$t->TIME] != $time) {
-          return $this->failmsg($msg, "Time mismatch on balance item");
-        }
-        $balasset = $args[$t->ASSET];
-        $balamount = $args[$t->AMOUNT];
-        $acct = $args[$t->ACCT];
-        if (!$itemacct) $itemacct = $t->MAIN;
-        $assetbalancekey = $this->assetbalancekey($id, $balasset, $acct)
-        $acctmsg = $db->get($assetbalancekey);
-        if (!$acctmsg) $tokens++;
-        else {
-          // Continue here
-        }
-        $acctargs = $this->unpack_bankmsg($acctmsg, $t->ATBALANCE, $t->BALANCE);
-        $bals[$itemasset] = bcsub($bals[$itemasset], $itemamt);
-        $balmsg = $this->banksign($t->ATBALANCE, $reqmsg);
-        $res .= ".$balmsg";
-        if ($acctbals[$itemacct][$itemasset]) {
-          return $this->failmsg($msg, "Duplicate acct/asset balance pair");
-        }
-        $acctbals[$itemacct][$itemasset] = $balmsg;
+        $errmsg = $this->handle_balance_msg($id, $reqmsg, $args, $state);
+        if ($errmsg) return $this->failmsg($msg, $errmsg);
       } else {
         return $this->failmsg($msg, "$request not valid for " . $t->PROCESSINBOX .
                               " Only " . $t->SPENDACCEPT . ", " . $t->SPENDREJECT .
                               ", &" . $t->BALANCE);
       }
     }
+
+    $acctbals = $state['acctbals'];
+    $bals = $state['bals'];
+    $tokens = $state['tokens'];
+    $oldneg = $state['oldneg'];
+    $newneg = $state['newneg'];
+
+    // Check that we have exactly as many negative balances after the transaction
+    // as we had before.
+    if (count($oldneg) != count($newneg)) {
+      return $this->failmsg($msg, "Negative balance count not conserved");
+    }
+    foreach ($oldneg as $asset => $acct) {
+      if (!$newneg[$asset]) {
+        return $this->failmsg($msg, "Negative balance assets not conserved");
+      }
+    }
+
+    // Continue here, with code at $bals[$tokenid] in do_spend_internal()
+
     return $res;
   }
 
