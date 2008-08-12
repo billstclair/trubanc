@@ -488,16 +488,16 @@ class server {
     $acct = $args[$t->ACCT];
     if (!$acct) $acct = $t->MAIN;
 
-    if (!$this->is_asset($asset)) return "Unknown asset id: $balasset";
+    if (!$this->is_asset($asset)) return "Unknown asset id: $asset";
     if (!is_numeric($amount)) return "Not a number: $amount";
     if (!$this->is_acct_name($acct)) {
       return "<acct> may contain only letters and digits: $acct";
     }
-    if ($state['acctbals'][$acct][$balasset]) {
+    if ($state['acctbals'][$acct][$asset]) {
       return $this->failmsg($msg, "Duplicate acct/asset balance pair");
     }
-    $state['acctbals'][$acct][$balasset] = $msg;
-    $state['bals'][$balasset] = bcsub($state['bals'][$balasset], $amount);
+    $state['acctbals'][$acct][$asset] = $msg;
+    $state['bals'][$asset] = bcsub($state['bals'][$asset], $amount);
     if (bccomp($amount, 0) < 0) {
       if ($state['newneg'][$asset]) {
         return 'Multiple new negative balances for asset: $asset';
@@ -514,7 +514,7 @@ class server {
           $acctargs[$t->ASSET] != $asset ||
           $acctargs[$t->CUSTOMER] != $id) {
         return "Balance entry corrupted for acct: $acct, asset: " .
-          $this->lookup_asset_name($balasset) . " - $acctmsg";
+          $this->lookup_asset_name($asset) . " - $acctmsg";
       }
       $amount = $acctargs[$t->AMOUNT];
       $state['bals'][$asset] = bcadd($state['bals'][$asset], $amount);
@@ -602,7 +602,6 @@ class server {
       $spendmsg = $this->bankmsg($t->INBOX, $time, $spendmsg);
       $db->put($this->inboxkey($id) . "/$time", $spendmsg);
     }
-    $db->put($this->accttimekey($id), 0);
     $db->put($this->acctlastkey($id), $time);
     $db->put($this->acctreqkey($id), 0);
     return $res;
@@ -678,10 +677,7 @@ class server {
 
     // Burn the transaction, even if balances don't match.
     $accttime = $this->deq_time($id, $time);
-    if (!$accttime) return $this->failmsg($msg, "No timestamp enqueued");
-    if ($accttime != $time) {
-      return $this->failmsg($msg, "Timestamp mismatch against enqueued");
-    }
+    if (!$accttime) return $this->failmsg($msg, "Timestamp not enqueued: $time");
 
     if ($id2 == $bankid) {
       return $this->failmsg($msg, "Spends to the bank are not allowed.");
@@ -762,6 +758,7 @@ class server {
       }
     }
 
+    print_r($state);
     $acctbals = $state['acctbals'];
     $bals = $state['bals'];
     $tokens = $state['tokens'];
@@ -933,10 +930,7 @@ class server {
 
     // Burn the transaction, even if balances don't match.
     $accttime = $this->deq_time($id, $time);
-    if (!$accttime) return $this->failmsg($msg, "No timestamp enqueued");
-    if ($accttime != $time) {
-      return $this->failmsg($msg, "Timestamp mismatch against enqueued");
-    }
+    if (!$accttime) return $this->failmsg($msg, "Timestamp not enqueued: $time");
 
     $spends = array();
     $fees = array();
@@ -955,11 +949,15 @@ class server {
       if ($request == $t->SPEND) {
         $itemtime = $itemargs[$t->TIME];
         $spends[$itemtime] = array($inboxtime, $itemargs);
-        $reqs = $itemargs[$this->$unpack_reqs_key];
-        $feereq = $req[1];
+        $itemreqs = $itemargs[$this->unpack_reqs_key];
+        $feereq = $itemreqs[1];
         if ($feereq) {
-          $feeargs = $this->unpack_bankmsg($feereq, $t->ATTRANFEE, true);
+          $feeargs = $this->match_pattern($feereq);
+          if ($feeargs && $feeargs[$t->REQUEST] == $t->ATTRANFEE) {
+            $feeargs = $this->match_pattern($feeargs[$t->MSG]);
+          }
           if (!$feeargs || $feeargs[$t->REQUEST] != $t->TRANFEE) {
+            print_r($feeargs);
             return $this->failmsg($msg, "Inbox corrupt. Fee not properly encoded");
           }
           $fees[$itemtime] = $feeargs;
@@ -1404,25 +1402,35 @@ $db->put($t->TIME, 5);
 //process(custmsg2("register",$bankid,$pubkey2,"Jane Jetson"));
 //process(custmsg('id',$bankid,$id));
 
-$msg = process(custmsg('getreq', $bankid));
-$args = $server->match_message($msg);
-if (is_string($args)) echo "Failure parsing or matching: $args\n";
-else {
-  $req = bcadd($args['req'], 1);
-  //process(custmsg('gettime', $bankid, $req));
-  //process(custmsg('getfees', $bankid, $req));
-  process(custmsg('getinbox', $bankid, $req));
+if (false) {
+  $msg = process(custmsg('getreq', $bankid));
+  $args = $server->match_message($msg);
+  if (is_string($args)) echo "Failure parsing or matching: $args\n";
+  else {
+    $req = bcadd($args['req'], 1);
+    //process(custmsg('gettime', $bankid, $req));
+    //process(custmsg('getfees', $bankid, $req));
+    process(custmsg('getinbox', $bankid, $req));
+  }
 }
 
-return;
+if (false) {
+  $spend = custmsg('spend',$bankid,4,$id2,$server->tokenid,5,"Hello Big Boy!");
+  $fee = custmsg('tranfee',$bankid,4,$server->tokenid,2);
+  $bal = custmsg('balance',$bankid,4,$server->tokenid,13);
+  $hash = $server->outboxhash($id, 4, $spend);
+  $hash = custmsg('outboxhash', $bankid, 4, $hash);
+  $db->put($server->accttimekey($id), 4);
+  process("$spend.$fee.$bal.$hash");
+}
 
-$spend = custmsg('spend',$bankid,4,$id2,$server->tokenid,5,"Hello Big Boy!");
-$fee = custmsg('tranfee',$bankid,4,$server->tokenid,2);
-$bal = custmsg('balance',$bankid,4,$server->tokenid,13);
-$hash = $server->outboxhash($id, 4, $spend);
-$hash = custmsg('outboxhash', $bankid, 4, $hash);
-$db->put($server->accttimekey($id), 4);
-process("$spend.$fee.$bal.$hash");
+if (true) {
+  $db->put($server->accttimekey($id2), 7);
+  $process = custmsg2('processinbox', $bankid, 7, 6);
+  $accept = custmsg2('spend|accept', $bankid, 4, $id, "Thanks for all the fish");
+  $bal = custmsg2('balance', $bankid, 7, $tokenid, 5);
+  process("$process.$accept.$bal");
+}
 
 // Copyright 2008 Bill St. Clair
 //
