@@ -758,7 +758,6 @@ class server {
       }
     }
 
-    print_r($state);
     $acctbals = $state['acctbals'];
     $bals = $state['bals'];
     $tokens = $state['tokens'];
@@ -957,7 +956,6 @@ class server {
             $feeargs = $this->match_pattern($feeargs[$t->MSG]);
           }
           if (!$feeargs || $feeargs[$t->REQUEST] != $t->TRANFEE) {
-            print_r($feeargs);
             return $this->failmsg($msg, "Inbox corrupt. Fee not properly encoded");
           }
           $fees[$itemtime] = $feeargs;
@@ -1107,11 +1105,11 @@ class server {
     // Update balances
     $balancekey = $this->balancekey($id);
     foreach ($acctbals as $acct => $balances) {
-      $acctdir = "$balancekey/$acct";
+      $acctkey = "$balancekey/$acct";
       foreach ($balances as $balasset => $balance) {
         $balance = $this->bankmsg($t->ATBALANCE, $balance);
         $res .= ".$balance";
-        $db->put("$acctdir/$balasset", $balance);
+        $db->put("$acctkey/$balasset", $balance);
       }
     }
 
@@ -1126,6 +1124,7 @@ class server {
 
     // Remove no longer needed inbox and outbox entries
     // Probably should have a bank config parameter to archive these somewhere.
+    $inboxkey = $this->inboxkey($id);
     foreach ($inboxtimes as $inboxtime) {
       $db->put("$inboxkey/$inboxtime", '');
     }
@@ -1185,8 +1184,8 @@ class server {
                                            $t->SCALE,$t->PRECISION,$t->NAME),
 
                         $t->REGISTER => array($t->BANKID,$t->PUBKEY,$t->NAME=>1),
-                        $t->SPENDACCEPT => array($t->BANKID,$t->TIME,$t->id,$t->NOTE=>1),
-                        $t->SPENDREJECT => array($t->BANKID,$t->TIME,$t->id,$t->NOTE=>1),
+                        $t->SPENDACCEPT => array($t->BANKID,$t->TIME,$t->ID,$t->NOTE=>1),
+                        $t->SPENDREJECT => array($t->BANKID,$t->TIME,$t->ID,$t->NOTE=>1),
 
                         // Bank signed messages
                         $t->TOKENID => array($t->TOKENID),
@@ -1202,6 +1201,9 @@ class server {
                         $t->ATSPEND => array($t->MSG),
                         $t->ATTRANFEE => array($t->MSG),
                         $t->ATASSET => array($t->MSG),
+                        $t->ATPROCESSINBOX => array($t->MSG),
+                        $t->ATSPENDACCEPT => array($t->MSG),
+                        $t->ATSPENDREJECT => array($t->MSG),
                         $t->REQ => array($t->ID, $t->REQ),
                         $t->GETTIME => array($t->ID, $t->TIME)
                         );
@@ -1428,7 +1430,7 @@ if (true) {
   $db->put($server->accttimekey($id2), 7);
   $process = custmsg2('processinbox', $bankid, 7, 6);
   $accept = custmsg2('spend|accept', $bankid, 4, $id, "Thanks for all the fish");
-  $bal = custmsg2('balance', $bankid, 7, $tokenid, 5);
+  $bal = custmsg2('balance', $bankid, 7, $tokenid, 25);
   process("$process.$accept.$bal");
 }
 

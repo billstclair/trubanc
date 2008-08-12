@@ -1,4 +1,8 @@
-do_processinbox()
+Add 'outboxhash' to processinbox, when you process a spend|reject or spend|accept.
+
+Debug processinbox.
+
+Remember the last successful spend or processinbox message and its result, and resend the result if the message is resent. This can heal responses that are lost in transit.
 
 Error codes on $this->failmsg()
 
