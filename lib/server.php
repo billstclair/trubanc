@@ -102,19 +102,20 @@ class server {
     return $this->accountdir($id) . $this->t->OUTBOX;
   }
 
-  function outboxhash($id, $transtime, $newitem=false) {
+  function outboxhash($id, $transtime, $newitem=false, $removed_times=false) {
     $parser = $this->parser;
     $db = $this->db;
     $dir = $this->outboxkey($id);
-    $contents = $this->db->contents($this->outboxkey($id));
+    $contents = $db->contents($this->outboxkey($id));
     if ($newitem) $contents[] = $transtime;
     $contents = $this->utility->bignum_sort($contents);
     $unhashed = '';
+    if ($removed_times) $contents = array_diff($contents, $removed_times);
     foreach ($contents as $time) {
       if (bccomp($time, $transtime) <= 0) {
         if ($time == $transtime) $item = $newitem;
         else {
-          $args = unpack_bankmsg($db->get("$dir/$time"));
+          $args = $this->unpack_bankmsg($db->get("$dir/$time"));
           $item = $args[$t->MSG];
         }
         if ($unhashed != '') $unhashed .= '.';
@@ -721,7 +722,7 @@ class server {
                    'tokens' => $tokens,
                    'oldneg' => $oldneg,
                    'newneg' => $newneg);
-    $outboxhash = false;
+    $outboxhashreq = false;
     for ($i=1; $i<count($reqs); $i++) {
       $req = $reqs[$i];
       $reqargs = $this->match_pattern($req);
@@ -749,6 +750,7 @@ class server {
         if ($outboxhashreq) {
           return $this->failmsg($msg, $t->OUTBOXHASH . " appeared multiple times");
         }
+        $outboxhashreq = $req;
         $outboxhashmsg = $parser->get_parsemsg($req);
         $hash = $reqargs[$t->HASH];
       } else {
@@ -770,7 +772,7 @@ class server {
     }
 
     // outboxhash must be included
-    if (!$outboxhashmsg) {
+    if (!$outboxhashreq) {
       return $this->failmsg($msg, $t->OUTBOXHASH . " missing");
     }
 
@@ -967,12 +969,13 @@ class server {
     }
 
     $bals = array();
+    $outboxtimes = array();
 
     // Refund the transaction fees for accepted spends
     foreach ($accepts as $itemargs) {
       $outboxtime = $itemargs[$t->TIME];
       $outboxtimes[] = $outboxtime;
-      $spendfeeargs = $this->get_outbox_args($outboxtime);
+      $spendfeeargs = $this->get_outbox_args($id, $outboxtime);
       if (is_string($spendfeeargs)) {
         return $this->failmsg($msg, $spendfeeargs);
       }
@@ -984,14 +987,12 @@ class server {
       }
     }
 
-    $outboxtimes = array();
-
     // Credit the spend amounts for rejected spends, but do NOT
     // refund the transaction fees
     foreach ($rejects as $itemargs) {
       $outboxtime = $itemargs[$t->TIME];
       $outboxtimes[] = $outboxtime;
-      $spendfeeargs = $this->get_outbox_args($outboxtime);
+      $spendfeeargs = $this->get_outbox_args($id, $outboxtime);
       if (is_string($spendfeeargs)) {
         return $this->failmsg($msg, $spendfeeargs);
       }
@@ -1003,7 +1004,7 @@ class server {
 
     $inboxmsgs = array();
     $acctbals = array();
-    $res = $this->bankmsg($t->ATPROCESSINBOX, $msg);
+    $res = $this->bankmsg($t->ATPROCESSINBOX, $parser->get_parsemgs($reqs[0]));
     $tokens = 0;
     $oldneg = array();
     $newneg = array();
@@ -1013,6 +1014,8 @@ class server {
                    'tokens' => $tokens,
                    'oldneg' => $oldneg,
                    'newneg' => $newneg);
+
+    $outboxhashreq = false;
 
     // Go through the rest of the processinbox items, collecting
     // accept and reject instructions and balances.
@@ -1056,6 +1059,13 @@ class server {
         $inboxtime = $this->gettime();
         $inboxmsgs[] = array($otherid, $inboxtime,
                              $this->bankmsg($t->INBOX, $inboxtime, $reqmsg));
+      } elseif ($request == $t->OUTBOXHASH) {
+        if ($outboxhashreq) {
+          return $this->failmsg($msg, $t->OUTBOXHASH . " appeared multiple times");
+        }
+        $outboxhashreq = $req;
+        $outboxhashmsg = $parser->get_parsemsg($req);
+        $hash = $args[$t->HASH];
       } elseif ($request == $t->BALANCE) {
         $errmsg = $this->handle_balance_msg($id, $reqmsg, $args, $state);
         if ($errmsg) return $this->failmsg($msg, $errmsg);
@@ -1071,6 +1081,14 @@ class server {
     $tokens = $state['tokens'];
     $oldneg = $state['oldneg'];
     $newneg = $state['newneg'];
+
+    // Make sure the outbox hash was included iff needed
+    if ((count($outboxtimes) > 0 && !$outboxhashreq) ||
+        (count($outboxtimes) == 0 && $outboxhashreq)) {
+      return $this->failmsg($msg, $t->OUTBOXHASH .
+                            ($outboxhashreq ? " included when not needed" :
+                             " missing"));
+    }
 
     // Check that we have exactly as many negative balances after the transaction
     // as we had before.
@@ -1100,6 +1118,12 @@ class server {
       }
     }
     if ($errmsg != '') return $this->failmsg($msg, "Balance discrepanies: $errmsg");
+
+    $outboxhash = $this->outboxhash($id, $time, false, $outboxtimes);
+    if ($outboxhash != $hash) {
+      return $this->failmsg
+        ($msg, $t->OUTBOXHASH . " mismatch ($hash != $outboxhash)");
+    }
 
     // All's well with the world. Commit this baby.
     // Update balances
@@ -1134,14 +1158,23 @@ class server {
       $db->put("$outboxkey/$outboxtime", '');
     }
 
+    // Update outboxhash
+    if ($outboxhashreq) {
+      $outboxhash_item = $this->bankmsg($t->ATOUTBOXHASH, $outboxhashmsg);
+      $res .= ".$outboxhash_item";
+      $db->put($this->outboxhashkey($id), $outboxhash_item);
+    }                                                              
+
     return $res;
   }
 
   function get_outbox_args($id, $spendtime) {
     $t = $this->t;
     $db = $this->db;
-    $outboxkey = $this->outboxkey($id);
+    $parser = $this->parser;
+    $bankid = $this->bankid;
 
+    $outboxkey = $this->outboxkey($id);
     $spendmsg = $db->get("$outboxkey/$spendtime");
     if (!$spendmsg) return "Can't find outbox item: $spendtime";
     $reqs = $parser->parse($spendmsg);
@@ -1404,6 +1437,7 @@ $db->put($t->TIME, 5);
 //process(custmsg2("register",$bankid,$pubkey2,"Jane Jetson"));
 //process(custmsg('id',$bankid,$id));
 
+// getinbox
 if (false) {
   $msg = process(custmsg('getreq', $bankid));
   $args = $server->match_message($msg);
@@ -1416,6 +1450,7 @@ if (false) {
   }
 }
 
+// spend
 if (false) {
   $spend = custmsg('spend',$bankid,4,$id2,$server->tokenid,5,"Hello Big Boy!");
   $fee = custmsg('tranfee',$bankid,4,$server->tokenid,2);
@@ -1426,12 +1461,56 @@ if (false) {
   process("$spend.$fee.$bal.$hash");
 }
 
-if (true) {
+// spend|accept
+if (false) {
   $db->put($server->accttimekey($id2), 7);
   $process = custmsg2('processinbox', $bankid, 7, 6);
   $accept = custmsg2('spend|accept', $bankid, 4, $id, "Thanks for all the fish");
   $bal = custmsg2('balance', $bankid, 7, $tokenid, 25);
   process("$process.$accept.$bal");
+}
+
+// Acknowledge spend|accept (tokens returned)
+if (false) {
+  $msg = process(custmsg('getreq', $bankid));
+  $args = $server->match_message($msg);
+  if (is_string($args)) echo "Failure parsing or matching: $args\n";
+  else {
+    $req = bcadd($args['req'], 1);
+    process(custmsg('gettime', $bankid, $req));
+    $time = $db->get($server->accttimekey($id));
+    $process = custmsg('processinbox', $bankid, $time, 6);
+    $hash = $server->outboxhash($id, $time, false, array(4));
+    $outboxhash = custmsg('outboxhash', $bankid, $time, $hash);
+    $bal = custmsg('balance', $bankid, $time, $tokenid, 15);
+    process("$process.$outboxhash.$bal");
+  }
+}
+
+// spend|reject
+if (false) {
+  $db->put($server->accttimekey($id2), 7);
+  $process = custmsg2('processinbox', $bankid, 7, 6);
+  $accept = custmsg2('spend|reject', $bankid, 4, $id, "No thanks. I don't eat fish");
+  $bal = custmsg2('balance', $bankid, 7, $tokenid, 22);
+  process("$process.$accept.$bal");
+}
+
+// Acknowledge spend|reject (tokens given to $id2)
+if (false) {
+  $msg = process(custmsg('getreq', $bankid));
+  $args = $server->match_message($msg);
+  if (is_string($args)) echo "Failure parsing or matching: $args\n";
+  else {
+    $req = bcadd($args['req'], 1);
+    process(custmsg('gettime', $bankid, $req));
+    $time = $db->get($server->accttimekey($id));
+    $process = custmsg('processinbox', $bankid, $time, 6);
+    $hash = $server->outboxhash($id, $time, false, array(4));
+    $outboxhash = custmsg('outboxhash', $bankid, $time, $hash);
+    $bal = custmsg('balance', $bankid, $time, $tokenid, 13);
+    process("$process.$outboxhash.$bal");
+  }
 }
 
 // Copyright 2008 Bill St. Clair
@@ -1449,4 +1528,3 @@ if (true) {
 // and limitations under the License.
 
 ?>
-
