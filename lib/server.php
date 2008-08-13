@@ -1004,7 +1004,7 @@ class server {
 
     $inboxmsgs = array();
     $acctbals = array();
-    $res = $this->bankmsg($t->ATPROCESSINBOX, $parser->get_parsemgs($reqs[0]));
+    $res = $this->bankmsg($t->ATPROCESSINBOX, $parser->get_parsemsg($reqs[0]));
     $tokens = 0;
     $oldneg = array();
     $newneg = array();
@@ -1029,7 +1029,7 @@ class server {
       }
       $request = $args[$t->REQUEST];
       if ($request == $t->SPENDACCEPT ||
-          $request == $T->SPENDREJECT) {
+          $request == $t->SPENDREJECT) {
         // $t->SPENDACCEPT => array($t->BANKID,$t->TIME,$t->id,$t->NOTE=>1),
         // $t->SPENDREJECT => array($t->BANKID,$t->TIME,$t->id,$t->NOTE=>1),
         $itemtime = $args[$t->TIME];
@@ -1071,7 +1071,7 @@ class server {
         if ($errmsg) return $this->failmsg($msg, $errmsg);
       } else {
         return $this->failmsg($msg, "$request not valid for " . $t->PROCESSINBOX .
-                              " Only " . $t->SPENDACCEPT . ", " . $t->SPENDREJECT .
+                              ". Only " . $t->SPENDACCEPT . ", " . $t->SPENDREJECT .
                               ", &" . $t->BALANCE);
       }
     }
@@ -1119,10 +1119,12 @@ class server {
     }
     if ($errmsg != '') return $this->failmsg($msg, "Balance discrepanies: $errmsg");
 
-    $outboxhash = $this->outboxhash($id, $time, false, $outboxtimes);
-    if ($outboxhash != $hash) {
-      return $this->failmsg
-        ($msg, $t->OUTBOXHASH . " mismatch ($hash != $outboxhash)");
+    if ($outboxhashreq) {
+      $outboxhash = $this->outboxhash($id, $time, false, $outboxtimes);
+      if ($outboxhash != $hash) {
+        return $this->failmsg
+          ($msg, $t->OUTBOXHASH . " mismatch ($hash != $outboxhash)");
+      }
     }
 
     // All's well with the world. Commit this baby.
@@ -1452,7 +1454,7 @@ if (false) {
 
 // spend
 if (false) {
-  $spend = custmsg('spend',$bankid,4,$id2,$server->tokenid,5,"Hello Big Boy!");
+  $spend = custmsg('spend',$bankid,4,$id2,$server->tokenid,5,"Have some fish!");
   $fee = custmsg('tranfee',$bankid,4,$server->tokenid,2);
   $bal = custmsg('balance',$bankid,4,$server->tokenid,13);
   $hash = $server->outboxhash($id, 4, $spend);
@@ -1497,7 +1499,7 @@ if (false) {
 }
 
 // Acknowledge spend|reject (tokens given to $id2)
-if (false) {
+if (true) {
   $msg = process(custmsg('getreq', $bankid));
   $args = $server->match_message($msg);
   if (is_string($args)) echo "Failure parsing or matching: $args\n";
@@ -1508,7 +1510,7 @@ if (false) {
     $process = custmsg('processinbox', $bankid, $time, 6);
     $hash = $server->outboxhash($id, $time, false, array(4));
     $outboxhash = custmsg('outboxhash', $bankid, $time, $hash);
-    $bal = custmsg('balance', $bankid, $time, $tokenid, 13);
+    $bal = custmsg('balance', $bankid, $time, $tokenid, 18);
     process("$process.$outboxhash.$bal");
   }
 }
