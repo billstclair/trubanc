@@ -1,6 +1,4 @@
-Add 'outboxhash' to processinbox, when you process a spend|reject or spend|accept.
-
-Debug processinbox.
+Debug processinbox: spend|reject & acknowledgement of spend|reject
 
 Remember the last successful spend or processinbox message and its result, and resend the result if the message is resent. This can heal responses that are lost in transit.
 

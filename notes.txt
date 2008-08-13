@@ -1,0 +1,20 @@
+JavaScript crypto
+=================
+
+crypto.signText(text, option, certificateName)
+  Needs certificates and packages up the result a lot
+
+<script>
+for (prop in crypto) {
+  document.write(prop + "<br>\n");
+}
+</script>
+
+Big Integers and RSA in JavaScript
+http://www-cs-students.stanford.edu/~tjw/jsbn/
+http://www.leemon.com/crypto/BigInt.html
+
+JavaScript sha1 is all over the place
+
+JavaScript base64 encode/decode is all over the place
+
