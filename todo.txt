@@ -1,6 +1,10 @@
-Debug processinbox: spend|reject & acknowledgement of spend|reject
-
 Remember the last successful spend or processinbox message and its result, and resend the result if the message is resent. This can heal responses that are lost in transit.
+
+Credit the bank for usage tokens paid for files. Some of this may be already done, but that code needs reviewing.
+
+Remove zero-balance files and credit a usage token.
+
+Support fees other than usage tokens.
 
 Error codes on $this->failmsg()
 
@@ -14,5 +18,5 @@ Alternatives:
 1) Accept spends to the bank right away, with no inbox or
 outbox. Credit the bank's accounts.
 
-2) Reject spends to the bank, but keep the proferred tokens. This would likely anger people, but possibly no more than losing tokens when another customer rejects your spend.
+2) Reject spends to the bank, but keep the proferred tokens. This might anger some, but possibly no more than losing tokens when another customer rejects your spend.
 

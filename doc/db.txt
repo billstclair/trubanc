@@ -395,11 +395,12 @@ Create asset
   means that the owner is the issuer. I haven't worked out the process
   to switch issuer ownership.
 
-  If <assetid> is the hash of <id><scale><precision><assetname>,
+  If <assetid> is the hash of <id>,<scale>,<precision>,<assetname>,
   /asset/<assetid> does not exist, <time4#> is equal to
   /account/<id>/time, and the customer has properly subtracted the
   createasset fees from the balances in /account/<id>/balance/<acctN>
-  (including a balance of -1 for the new asset), then bank adds
+  (including 1 usage token for the /asset/<assetid file and 1 usage
+  token for the balance file for the new asset), then bank adds
   <assetid>=(<id>,asset,<assetid>,<scale>,<precision>,<assetname>) to
   /asset/, sets /account/<id>/last to <time4#>, clears
   /account/<id>/time, and returns:

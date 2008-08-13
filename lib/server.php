@@ -709,6 +709,7 @@ class server {
     }
 
     $bals = array();
+    $bals[$tokenid] = 0;
     if ($id != $id2) {
       // No money changes hands on spends to yourself
       $bals[$assetid] = bcsub(0, $amount);
@@ -1203,6 +1204,147 @@ class server {
     return array($spendargs, $feeargs); 
   }
 
+  function do_asset($args, $reqs, $msg) {
+    $t = $this->t;
+    $db = $this->db;
+
+    $id = $args[$t->CUSTOMER];
+    $lock = $db->lock($this->accttimekey($id));
+    $res = $this->do_asset_internal($args, $reqs, $msg);
+    $db->unlock($lock);
+    return $res;
+  }
+
+  function do_asset_internal($args, $reqs, $msg) {
+    $t = $this->t;
+    $db = $this->db;
+    $bankid = $this->bankid;
+    $parser = $this->parser;
+
+    // $t->ASSET => array($t->BANKID,$t->ASSET,$t->SCALE,$t->PRECISION,$t->ASSETNAME),
+    $id = $args[$t->CUSTOMER];
+    $asset = $args[$t->ASSET];
+    $scale = $args[$t->SCALE];
+    $precision = $args[$t->PRECISION];
+    $assetname = $args[$t->ASSETNAME];
+
+    if (!(is_int($scale) && is_int($precision) &&
+          $scale >= 0 && $precision >= 0)) {
+      return $this->failmsg($msg, "Scale & precision must be integers >= 0");
+    }
+
+    if (!is_alphanumeric($assetname)) {
+      return $this->failmsg($msg, "Asset name must contain only letters and digits");
+    }
+
+    if ($asset != $this->assetid($id, $scale, $precision, $name)) {
+      return $this->failmsg
+        ($msg, "Asset id is not sha1 hash of 'id,scale,precision,name'");
+    }
+
+    if ($this->is_asset($asset)) {
+      return $this->failmsg($msg, "Asset already exists: $asset");
+    }
+
+    $tokens = 1;                // costs 1 token for the /asset/<assetid> file
+
+    $bals = array();
+    $acctbals = array();
+    $oldneg = array();
+    $newneg = array();
+
+    $tokenid = $this->tokenid;
+    $bals[$tokenid] = 0;
+
+    $state = array('acctbals' => $acctbals,
+                   'bals' => $bals,
+                   'tokens' => $tokens,
+                   'oldneg' => $oldneg,
+                   'newneg' => $newneg);
+
+    for ($i=1; $i<count($reqs); $i++) {
+      $req = $reqs[$i];
+      $reqargs = $this->match_pattern($req);
+      if (is_string($req_args)) return $this->failmsg($msg, $reqargs); // match error
+      $reqid = $reqargs[$t->CUSTOMER];
+      $request = $reqargs[$t->REQUEST];
+      $reqtime = $reqargs[$t->TIME];
+      if ($i == 1) {
+        // Burn the transaction
+        $time = $reqtime;
+        $accttime = $this->deq_time($id, $reqtime);
+        if (!$accttime) return $this->failmsg($msg, "Timestamp not enqueued: $time");
+      } elseif ($reqtime != $time) {
+        return $this->failmsg($msg, "Timestamp mismatch");
+      }
+      if ($reqid != $id) return $this->failmsg($msg, "ID mismatch");
+      if ($request == $t->BALANCE) {
+        $reqmsg = $parser->get_parsemsg($req);
+        $errmsg = $this->handle_balance_msg($id, $reqmsg, $reqargs, $state);
+        if ($errmsg) return $this->failmsg($msg, $errmsg);
+      } else {
+        return $this->failmsg($msg, "$request not valid for asset creation. Only " .
+                              $t->BALANCE);
+      }
+    }
+
+    $acctbals = $state['acctbals'];
+    $bals = $state['bals'];
+    $tokens = $state['tokens'];
+    $oldneg = $state['oldneg'];
+    $newneg = $state['newneg'];
+
+    // Check that we have exactly as many negative balances after the transaction
+    // as we had before, plus one for the new asset
+    $oldneg[$asset] = 'main';
+    if (count($oldneg) != count($newneg)) {
+      return $this->failmsg($msg, "Negative balance count not conserved");
+    }
+    foreach ($oldneg as $asset => $acct) {
+      if (!$newneg[$asset]) {
+        return $this->failmsg($msg, "Negative balance assets not conserved");
+      }
+    }
+
+    // Charge the new file tokens
+    $bals[$tokenid] = bcsub($bals[$tokenid], $tokens);
+
+    $errmsg = "";
+    $first = true;
+    // Check that the balances in the spend message, match the current balance,
+    // minus amount spent minus fees.
+    foreach ($bals as $balasset => $balamount) {
+      if ($balamount != 0) {
+        $name = $this->lookup_asset_name($balasset);
+        if (!$first) $errmsg .= ', ';
+        $first = false;
+        $errmsg .= "$name: $balamount";
+      }
+    }
+    if ($errmsg != '') return $this->failmsg($msg, "Balance discrepanies: $errmsg");
+
+    // All's well with the world. Commit this baby.
+    // Add asset
+    $res = $this->bankmsg($t->ATASSET, $parser->get_parsemsg($reqs[0]));
+    $db->put($t->ASSET . "/$asset", $res);
+
+    // Credit bank with tokens
+    $this->add_to_bank_balance($tokenid, $tokens);
+
+    // Update balances
+    $balancekey = $this->balancekey($id);
+    foreach ($acctbals as $acct => $balances) {
+      $acctkey = "$balancekey/$acct";
+      foreach ($balances as $balasset => $balance) {
+        $balance = $this->bankmsg($t->ATBALANCE, $balance);
+        $res .= ".$balance";
+        $db->put("$acctkey/$balasset", $balance);
+      }
+    }
+
+    return $res;
+  }
+
   /*** End request processing ***/
 
   // Patterns for non-request data
@@ -1499,7 +1641,7 @@ if (false) {
 }
 
 // Acknowledge spend|reject (tokens given to $id2)
-if (true) {
+if (false) {
   $msg = process(custmsg('getreq', $bankid));
   $args = $server->match_message($msg);
   if (is_string($args)) echo "Failure parsing or matching: $args\n";
