@@ -6,9 +6,9 @@
 <h1>Trubanc in Plain English</h1>
 
 <p>
-<a href="viewtext.php?file=doc/db.txt">doc/db.txt</a> gives a very
-terse description of the Trubanc server database and and
-protocol. This page attempts to render that in plain English.
+<a href="viewtext.php?file=doc/db.txt">doc/db.txt</a> gives a terse
+description of the Trubanc server database and protocol. This page
+attempts to render the protocol in plain English.
 </p>
 
 <p>
@@ -19,7 +19,11 @@ was written by its purported author. Trubanc uses OpenSSL for its
 public key cryptography. You probably use OpenSSL every time you visit
 a secure web site, https://somewhere.com/, as does the web server. I
 didn't roll my own. Just used the same tried and true technology that
-secures the web.
+secures the web. You can read more about public key cryptography,
+digital signatures, and hashing
+<a href="http://en.wikipedia.org/wiki/Public-key_cryptography">here</a>
+and
+<a href="http://www.pgpi.org/doc/pgpintro/">here</a>.
 </p>
 
 <p>
@@ -32,19 +36,19 @@ to Bob or Sue.
 <h2>Scenario: Opening an Account</h2>
 
 <p>
-Sue (via email or Skype): Hey, Bob. Check out Trubanc. Go to
+Sue (via email or IM): Hey, Bob. Check out Trubanc. Go to
 Trubanc.com, download the client, and install it on your
 computer. Then create a private key, and send me your ID, and I'll
 give you some usage tokens so that you can create an account.
 </p>
 
 <p>
-Bob (via email or Skype): Thanks, Sue! I installed the Trubanc client
+Bob (via email or IM): Thanks, Sue! I installed the Trubanc client
 and created a private key. Here's my ID.
 </p>
 
 <p>
-Sue (via email or Skype): OK, Bob. I've given you 20 usage tokens. You
+Sue (via email or IM): OK, Bob. I've given you 50 usage tokens. You
 should now be able to create an account at Trubanc.com. Here's my
 ID. Send me a message via Trubanc when you've registered.
 </p>
@@ -72,6 +76,19 @@ Signed: Bank
 </p>
 
 <p>-----</p>
+
+<p>
+In order to sign a message, you need to have a private key. In order
+to verify the signature on a message, you need to have the
+corresponding public key. Trubanc identifies customers by the hash of
+their public key, their ID. The ID is a 40-character string of numbers
+and the letters A to F, the hexadecimal representation of a 160-bit
+number. You identify your account to the Trubanc client with a
+passphrase, which is used to encrypt your private key on your
+disk. You'll only need to copy and paste your ID when you want to tell
+a trading partner how to send you money for the first time, or seed
+your account with usage tokens, as Sue did for Bob.
+</p>
 
 
 
