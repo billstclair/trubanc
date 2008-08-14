@@ -48,13 +48,44 @@ and created a private key. Here's my ID.
 </p>
 
 <p>
-Sue (via email or IM): OK, Bob. I've given you 50 usage tokens. You
-should now be able to create an account at Trubanc.com. Here's my
-ID. Send me a message via Trubanc when you've registered.
+
+<p>
+Sue (via her Trubanc client): Hey bank, Here's a new request
+number. Give me a transaction number please.<br/>
+Signed: Sue
 </p>
 
 <p>
-Bob (via the Trubanc client): Hello bank. Here's my ID and my public
+Bank: Here's a new transaction number.<br/>
+Signed: Bank
+</p>
+
+<p>
+Sue: Hey bank, here's that transaction number you gave me. Please
+spend 50 usage tokens to Bob's ID, with a message of ""Hey
+Bob. Welcome to Trubanc!" I'm paying 2 usage tokens as a transaction
+fee, which I'll get back when Bob accepts the spend.  My balance after
+this transaction will be 1025 usage tokens. My outbox hash after this
+transaction will be X.<br/>
+Signed: Sue
+</p>
+
+<p>
+Bank: I processed your spend to Bob's ID. I agree that the transaction
+fee at the time of this transaction is 2 usage tokens, and that your
+balance after this transaction is 1025 usage tokens. I agree with you
+on your outbox hash.<br/>
+Signed: Bank
+</p>
+
+<p>
+Sue (via email or IM): OK, Bob. I've given you 50 usage tokens. You
+should now be able to create an account at Trubanc.com. Send me a
+message via Trubanc when you've registered.
+</p>
+
+<p>
+Bob (via his Trubanc client): Hello bank. Here's my ID and my public
 key. What's your ID and public key?<br/>
 Signed: Bob
 </p>
@@ -86,11 +117,133 @@ and the letters A to F, the hexadecimal representation of a 160-bit
 number. You identify your account to the Trubanc client with a
 passphrase, which is used to encrypt your private key on your
 disk. You'll only need to copy and paste your ID when you want to tell
-a trading partner how to send you money for the first time, or seed
+a trading partner how to send you money for the first time, or to seed
 your account with usage tokens, as Sue did for Bob.
 </p>
 
+<p>
+Usage tokens are an idea from Patrick
+Chkoreff's <a href="https://loom.cc/">Loom</a> system. They are a way
+to charge for the bank's resources. You have to buy storage for your
+account balances, and temporary storage for transactions. Usage tokens
+are the "currency" used to do this. Trubanc also supports fees in
+other asset types, for bank management that wants to make more than
+the sale of usage tokens. Trubanc uses the file system as a
+database. One file in the Trubanc database costs one usage
+token. Files vary in size, but are usually about 8K, mostly
+signatures.
+</p>
 
+<p>
+Note that Bob had to send his public key to the bank twice, once when
+he requested the bank's public key, and again when he
+registered. Every message going to and from Trubanc is digitally
+signed. It's only possible to verify a digital signature if you know
+the public key of the signer. A new customer's public key isn't in the
+database until after he's registered, so the first two messages, in
+which the new customer gets the bank's public key, so that he can
+verify the bank's signatures, and the registration request, both need
+to include the customers's public key, so that the signatures on those
+two messages can themselves be verified. After registration is
+complete, subsequent messages need to carry only the ID; the public
+key can then be looked up in the database.
+</p>
 
+<p>
+Actual messages sent (with the signature that goes with each
+parenthesized item omitted):<br>
+</p>
+<pre>
+Sue: (&lt;suesid>,gettime,&lt;bankid>,&lt;req#>)
+Bank: (&lt;bankid>,time,&lt;suesid>,&lt;time#>)
+Sue: (&lt;suesid>,spend,&lt;bankid>,&lt;time#>,&lt;bobsid>,&lt;tokenid>,50,Hey Bob\. Welcome to Trubanc!).
+        (&lt;suesid>,tranfee,&lt;bankid>,&lt;time#>,&lt;tokenid>,2).
+        (&lt;suesid>,balance,&lt;bankid>,&lt;time#>,&lt;tokenid>,1025)
+Bank: (&lt;bankid>,@spend,(&lt;suesid>,spend,&lt;bankid>,&lt;time#>,&lt;bobsid>,&lt;tokenid>,50,Hey Bob\. Welcome to Trubanc!)).
+        (&lt;bankid>,@tranfee,(&lt;suesid>,tranfee,&lt;bankid>,&lt;time#>,&lt;tokenid>,2)).
+        (&lt;bankid>,@balance,(&lt;suesid>,balance,&lt;bankid>,&lt;time#>,&lt;tokenid>,1025))
+Bob: (&lt;bobsid>,bankid,&lt;pubkey>)
+Bank: (&lt;bankid>,@register,(&lt;bankid>,register,&lt;bankid>,&lt;pubkey>,Trubanc))
+Bob: (&lt;bobsid>,register,&lt;bankid>,&lt;pubkey>,Bob)
+Bank: (&lt;bankid>,@register,(&lt;bobsid>,register,&lt;bankid>,&lt;pubkey>,Bob))
+</pre>
+
+<h2>Scenario: Receiving Assets</h2>
+
+<p>
+Bob: Hello bank. Here's my ID and a new request number. What's in my
+inbox?<br/>
+Signed: Bob
+</p>
+
+<p>
+Bank: Your inbox contains a 50 usage token spend from Sue with a
+message of "Hey Bob. Welcome to Trubanc!" It also contains a 10 usage
+token charge from the bank with a message of "Registration Fee". Here
+are two transaction numbers you can use to accept these spends and do
+a spend yourself.<br/>
+Signed: Bank
+</p>
+
+<p>
+Bob: Here's my ID and the first of the transaction numbers you gave
+me. Accept the spend from Sue with a message of, "Thanks, Sue. I'm
+excited about Trubanc!" Accept the bank charge. My balance after this
+transaction will be 40 usage tokens.<br/>
+Signed: Bob
+</p>
+
+<p>
+Bank: I've processed the spend from Sue and the bank charge. I agree
+that your balance after that transaction is 40 usage tokens.<br/>
+Signed: Bank
+</p>
+
+<p>-----</p>
+
+<p>
+One possible attack on an electronic bank can be for someone to replay
+an intercepted a message. Unless the protocol protects against that,
+this can cause problems. Except for the bankid request, the
+registration request, and a request for a customer's last request
+number, every information request must be accompanied by a request
+number that is larger than the customer's last used request number,
+and every transaction must be accompanied by a transaction number that
+is given out by the bank. The bank maintains a counter, which it
+increments each time someone asks for a transaction number. This makes
+requests that reveal information or initiate transactions impossible
+to replay without a customer's passphrase and private key. In the
+Trubanc world, your passphrase and your private key are your
+identity. Guard them well.
+</p>
+
+<p>
+Another possible replay attack is to intercept a message for one bank
+and send it to another. Customers could protect against this by having
+different IDs, hence different public/private key pairs, for different
+banks. But it will be very convenient to use the same ID. Your friends
+will recognize you, and you'll have only one passphrase to
+remember. So the bank's ID is included in almost every request.
+Requests meant for another bank will not work.
+</p>
+
+<p>
+Actual messages sent:
+</p>
+<pre>
+Bob: (&lt;bobsid>,getinbox,&lt;bankid>,&lt;req#>)
+Bank: (&lt;bankid,@getinbox,(&lt;bobsid>,getinbox,&lt;bankid>,&lt;req#>)).
+        (&lt;bankid>,inbox,&lt;time3#>,(&lt;suesid>,spend,&lt;bankid>,&lt;time#>,&lt;bobsid>,&lt;tokenid>,50,Hey Bob\. Welcome to Trubanc!)).
+        (&lt;bankid>,inbox,&lt;time4#>,(&lt;bankid>,spend,&lt;bankid>,&lt;time2#>,&lt;bobsid>,&lt;tokenid>,-10,Registration Fee)).
+        (&lt;bankid>,time,&lt;bobsid>,&lt;time5#>).
+        (&lt;bankid>,time,&lt;bobsid>,&lt;time6#>)
+Bob: (&lt;bobsid>,processinbox,&lt;bankid>,&lt;time5#>,&lt;time3#>|&lt;time4#>).
+       (&lt;id>,spend|accept,&lt;bankid>,&lt;suesid>,&lt;time#>,Thanks Sue. I'm excited about Trubanc!).
+       (&lt;id>,spend|accept,&lt;bankid>,&lt;bankid>,&lt;time2#>).
+       (&lt;bobsid>,balance,&lt;bankid>,&lt;time5#>,&lt;tokenid>,40)
+Bank: (&lt;bankid>,@processinbox,(&lt;bobsid>,processinbox,&lt;bankid>,&lt;time5#>,&lt;time3#>|&lt;time4#>)).
+       (&lt;bankid>,@spend|accept,(&lt;id>,spend|accept,&lt;bankid>,&lt;suesid>,&lt;time#>,Thanks Sue. I'm excited about Trubanc!)).
+       (&lt;bankid>,@spend|accept,(&lt;id>,spend|accept,&lt;bankid>,&lt;bankid>,&lt;time2#>)).
+       (&lt;bankid>,@balance,(&lt;bobsid>,balance,&lt;bankid>,&lt;time5#>,&lt;tokenid>,40))
 </body>
 </html>

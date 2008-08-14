@@ -1,8 +1,12 @@
+Change the response to "gettime" from "gettime" to "time".
+
 Remember the last successful spend or processinbox message and its result, and resend the result if the message is resent. This can heal responses that are lost in transit.
 
 Credit the bank for usage tokens paid for files. Some of this may be already done, but that code needs reviewing.
 
 Remove zero-balance files and credit a usage token.
+
+spend|cancel to take back a spend before the other guy has accepted or rejected it.
 
 Support fees other than usage tokens.
 
