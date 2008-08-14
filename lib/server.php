@@ -133,7 +133,7 @@ class server {
                           $this->outboxhash($id, $transtime));
   }
 
-  function assetID($id, $scale, $precision, $name) {
+  function assetid($id, $scale, $precision, $name) {
     return sha1("$id,$scale,$precision,$name");
   }
 
@@ -480,7 +480,7 @@ class server {
   //   'oldneg' => array(<asset> => <acct>), negative balances in current account
   //   'newneg' => array(<asset> => <acct>), negative balances in updated account
   // Returns an error string on error, or false on no error.
-  function handle_balance_msg($id, $msg, $args, &$state) {
+  function handle_balance_msg($id, $msg, $args, &$state, $creating_asset=false) {
     $t = $this->t;
     $db = $this->db;
 
@@ -489,7 +489,9 @@ class server {
     $acct = $args[$t->ACCT];
     if (!$acct) $acct = $t->MAIN;
 
-    if (!$this->is_asset($asset)) return "Unknown asset id: $asset";
+    if ((!$creating_asset || $asset != $creating_asset) && !$this->is_asset($asset)) {
+      return "Unknown asset id: $asset";
+    }
     if (!is_numeric($amount)) return "Not a number: $amount";
     if (!$this->is_acct_name($acct)) {
       return "<acct> may contain only letters and digits: $acct";
@@ -1221,6 +1223,10 @@ class server {
     $bankid = $this->bankid;
     $parser = $this->parser;
 
+    if (count($reqs) < 2) {
+      return $this->failmsg($msg, "No balance items");
+    }
+
     // $t->ASSET => array($t->BANKID,$t->ASSET,$t->SCALE,$t->PRECISION,$t->ASSETNAME),
     $id = $args[$t->CUSTOMER];
     $asset = $args[$t->ASSET];
@@ -1228,16 +1234,17 @@ class server {
     $precision = $args[$t->PRECISION];
     $assetname = $args[$t->ASSETNAME];
 
-    if (!(is_int($scale) && is_int($precision) &&
+    if (!(is_numeric($scale) && is_numeric($precision) &&
           $scale >= 0 && $precision >= 0)) {
       return $this->failmsg($msg, "Scale & precision must be integers >= 0");
     }
 
-    if (!is_alphanumeric($assetname)) {
+    // Don't really need this restriction. Maybe widen it a bit?
+    if (!$this->is_alphanumeric($assetname)) {
       return $this->failmsg($msg, "Asset name must contain only letters and digits");
     }
 
-    if ($asset != $this->assetid($id, $scale, $precision, $name)) {
+    if ($asset != $this->assetid($id, $scale, $precision, $assetname)) {
       return $this->failmsg
         ($msg, "Asset id is not sha1 hash of 'id,scale,precision,name'");
     }
@@ -1248,7 +1255,7 @@ class server {
 
     $tokens = 1;                // costs 1 token for the /asset/<assetid> file
 
-    $bals = array();
+    $bals = array($asset => -1);
     $acctbals = array();
     $oldneg = array();
     $newneg = array();
@@ -1272,7 +1279,7 @@ class server {
       if ($i == 1) {
         // Burn the transaction
         $time = $reqtime;
-        $accttime = $this->deq_time($id, $reqtime);
+        $accttime = $this->deq_time($id, $time);
         if (!$accttime) return $this->failmsg($msg, "Timestamp not enqueued: $time");
       } elseif ($reqtime != $time) {
         return $this->failmsg($msg, "Timestamp mismatch");
@@ -1280,7 +1287,7 @@ class server {
       if ($reqid != $id) return $this->failmsg($msg, "ID mismatch");
       if ($request == $t->BALANCE) {
         $reqmsg = $parser->get_parsemsg($req);
-        $errmsg = $this->handle_balance_msg($id, $reqmsg, $reqargs, $state);
+        $errmsg = $this->handle_balance_msg($id, $reqmsg, $reqargs, $state, $asset);
         if ($errmsg) return $this->failmsg($msg, $errmsg);
       } else {
         return $this->failmsg($msg, "$request not valid for asset creation. Only " .
@@ -1315,7 +1322,8 @@ class server {
     // minus amount spent minus fees.
     foreach ($bals as $balasset => $balamount) {
       if ($balamount != 0) {
-        $name = $this->lookup_asset_name($balasset);
+        if ($balasset == $asset) $name = $assetname;
+        else $name = $this->lookup_asset_name($balasset);
         if (!$first) $errmsg .= ', ';
         $first = false;
         $errmsg .= "$name: $balamount";
@@ -1654,6 +1662,26 @@ if (false) {
     $outboxhash = custmsg('outboxhash', $bankid, $time, $hash);
     $bal = custmsg('balance', $bankid, $time, $tokenid, 18);
     process("$process.$outboxhash.$bal");
+  }
+}
+
+// Create an asset
+if (true) {
+  $scale = 7;
+  $precision = 3;
+  $assetname = "Bill Fake Goldgrams";
+  $assetid = $server->assetid($id, $scale, $precision, $assetname);
+  $msg = process(custmsg('getreq', $bankid));
+  $args = $server->match_message($msg);
+  if (is_string($args)) echo "Failure parsing or matching: $args\n";
+  else {
+    $req = bcadd($args['req'], 1);
+    process(custmsg('gettime', $bankid, $req));
+    $time = $db->get($server->accttimekey($id));
+    $process = custmsg('asset', $bankid, $assetid, $scale, $precision, $assetname);
+    $bal1 = custmsg('balance', $bankid, $time, $tokenid, 18);
+    $bal2 = custmsg('balance', $bankid, $time, $assetid, -1);
+    process("$process.$bal1.$bal2");
   }
 }
 
