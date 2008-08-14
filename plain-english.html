@@ -1,0 +1,79 @@
+<html>
+<head>
+<title>Trubanc in Plain English</title>
+</head>
+<body>
+<h1>Trubanc in Plain English</h1>
+
+<p>
+<a href="viewtext.php?file=doc/db.txt">doc/db.txt</a> gives a very
+terse description of the Trubanc server database and and
+protocol. This page attempts to render that in plain English.
+</p>
+
+<p>
+Trubanc uses public key cryptography to sign all messages passed back
+and forth between its web interface and the Trubanc server. Digital
+signatures are a virtually unforgeable way to ensure that a message
+was written by its purported author. Trubanc uses OpenSSL for its
+public key cryptography. You probably use OpenSSL every time you visit
+a secure web site, https://somewhere.com/, as does the web server. I
+didn't roll my own. Just used the same tried and true technology that
+secures the web.
+</p>
+
+<p>
+I'm going to use four actors in the scenarios that follow. "Bank" is
+the name of the Trubanc server. "Bob" and "Sue" are two customers,
+who will trade with each other. "Spammer" is a third customer, unknown
+to Bob or Sue.
+</p>
+
+<h2>Scenario: Opening an Account</h2>
+
+<p>
+Sue (via email or Skype): Hey, Bob. Check out Trubanc. Go to
+Trubanc.com, download the client, and install it on your
+computer. Then create a private key, and send me your ID, and I'll
+give you some usage tokens so that you can create an account.
+</p>
+
+<p>
+Bob (via email or Skype): Thanks, Sue! I installed the Trubanc client
+and created a private key. Here's my ID.
+</p>
+
+<p>
+Sue (via email or Skype): OK, Bob. I've given you 20 usage tokens. You
+should now be able to create an account at Trubanc.com. Here's my
+ID. Send me a message via Trubanc when you've registered.
+</p>
+
+<p>
+Bob (via the Trubanc client): Hello bank. Here's my ID and my public
+key. What's your ID and public key?<br/>
+Signed: Bob
+</p>
+
+<p>
+Bank: Here's my ID and public key.<br/>
+Signed: Bank
+</p>
+
+<p>
+Bob: Here's my ID and my public key, please create an account for me.<br/>
+Signed: Bob
+</p>
+
+<p>
+Bank: I've registered your ID and public key. Somebody gave you enough
+tokens to register. Welcome to Trubanc.<br/>
+Signed: Bank
+</p>
+
+<p>-----</p>
+
+
+
+</body>
+</html>

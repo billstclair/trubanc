@@ -14,7 +14,7 @@ name:<item> denotes an optional item, passed by position or name
 Items in parens  are signed. Signature omitted here.
 
 $dbdir/
-  privkey/            -- private key's indexed by the hash of their passphrases
+  privkey/            -- private keys indexed by the hash of their passphrases
     <hash>=<privkey>
   pubkey/  -- for fast lookup. Must verify that <id> = hash(<pubkey>)
     <id>=<pubkey>
