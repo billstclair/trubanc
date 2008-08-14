@@ -309,11 +309,11 @@ outbox, the acceptance notice is removed from your inbox, and the two
 usage tokens you paid to lease those files is credited to your
 balance. This three step process is necessary, because the bank can't
 modify your balances without your signed permission, and it can't
-modify the recipient's balance without his signed permission.
+modify the recipient's balances without his signed permission.
 </p>
 
 <p>
-You may be wondering what an "outboxhash" is. Your balances plus your
+You may be wondering what an "outbox hash" is. Your balances plus your
 outbox represent the part of your account that you and the bank have
 agreed upon. Your inbox is changed without your knowledge, but the
 bank needs your signed permission to change your outbox (do a spend)
@@ -321,7 +321,7 @@ or your balances. Since your outbox might get large, instead of
 sending the entire contents back and forth every time you do a spend,
 or acknowledge the acceptance (or rejection) of a spend by a
 recipient, you compute a hash of your outbox, and send that instead,
-and the bank responds with an acknowledgement of that outboxhash
+and the bank responds with an acknowledgement of that outbox hash
 (thank you to Patrick Chkoreff for this idea).
 </p>
 
@@ -340,7 +340,6 @@ Sue: (&lt;suesid>,processinbox,&lt;bankid>,&lt;time8#>,&lt;time7#>).
 Bank: (&lt;bankid>,@processinbox,(&lt;suesid>,processinbox,&lt;bankid>,&lt;time8#>,&lt;time7#>)).
         (&lt;bankid>,@balance,(&lt;suesid>,balance,&lt;bankid>,&lt;time8#>,&lt;tokenid>,1027)).
         (&lt;bankid>,@outboxhash,(&lt;suesid>,outboxhash,&lt;bankid>,&lt;time8#>,Y))
-
 </pre>
 
 <h2>Scenario: Preventing Spam</h2>
@@ -356,6 +355,10 @@ Bank: (&lt;bankid>,@processinbox,(&lt;suesid>,processinbox,&lt;bankid>,&lt;time8
 <p>To be done</p>
 
 <h2>Scenario: Cancelling a Spend</h2>
+
+<p>To be done</p>
+
+<h2>Scenario: Getting Account Information</h2>
 
 <p>To be done</p>
 
