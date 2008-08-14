@@ -71,10 +71,10 @@ Signed: Sue
 </p>
 
 <p>
-Bank: I processed your spend to Bob's ID. I agree that the transaction
-fee at the time of this transaction is 2 usage tokens, and that your
-balance after this transaction is 1025 usage tokens. I agree with you
-on your outbox hash.<br/>
+Bank: I processed your spend of 50 usage tokens to Bob's ID. I agree
+that the transaction fee at the time of this transaction is 2 usage
+tokens, and that your balance after this transaction is 1025 usage
+tokens. I agree with you on your outbox hash.<br/>
 Signed: Bank
 </p>
 
@@ -158,10 +158,12 @@ Sue: (&lt;suesid>,gettime,&lt;bankid>,&lt;req#>)
 Bank: (&lt;bankid>,time,&lt;suesid>,&lt;time#>)
 Sue: (&lt;suesid>,spend,&lt;bankid>,&lt;time#>,&lt;bobsid>,&lt;tokenid>,50,Hey Bob\. Welcome to Trubanc!).
         (&lt;suesid>,tranfee,&lt;bankid>,&lt;time#>,&lt;tokenid>,2).
-        (&lt;suesid>,balance,&lt;bankid>,&lt;time#>,&lt;tokenid>,1025)
+        (&lt;suesid>,balance,&lt;bankid>,&lt;time#>,&lt;tokenid>,1025).
+        (&lt;suesid>,outboxhash,&lt;bankid>,&lt;time#>,&lt;hash>)
 Bank: (&lt;bankid>,@spend,(&lt;suesid>,spend,&lt;bankid>,&lt;time#>,&lt;bobsid>,&lt;tokenid>,50,Hey Bob\. Welcome to Trubanc!)).
         (&lt;bankid>,@tranfee,(&lt;suesid>,tranfee,&lt;bankid>,&lt;time#>,&lt;tokenid>,2)).
-        (&lt;bankid>,@balance,(&lt;suesid>,balance,&lt;bankid>,&lt;time#>,&lt;tokenid>,1025))
+        (&lt;bankid>,@balance,(&lt;suesid>,balance,&lt;bankid>,&lt;time#>,&lt;tokenid>,1025)).
+        (&lt;bankid>,@outboxhash,(&lt;suesid>,outboxhash,&lt;bankid>,&lt;time#>,&lt;hash>))
 Bob: (&lt;bobsid>,bankid,&lt;pubkey>)
 Bank: (&lt;bankid>,@register,(&lt;bankid>,register,&lt;bankid>,&lt;pubkey>,Trubanc))
 Bob: (&lt;bobsid>,register,&lt;bankid>,&lt;pubkey>,Bob)
@@ -189,13 +191,13 @@ Signed: Bank
 Bob: Here's my ID and the first of the transaction numbers you gave
 me. Accept the spend from Sue with a message of, "Thanks, Sue. I'm
 excited about Trubanc!" Accept the bank charge. My balance after this
-transaction will be 40 usage tokens.<br/>
+transaction will be 39 usage tokens.<br/>
 Signed: Bob
 </p>
 
 <p>
 Bank: I've processed the spend from Sue and the bank charge. I agree
-that your balance after that transaction is 40 usage tokens.<br/>
+that your balance after this transaction is 39 usage tokens.<br/>
 Signed: Bank
 </p>
 
@@ -203,7 +205,7 @@ Signed: Bank
 
 <p>
 One possible attack on an electronic bank can be for someone to replay
-an intercepted a message. Unless the protocol protects against that,
+an intercepted message. Unless the protocol protects against that,
 this can cause problems. Except for the bankid request, the
 registration request, and a request for a customer's last request
 number, every information request must be accompanied by a request
@@ -228,6 +230,19 @@ Requests meant for another bank will not work.
 </p>
 
 <p>
+You're probably wondering why Bob's balance after the transaction is
+39, instead of 40, usage tokens. He got 50 usage tokens from Sue, and
+paid the bank 10 usage tokens for his registration fee. The additional
+usage token is the price of the new file used to store the usage token
+balance. Storage costs usage tokens. Loom charges 1 usage token for
+each 16 bytes of storage. I considered charging per byte, but decided
+that charging per file was easier to handle, though not quite as
+fair. It only makes sense if message sizes are limited, of course. If
+you were allowed megabyte messages, then Trubanc would have to charge
+per byte, or per kilobyte.
+</p>
+
+<p>
 Actual messages sent:
 </p>
 <pre>
@@ -238,12 +253,94 @@ Bank: (&lt;bankid,@getinbox,(&lt;bobsid>,getinbox,&lt;bankid>,&lt;req#>)).
         (&lt;bankid>,time,&lt;bobsid>,&lt;time5#>).
         (&lt;bankid>,time,&lt;bobsid>,&lt;time6#>)
 Bob: (&lt;bobsid>,processinbox,&lt;bankid>,&lt;time5#>,&lt;time3#>|&lt;time4#>).
-       (&lt;id>,spend|accept,&lt;bankid>,&lt;suesid>,&lt;time#>,Thanks Sue. I'm excited about Trubanc!).
-       (&lt;id>,spend|accept,&lt;bankid>,&lt;bankid>,&lt;time2#>).
+       (&lt;bobsid>,spend|accept,&lt;bankid>,&lt;suesid>,&lt;time#>,Thanks Sue\. I'm excited about Trubanc!).
+       (&lt;bobsid>,spend|accept,&lt;bankid>,&lt;bankid>,&lt;time2#>).
        (&lt;bobsid>,balance,&lt;bankid>,&lt;time5#>,&lt;tokenid>,40)
 Bank: (&lt;bankid>,@processinbox,(&lt;bobsid>,processinbox,&lt;bankid>,&lt;time5#>,&lt;time3#>|&lt;time4#>)).
-       (&lt;bankid>,@spend|accept,(&lt;id>,spend|accept,&lt;bankid>,&lt;suesid>,&lt;time#>,Thanks Sue. I'm excited about Trubanc!)).
-       (&lt;bankid>,@spend|accept,(&lt;id>,spend|accept,&lt;bankid>,&lt;bankid>,&lt;time2#>)).
-       (&lt;bankid>,@balance,(&lt;bobsid>,balance,&lt;bankid>,&lt;time5#>,&lt;tokenid>,40))
+        (&lt;bankid>,@spend|accept,(&lt;bobsid>,spend|accept,&lt;bankid>,&lt;suesid>,&lt;time#>,Thanks Sue\. I'm excited about Trubanc!)).
+        (&lt;bankid>,@spend|accept,(&lt;bobsid>,spend|accept,&lt;bankid>,&lt;bankid>,&lt;time2#>)).
+        (&lt;bankid>,@balance,(&lt;bobsid>,balance,&lt;bankid>,&lt;time5#>,&lt;tokenid>,40))
+</pre>
+
+<h2>Scenario: Closing a Transaction</h2>
+
+<p>
+Sue: Hello bank. Here's my ID and a new request number. What's in my
+inbox?<br/>
+Signed: Sue
+</p>
+
+<p>
+Bank: Your inbox contains an acceptance from Bob of your 50 usage
+token spend with a message of, "Thanks Sue. I'm excited about
+Trubanc!" Here are two transaction numbers you can use to close that
+transaction and do a new spend.<br/>
+Signed: Bank
+</p>
+
+<p>
+Sue: Here's my ID and the first of the transaction numbers you gave
+me. Clear the spend to Bob. My balance after this transaction will be
+1027 usage tokens.<br/>
+Signed: Sue
+</p>
+
+<p>
+Bank: I've cleared the spend to Bob (and refunded the usage tokens
+that were leasing the outbox and inbox locations). I agree that your
+balance after this transaction is 1027 usage tokens.<br/>
+Signed: Bank
+</p>
+
+<p>-----</p>
+
+<p>
+There are three main parts of a Trubanc account: the balances, the
+outbox, and the inbox. Value is stored in all three places. When you
+do a spend, your balance for the spent asset is debited, and the spend
+request is stored in your outbox and in the recipients inbox. You are
+charged two usage tokens to lease the new outbox and inbox files. When
+the recipient accepts the spend, his balance for the spent asset is
+credited, the spend notice is removed from his inbox, and a spend
+acceptance notice is added to your inbox. When you acknowledge his
+acceptance of the spend, the spend request is removed from your
+outbox, the acceptance notice is removed from your inbox, and the two
+usage tokens you paid to lease those files is credited to your
+balance. This three step process is necessary, because the bank can't
+modify your balances without your signed permission, and it can't
+modify the recipient's balance without his signed permission.
+</p>
+
+<p>
+Actual messages sent:
+</p>
+<pre>
+Sue: (&lt;suesid>,getinbox,&lt;bankid>,&lt;req2#>)
+Bank: (&lt;bankid,@getinbox,(&lt;suesid>,getinbox,&lt;bankid>,&lt;req2#>)).
+        (&lt;bankid>,inbox,&lt;time7#>,(&lt;bobsid>,spend|accept,&lt;bankid>,&lt;suesid>,&lt;time#>,Thanks Sue\. I'm excited about Trubanc!)).
+        (&lt;bankid>,time,&lt;bobsid>,&lt;time8#>).
+        (&lt;bankid>,time,&lt;bobsid>,&lt;time9#>)
+Sue: (&lt;suesid>,processinbox,&lt;bankid>,&lt;time8#>,&lt;time7#>).
+       (&lt;suesid>,balance,&lt;bankid>,&lt;time8#>,&lt;tokenid>,1027)
+Bank: (&lt;bankid>,@processinbox,(&lt;suesid>,processinbox,&lt;bankid>,&lt;time8#>,&lt;time7#>)).
+       (&lt;bankid>,@balance,(&lt;suesid>,balance,&lt;bankid>,&lt;time8#>,&lt;tokenid>,1027))
+</pre>
+
+<h2>Scenario: Preventing Spam</h2>
+
+<p>To be done</p>
+
+<h2>Scenario: Multiple Accounts</h2>
+
+<p>To be done</p>
+
+<h2>Scenario: Issuing Assets</h2>
+
+<p>To be done</p>
+
+<h2>Scenario: Cancelling a Spend</h2>
+
+<p>To be done</p>
+
 </body>
 </html>
