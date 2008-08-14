@@ -159,11 +159,11 @@ Bank: (&lt;bankid>,time,&lt;suesid>,&lt;time#>)
 Sue: (&lt;suesid>,spend,&lt;bankid>,&lt;time#>,&lt;bobsid>,&lt;tokenid>,50,Hey Bob\. Welcome to Trubanc!).
         (&lt;suesid>,tranfee,&lt;bankid>,&lt;time#>,&lt;tokenid>,2).
         (&lt;suesid>,balance,&lt;bankid>,&lt;time#>,&lt;tokenid>,1025).
-        (&lt;suesid>,outboxhash,&lt;bankid>,&lt;time#>,&lt;hash>)
+        (&lt;suesid>,outboxhash,&lt;bankid>,&lt;time#>,X)
 Bank: (&lt;bankid>,@spend,(&lt;suesid>,spend,&lt;bankid>,&lt;time#>,&lt;bobsid>,&lt;tokenid>,50,Hey Bob\. Welcome to Trubanc!)).
         (&lt;bankid>,@tranfee,(&lt;suesid>,tranfee,&lt;bankid>,&lt;time#>,&lt;tokenid>,2)).
         (&lt;bankid>,@balance,(&lt;suesid>,balance,&lt;bankid>,&lt;time#>,&lt;tokenid>,1025)).
-        (&lt;bankid>,@outboxhash,(&lt;suesid>,outboxhash,&lt;bankid>,&lt;time#>,&lt;hash>))
+        (&lt;bankid>,@outboxhash,(&lt;suesid>,outboxhash,&lt;bankid>,&lt;time#>,X))
 Bob: (&lt;bobsid>,bankid,&lt;pubkey>)
 Bank: (&lt;bankid>,@register,(&lt;bankid>,register,&lt;bankid>,&lt;pubkey>,Trubanc))
 Bob: (&lt;bobsid>,register,&lt;bankid>,&lt;pubkey>,Bob)
@@ -281,14 +281,15 @@ Signed: Bank
 <p>
 Sue: Here's my ID and the first of the transaction numbers you gave
 me. Clear the spend to Bob. My balance after this transaction will be
-1027 usage tokens.<br/>
+1027 usage tokens. My outbox hash after this transaction will be Y.<br/>
 Signed: Sue
 </p>
 
 <p>
 Bank: I've cleared the spend to Bob (and refunded the usage tokens
 that were leasing the outbox and inbox locations). I agree that your
-balance after this transaction is 1027 usage tokens.<br/>
+balance after this transaction is 1027 usage tokens. And I agree that
+your outbox hash after this transaction is Y.<br/>
 Signed: Bank
 </p>
 
@@ -312,6 +313,18 @@ modify the recipient's balance without his signed permission.
 </p>
 
 <p>
+You may be wondering what an "outboxhash" is. Your balances plus your
+outbox represent the part of your account that you and the bank have
+agreed upon. Your inbox is changed without your knowledge, but the
+bank needs your signed permission to change your outbox (do a spend)
+or your balances. Since your outbox might get large, instead of
+sending the entire contents back and forth every time you do a spend,
+or acknowledge the acceptance (or rejection) of a spend by a
+recipient, you compute a hash of your outbox, and send that instead,
+and the bank responds with an acknowledgement of that outboxhash.
+</p>
+
+<p>
 Actual messages sent:
 </p>
 <pre>
@@ -321,20 +334,23 @@ Bank: (&lt;bankid,@getinbox,(&lt;suesid>,getinbox,&lt;bankid>,&lt;req2#>)).
         (&lt;bankid>,time,&lt;bobsid>,&lt;time8#>).
         (&lt;bankid>,time,&lt;bobsid>,&lt;time9#>)
 Sue: (&lt;suesid>,processinbox,&lt;bankid>,&lt;time8#>,&lt;time7#>).
-       (&lt;suesid>,balance,&lt;bankid>,&lt;time8#>,&lt;tokenid>,1027)
+       (&lt;suesid>,balance,&lt;bankid>,&lt;time8#>,&lt;tokenid>,1027).
+       (&lt;suesid>,outboxhash,&lt;bankid>,&lt;time8#>,Y)
 Bank: (&lt;bankid>,@processinbox,(&lt;suesid>,processinbox,&lt;bankid>,&lt;time8#>,&lt;time7#>)).
-       (&lt;bankid>,@balance,(&lt;suesid>,balance,&lt;bankid>,&lt;time8#>,&lt;tokenid>,1027))
+        (&lt;bankid>,@balance,(&lt;suesid>,balance,&lt;bankid>,&lt;time8#>,&lt;tokenid>,1027)).
+        (&lt;bankid>,@outboxhash,(&lt;suesid>,outboxhash,&lt;bankid>,&lt;time8#>,Y))
+
 </pre>
 
 <h2>Scenario: Preventing Spam</h2>
 
 <p>To be done</p>
 
-<h2>Scenario: Multiple Accounts</h2>
+<h2>Scenario: Issuing Assets</h2>
 
 <p>To be done</p>
 
-<h2>Scenario: Issuing Assets</h2>
+<h2>Scenario: Multiple Accounts</h2>
 
 <p>To be done</p>
 
