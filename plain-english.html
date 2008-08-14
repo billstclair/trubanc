@@ -255,11 +255,11 @@ Bank: (&lt;bankid,@getinbox,(&lt;bobsid>,getinbox,&lt;bankid>,&lt;req#>)).
 Bob: (&lt;bobsid>,processinbox,&lt;bankid>,&lt;time5#>,&lt;time3#>|&lt;time4#>).
        (&lt;bobsid>,spend|accept,&lt;bankid>,&lt;suesid>,&lt;time#>,Thanks Sue\. I'm excited about Trubanc!).
        (&lt;bobsid>,spend|accept,&lt;bankid>,&lt;bankid>,&lt;time2#>).
-       (&lt;bobsid>,balance,&lt;bankid>,&lt;time5#>,&lt;tokenid>,40)
+       (&lt;bobsid>,balance,&lt;bankid>,&lt;time5#>,&lt;tokenid>,39)
 Bank: (&lt;bankid>,@processinbox,(&lt;bobsid>,processinbox,&lt;bankid>,&lt;time5#>,&lt;time3#>|&lt;time4#>)).
         (&lt;bankid>,@spend|accept,(&lt;bobsid>,spend|accept,&lt;bankid>,&lt;suesid>,&lt;time#>,Thanks Sue\. I'm excited about Trubanc!)).
         (&lt;bankid>,@spend|accept,(&lt;bobsid>,spend|accept,&lt;bankid>,&lt;bankid>,&lt;time2#>)).
-        (&lt;bankid>,@balance,(&lt;bobsid>,balance,&lt;bankid>,&lt;time5#>,&lt;tokenid>,40))
+        (&lt;bankid>,@balance,(&lt;bobsid>,balance,&lt;bankid>,&lt;time5#>,&lt;tokenid>,39))
 </pre>
 
 <h2>Scenario: Closing a Transaction</h2>
