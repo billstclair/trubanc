@@ -385,10 +385,10 @@ Create asset
   Customer sends:
 
 (<id>,asset,<bankid>,<assetid>,<scale>,<precision>,<assetname>).
-  (<id>,balance,<time4#>,<bankid>,<assetid>,-1,acct:<acct1>).
-  (<id>,balance,<time4#>,<bankid>,assetid2>,<amount2>acct:<acct2>).
+  (<id>,balance,<bankid>,<time4#>,<assetid>,-1,acct:<acct1>).
+  (<id>,balance,<bankid>,<time4#>,assetid2>,<amount2>acct:<acct2>).
   ...
-  (<id>,balance,<time4#>,<bankid>,<assetidN>,<amountN>,acct:<acctN>).
+  (<id>,balance,<bankid>,<time4#>,<assetidN>,<amountN>,acct:<acctN>).
   
   Note that the balance for the new asset is "-1". Like loom, the sum
   of all balances for an <assetid> add up to -1. A negative balance
@@ -406,10 +406,10 @@ Create asset
   /account/<id>/time, and returns:
 
 (<bankid>,@asset,(<id>,asset,<bankid>,<assetid>,<assetname>)).
-  (<bankid>,@balance,(<id>,balance,<time4#>,<bankid>,<assetid>,-1,acct:<acct1>)).
-  (<bankid>,@balance,(<id>,balance,<time4#>,<bankid>,assetid2>,<amount2>acct:<acct2>)).
+  (<bankid>,@balance,(<id>,balance,<bankid>,<time4#>,<assetid>,-1,acct:<acct1>)).
+  (<bankid>,@balance,(<id>,balance,<bankid>,<time4#>,assetid2>,<amount2>acct:<acct2>)).
   ...
-  (<bankid>,@balance,(<id>,balance,<time4#>,<bankid>,assetidN>,<amountN>acct:<acctN>)).
+  (<bankid>,@balance,(<id>,balance,<bankid>,<time4#>,assetidN>,<amountN>acct:<acctN>)).
 
   Otherwise, bank returns:
 

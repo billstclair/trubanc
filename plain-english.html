@@ -344,7 +344,101 @@ Bank: (&lt;bankid>,@processinbox,(&lt;suesid>,processinbox,&lt;bankid>,&lt;time8
 
 <h2>Scenario: Preventing Spam</h2>
 
-<p>To be done</p>
+<p>
+Spammer (likely via an automated client): Hey bank. Here's a new
+request number. Give me a transaction number please.<br/>
+Signed: Spammer
+</p>
+
+<p>
+Bank: Here's a new transaction number.<br/>
+Signed: Bank
+</p>
+
+<p>
+Spammer: Hey bank. Here's that transaction number you gave me. Please
+spend 0 usage tokens to Bob's ID, with a message of, "Go all
+night. Visit BuyViagra.com." I'm paying 2 usage tokens as a
+transaction fee, which I'll get back when Bob accepts the spend. My
+balance after this transaction will be 2425 usage tokens. My outbox
+hash after this transaction will be Z.<br/>
+Signed: Spammer
+</p>
+
+<p>
+Bank: I processed your spend of 0 usage tokens to Bob's ID. I agree
+that the transaction fee at the time of this transaction is 2 usage
+tokens, and that your balance after this transaction is 2425 usage
+tokens. I agree with you on your outbox hash.<br/>
+Signed: Bank
+</p>
+
+<p>
+Bob: Hello bank. Here's my ID and a new request number. What's in my
+inbox?<br/>
+Signed: Bob
+</p>
+
+<p>
+Bank: Your inbox contains a 0 usage token spend from Spammer with a
+message of, "Go all night. Visit BuyViagra.com." Here are two
+transaction numbers you can use to accept these spends and do a spend
+yourself.<br/>
+Signed: Bank
+</p>
+
+<p>
+Bob: Here's my ID and the first of the transaction numbers you gave
+me. Reject the spend from Spammer with a message of, "Thanks for the
+tokens", and give me the two usage tokens he paid to send that
+spam. My balance after this transaction will be 41 usage tokens.<br/>
+Signed: Bob
+</p>
+
+<p>
+Bank: I've rejected the spend from Spammer. I agree that your balance
+after this transaction is 41 usage tokens.<br/>
+Signed: Bank
+</p>
+
+<p>-----</p>
+
+<p>
+Spends can be rejected. The amount spent goes back to the spender, but
+the recipient pockets the transaction fee. Zero spends use Trubanc as
+a simple messaging service. But not a free one, unless the recipient
+wants the message. IMHO, spam exists largely because it is nearly free
+to send email. In a system where each spam message costs 2 usage
+tokens, cheap but not free, I doubt it will be much of a problem. Time
+will tell.
+</p>
+
+<p>
+Actual messages sent:
+</p>
+<pre>
+Spammer: (&lt;spammersid>,gettime,&lt;bankid>,&lt;req#>)
+Bank: (&lt;bankid>,time,&lt;spammersid>,&lt;time10#>)
+Spammer: (&lt;spammersid>,spend,&lt;bankid>,&lt;time10#>,&lt;bobsid>,&lt;tokenid>,0,Go all night\. Visit BuyViagra.com\.).
+        (&lt;spammersid>,tranfee,&lt;bankid>,&lt;time#>,&lt;tokenid>,2).
+        (&lt;spammersid>,balance,&lt;bankid>,&lt;time#>,&lt;tokenid>,2425).
+        (&lt;spammersid>,outboxhash,&lt;bankid>,&lt;time#>,Z)
+Bank: (&lt;bankid>,@spend,(&lt;spammersid>,spend,&lt;bankid>,&lt;time#>,&lt;bobsid>,&lt;tokenid>,0,Go all night\. Visit BuyViagra.com\.)).
+        (&lt;bankid>,@tranfee,(&lt;spammersid>,tranfee,&lt;bankid>,&lt;time#>,&lt;tokenid>,2)).
+        (&lt;bankid>,@balance,(&lt;spammersid>,balance,&lt;bankid>,&lt;time#>,&lt;tokenid>,2425)).
+        (&lt;bankid>,@outboxhash,(&lt;spammersid>,outboxhash,&lt;bankid>,&lt;time#>,Z))
+Bob: (&lt;bobsid>,getinbox,&lt;bankid>,&lt;req2#>)
+Bank: (&lt;bankid,@getinbox,(&lt;bobsid>,getinbox,&lt;bankid>,&lt;req2#>)).
+        (&lt;bankid>,inbox,&lt;time11#>,(&lt;spammersid>,spend,&lt;bankid>,&lt;time10#>,&lt;bobsid>,&lt;tokenid>,0,Go all night\. Visit BuyViagra.com\.)).
+        (&lt;bankid>,time,&lt;bobsid>,&lt;time12#>).
+        (&lt;bankid>,time,&lt;bobsid>,&lt;time13#>)
+Bob: (&lt;bobsid>,processinbox,&lt;bankid>,&lt;time12#>,&lt;time11#>).
+       (&lt;bobsid>,spend|reject,&lt;bankid>,&lt;spammersid>,&lt;time12#>,&lt;time10#>,Thanks for the tokens).
+       (&lt;bobsid>,balance,&lt;bankid>,&lt;time12#>,&lt;tokenid>,41)
+Bank: (&lt;bankid>,@processinbox,(&lt;bobsid>,processinbox,&lt;bankid>,&lt;time12#>,&lt;time11#>)).
+        (&lt;bankid>,@spend|reject,(&lt;bobsid>,spend|accept,&lt;bankid>,&lt;spammersid>,&lt;time12#>,&lt;time10#>,Thanks for the tokens)).
+        (&lt;bankid>,@balance,(&lt;bobsid>,balance,&lt;bankid>,&lt;time12#>,&lt;tokenid>,41))
+</pre>
 
 <h2>Scenario: Issuing Assets</h2>
 
