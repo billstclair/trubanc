@@ -529,7 +529,7 @@ Bank: (&lt;bankid>,#asset,(&lt;bobsid>,asset,&lt;bankid>,&lt;bobggid>,7,3,Bob Go
        (&lt;bankid>,#balance,(&lt;bobsid,balance,&lt;bankid>,&lt;time13#>,&lt;bobggid>,-1))
 </pre>
 
-<h2>Scenario: Multiple Accounts</h2>
+<h2>Scenario: Multiple Sub-Accounts</h2>
 
 <p>
 Bob: Hey bank. Here's a new request number. Give me a transaction
@@ -545,15 +545,15 @@ Signed: Bank
 <p>
 Bob: Hey bank. Here's that transaction number you gave me. Make a zero
 spend to myself. My balance after the transaction will be 38 usage
-tokens, -311.0347681 Bob GoldGrams in my default account, and
-311.034768 Bob GoldGrams in my "Gun Safe" account.
+tokens, -311.0347681 Bob GoldGrams in my default sub-account, and
+311.034768 Bob GoldGrams in my "Gun Safe" sub-account.
 </p>
 
 <p>
 Bank: I did that spend. I agree with you that after the transaction,
 your balance is 38 usages tokens, -311.0347681 Bob GoldGrams in your
 default account, and 311.034768 Bob GoldGrams in your "Gun Safe"
-account.
+sub-account.
 </p>
 
 <p>
@@ -579,7 +579,7 @@ Daniel Fourwinds' fine coffee that we relished at your house the other
 day. I used a gold price of $796.60/ounce, Kitco's bid price this
 morning." My transaction fee will be 2 usage tokens. My balance after
 this transaction will be 36 usage tokens, and 309.6291376 Bob
-GoldGrams in my "Gun Safe" account. My outbox hash after this
+GoldGrams in my "Gun Safe" sub-account. My outbox hash after this
 transaction will be A.<br/>
 Signed: Bob
 </p>
@@ -588,7 +588,7 @@ Signed: Bob
 Bank: I have done your spend of 2.4056304 Bob GoldGrams to Sue, with
 your message, and a transaction fee of 2 usage tokens. I agree that
 your balance after this transaction is 36 usage tokens, and
-309.6291376 Bob GoldGrams in your "Gun Safe" account. I agree on the
+309.6291376 Bob GoldGrams in your "Gun Safe" sub-account. I agree on the
 outbox hash.<br/>
 Signed: Bank
 </p>
@@ -597,15 +597,15 @@ Signed: Bank
 
 <p>
 Trubanc supports splitting up your balances into multiple
-"accounts". Much like a conventional bank gives you a checking account
-and a savings account, you can use these accounts to help manage your
-assets. You can have as many of them as you wish, limited only by
-having usage tokens to pay for the files.
+"sub-accounts". Much like a conventional bank gives you a checking
+account and a savings account, you can use these sub-accounts to help
+manage your assets. You can have as many of them as you wish, limited
+only by having usage tokens to pay for the files.
 </p>
 
 <p>
 Bob has decided to keep track of his Bob GoldGrams assets with a "Gun
-Safe" account, with a balance recording how many grams of the gold in
+Safe" sub-account, with a balance recording how many grams of the gold in
 his safe have not yet been put into circulation. He seeds it
 with <a href="http://www.google.com/search?q=10+troy+ounces+in+grams">10
 ounces</a> of gold, the part of his holdings that he's willing to
@@ -618,7 +618,7 @@ shipped).
 Note that you don't have to mention all of your balances with every
 spend. You only mention the balances that change. Also notice that
 there's no transaction fee for spends to yourself. Moving assets
-between your accounts costs only tokens for new files. No need for
+between your sub-accounts costs only tokens for new files. No need for
 the outbox and inbox stuff.
 </p>
 
