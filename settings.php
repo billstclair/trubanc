@@ -3,7 +3,7 @@
   // settings.php
   // web server configuration settings
 
-$dbdir = '../public/trubancdb';
+$dbdir = '../protected/trubancdb';
 
 // Copyright 2008 Bill St. Clair
 //

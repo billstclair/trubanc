@@ -1,4 +1,5 @@
-index.html
+index.php
+settings.php
 
 doc/idea.txt
 doc/db.txt
