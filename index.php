@@ -20,7 +20,7 @@ if ($msg) {
   $server = new server($db, $ssl, false, 'Trubanc');
   if ($debug) {
     echo "msg: <pre>$msg</pre>\n";
-    echo "<pre>";
+    echo "response: <pre>";
   }
   echo $server->process($msg);
   if ($debug) {
