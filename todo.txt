@@ -22,3 +22,8 @@ outbox. Credit the bank's accounts.
 
 2) Reject spends to the bank, but keep the proferred tokens. This might anger some, but possibly no more than losing tokens when another customer rejects your spend.
 
+
+Checks and Certificates
+-----------------------
+
+Have to keep spend receipt until expiration date. Check or certificate costs a usage token, which is refunded on expiration. Thank you, Patrick!
