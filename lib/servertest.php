@@ -102,10 +102,10 @@ if (!$db->get($assetbalancekey)) {
 // This is necessary for spend, processinbox, and asset test below
 // $db->put($t->TIME, 5);
 
-//process(custmsg('bankid',$pubkey));
+process(custmsg('bankid',$pubkey));
 //process(custmsg("register",$bankid,$pubkey,"George Jetson"));
 //process(custmsg2("register",$bankid,$pubkey2,"Jane Jetson"));
-process(custmsg('id',$bankid,$id));
+//process(custmsg('id',$bankid,$id));
 
 // getinbox
 if (false) {
