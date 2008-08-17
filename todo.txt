@@ -26,4 +26,4 @@ outbox. Credit the bank's accounts.
 Checks and Certificates
 -----------------------
 
-Have to keep spend receipt until expiration date. Check or certificate costs a usage token, which is refunded on expiration. Thank you, Patrick!
+Have to keep external spend receipt until expiration date. Check or certificate costs a usage token, which is refunded on expiration. Thank you, Patrick!
