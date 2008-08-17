@@ -19,8 +19,11 @@ $dbdir/
   pubkey/  -- for fast lookup. Must verify that <id> = hash(<pubkey>)
     <id>=<pubkey>
   bank/               -- banks
+    bankid/
+      sha1(<url>)=<bankid>
     <bankid>/
       url=<url>       -- web address of the server
+      name=<name>     -- Bank's name
       tokenid=(<bankid>,tokenid,<tokenid>)
       regfee=(<bankid>,regfee,<time#>,<tokenid>,<amount>)
       tranfee=(<bankid>,tranfee,<bankid>,<time#>,<tokenid>,<amount>)
@@ -28,8 +31,6 @@ $dbdir/
         spend=(<bankid>,fee|spend,<fee#>,<assetid>,<amount>)[...]
         selfspend=(<bankid>,fee|spend,<fee#>,<assetid>,<amount>)[...]
         createasset=(<bankid>,fee|createasset,<fee#>,<assetid>,<amount>)[...]
-      pubkeysig/
-        <id>=(<bankid>,@register,(<id>,register,<bankid>,<pubkey>,name=<name>))
       asset/
         <assetid>=(<bankid>,@asset,(<id>,asset,<bankid>,<assetid>,<scale>,<precision>,<assetname>))
   account/
@@ -38,6 +39,12 @@ $dbdir/
         time=<time#>
         req=<req#>
         pubkeysig=(<bankid>,@register,(<id>,register,<bankid>,<pubkey>,name=<name>))
+        contact/
+          <otherid>/
+            name=<nickname>
+            notes=<notes>
+            pubkey=<pubkey>
+            pubkeysig=<pubkeysig>
         balance/
           <acct>/  -- "main" is the default acct name
             <assetid>=(<bankid>,@balance,(<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>))

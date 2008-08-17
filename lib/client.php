@@ -17,8 +17,13 @@ class client {
   var $u;                       // utility instance
   var $pubkeydb;
 
+  // Initialized by login() and newuser()
   var $id;
   var $privkey;
+
+  // initialized by setbank() and addbank()
+  var $server;
+  var $bankid;
 
   // $db is an object that does put(key, value), get(key), and dir(key)
   // $ssl is an object that does the protocol of ssl.php
@@ -29,15 +34,16 @@ class client {
     $this->t = new tokens();
     $this->pubkeydb = $db->subdir($this->t->PUBKEY);
     $this->parser = new parser($this->pubkeydb, $ssl);
-    $this->u = new utility();
+    $this->u = new utility($this->t, $this->parser);
   }
 
   // API Methods
   // All return false on success or an error string on failure
 
   // Create a new user with the given passphrase, error if already there.
-  // If $privatekey is a string, use that.
+  // If $privkey is a string, use that as the private key.
   // If it is an integer, default 3072, create a new private key with that many bits
+  // User is logged in when this returns successfully.
   function newuser($passphrase, $privkey=3072) {
     $db = $this->db;
     $t = $this->t;
@@ -48,7 +54,7 @@ class client {
         return "Passphrase already has an associated private key";
     }
     if (!is_string($privkey)) {
-      if (!is_number($privkey)) return "privkey arg not a string or number";
+      if (!is_numeric($privkey)) return "privkey arg not a string or number";
       $privkey = $ssl->make_privkey($privkey, $passphrase);
     }
     $privkeystr = $privkey;
@@ -57,15 +63,16 @@ class client {
     $pubkey = $ssl->privkey_to_pubkey($privkey);
     $id = $ssl->pubkey_id($pubkey);
     $db->put($t->PRIVKEY . "/$hash", $privkeystr);
-    $db->put($t->PUBKEY . "/$id", $pubkey);
+    $db->put($this->pubkeykey($id), trim($pubkey) . "\n");
 
     $this->id = $id;
     $this->privkey = $privkey;
     return false;
   }
 
+  // Log in with the given passphrase. Error if no user associated with passphrase.
   function login($passphrase) {
-    $db -> $this->db;
+    $db = $this->db;
     $t = $this->t;
     $ssl = $this->ssl;
 
@@ -77,10 +84,87 @@ class client {
     $pubkey = $ssl->privkey_to_pubkey($privkey);
     $id = $ssl->pubkey_id($pubkey);
 
-    $this->privkey = $privkey;
     $this->id = $id;
+    $this->privkey = $privkey;
     return false;
   }
+
+  // All the API methods below require the user to be logged in.
+  // $id and $privkey must be set.
+
+  // Return all the banks for the current user
+  // array(array($t->BANKID => $bankid,
+  //             $t->NAME => $name,
+  //             $t->URL => $url), ...)
+  function getbanks() {
+
+  }
+
+  // Add a bank with the given URL to the database.
+  // No error, but does nothing, if the bank is already there.
+  // Sets the client instance to use this bank until addbank() or setbank()
+  // is called to change it.
+  function addbank($url) {
+    $db = $this->db;
+    $t = $this->t;
+
+    // Hash the URL to ensure its name will work as a file name
+    $urlhash = sha1($url);
+    $urlkey = $t->BANK . '/' . $t->BANKID;
+    $bankid = $db->get("$urlkey/$urlhash");
+    if ($bankid) return $this->setbank($bankid);
+
+    $u = $this->u;
+    $id = $this->id;
+    $privkey = $this->privkey;
+    $ssl = $this->ssl;
+    $parser = $this->parser;
+
+    $server = new serverproxy($url);
+    $this->server = $server;
+    $pubkey = $ssl->privkey_to_pubkey($privkey);
+    $msg = $this->sendmsg($t->BANKID, $pubkey);
+    $args = $u->match_message($msg);
+    if (is_string($args)) return "Bank's bankid message wrong: $msg";
+    $bankid = $args[$t->CUSTOMER];
+    if ($args[$t->REQUEST] != $t->REGISTER ||
+        $args[$t->BANKID] != $bankid) {
+      return "Bank's bankid message wrong: $msg";
+    }
+    $pubkey = $args[$t->PUBKEY];
+    $name = $args[$t->NAME];
+    if ($ssl->pubkey_id($pubkey) != $bankid) {
+      return "Bank's id doesn't match its public key: $msg";
+    }
+
+    $this->bankid = $bankid;
+    $db->put("$urlkey/$urlhash", $bankid);
+    $db->put($this->bankkey($t->URL), $url);
+    $db->put($this->bankkey($t->NAME), $name);
+    $db->put($this->pubkeykey($bankid), trim($pubkey) . "\n");
+
+    return false;
+  }
+
+  // Set the bank to the given id.
+  // Sets the client instance to use this bank until addbank() or setbank()
+  // is called to change it, by setting $this->bankid and $this->server
+  function setbank($bankid) {
+    $db = $this->db;
+    $t = $this->t;
+
+    $this->bankid = $bankid;
+
+    $url = $this->bankprop($t->URL);
+    if (!$url) return "Bank not known: $bankid";
+    $server = new serverproxy($url);
+    $this->server = $server;
+  }
+
+  // All the API methods below require the user to be logged and the bank to be set.
+  // $this->id, $this->privkey, $this->bankid, & $this->server must be set.
+
+
 
   // End of API methods
 
@@ -88,6 +172,63 @@ class client {
     return sha1(trim($passphrase));
   }
 
+  // Create a signed customer message.
+  // Takes an arbitrary number of args.
+  function custmsg() {
+    $id = $this->id;
+    $u = $this->u;
+    $ssl = $this->ssl;
+    $privkey = $this->privkey;
+
+    $args = func_get_args();
+    $args = array_merge(array($id), $args);
+    $msg = $u->makemsg($args);
+    $sig = $ssl->sign($msg, $privkey);
+    return "$msg:\n$sig";
+  }
+
+  // Send a customer message to the server.
+  // Takes an arbitrary number of args.
+  function sendmsg() {
+    $server = $this->server;
+
+    $req = func_get_args();
+    $msg = call_user_func_array(array($this, 'custmsg'), $req);
+    echo "Sending: $msg\n";
+    return $server->process($msg);
+  }
+
+  function pubkeykey($id) {
+    $t = $this->t;
+    return $t->PUBKEY . "/$id";
+  }
+
+  function bankkey($prop) {
+    $t = $this->t;
+    $bankid = $this->bankid;
+
+    return $t->BANK . "/$bankid/$prop";
+  }
+
+  function bankprop($prop) {
+    $db = $this->db;
+
+    return $db->get($this->bankkey($prop));
+  }
+}
+
+class serverproxy {
+  var $url;
+
+  function serverproxy($url) {
+    if (substr($url,-1) == '/') $url = substr($url, 0, -1);
+    $this->url = $url;
+  }
+
+  function process($msg) {
+    $url = $this->url;
+    return file_get_contents("$url/?msg=" . urlencode($msg));
+  }
 }
 
 ?>

@@ -87,7 +87,7 @@ Get bankid
 
   If <id> is the public key ID for <pubkey>, bank returns:
 
-(<bankid>,@register,(<bankid>,register,<bankid>,<pubkey>,name=<name>))
+(<bankid>,register,<bankid>,<pubkey>,name=<name>)
 
   The <bankid> is required for the other requests, and the bank's
   public key, to validate them. So a new customer will need to do this
@@ -96,6 +96,8 @@ Get bankid
   If there's a mismatch, bank returns:
 
 (<bankid>,failed,(<id>,bankid,<pubkey>),errcode:<errcode>,reason:<reason>)
+
+  Which the client will be unable to parse, not knowing the bank's public key.
 
 
 Create account

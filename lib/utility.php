@@ -5,6 +5,15 @@
 
 class utility {
 
+  var $t;
+  var $parser;
+  var $patterns=false;
+
+  function utility($t, $parser) {
+    $this->t = $t;
+    $this->parser = $parser;
+  }
+
   // Sort an array of numbers represented as strings.
   // Works even if they're too big to fit in a machine word.
   // Doesn't use bcmath, just prepends leading zeroes.
@@ -55,6 +64,80 @@ class utility {
     }
     $msg .= ')';
     return $msg;
+  }
+
+  // Patterns for non-request data
+  function patterns() {
+    $t = $this->t;
+    if (!$this->patterns) {
+      $patterns = array(// Customer messages
+                        $t->BALANCE => array($t->BANKID,$t->TIME,
+                                             $t->ASSET, $t->AMOUNT, $t->ACCT=>1),
+                        $t->OUTBOXHASH => array($t->BANKID,$t->TIME, $t->HASH),
+                        $t->SPEND => array($t->BANKID,$t->TIME,$t->ID,
+                                           $t->ASSET,$t->AMOUNT,$t->NOTE=>1),
+                        $t->ASSET => array($t->BANKID,$t->ASSET,
+                                           $t->SCALE,$t->PRECISION,$t->NAME),
+
+                        $t->REGISTER => array($t->BANKID,$t->PUBKEY,$t->NAME=>1),
+                        $t->SPENDACCEPT => array($t->BANKID,$t->TIME,$t->ID,$t->NOTE=>1),
+                        $t->SPENDREJECT => array($t->BANKID,$t->TIME,$t->ID,$t->NOTE=>1),
+
+                        // Bank signed messages
+                        $t->TOKENID => array($t->TOKENID),
+                        $t->BANKID => array($t->BANKID),
+                        $t->REGFEE => array($t->BANKID, $t->TIME, $t->ASSET, $t->AMOUNT),
+                        $t->TRANFEE => array($t->BANKID, $t->TIME, $t->ASSET, $t->AMOUNT),
+                        $t->TIME => array($t->ID, $t->TIME),
+                        $t->INBOX => array($t->TIME, $t->MSG),
+                        $t->ATREGISTER => array($t->MSG),
+                        $t->ATOUTBOXHASH => array($t->MSG),
+                        $t->ATGETINBOX => array($t->MSG),
+                        $t->ATBALANCE => array($t->MSG),
+                        $t->ATSPEND => array($t->MSG),
+                        $t->ATTRANFEE => array($t->MSG),
+                        $t->ATASSET => array($t->MSG),
+                        $t->ATPROCESSINBOX => array($t->MSG),
+                        $t->ATSPENDACCEPT => array($t->MSG),
+                        $t->ATSPENDREJECT => array($t->MSG),
+                        $t->REQ => array($t->ID, $t->REQ),
+                        $t->GETTIME => array($t->ID, $t->TIME)
+                        );
+      $this->patterns = $patterns;
+    }
+    return $this->patterns;
+  }
+
+  function match_pattern($req) {
+    $t = $this->t;
+    $parser = $this->parser;
+    $patterns = $this->patterns();
+    $pattern = $patterns[$req[1]];
+    if (!$pattern) return "Unknown request: '" . $req[1] . "'";
+    $pattern = array_merge(array($t->CUSTOMER,$t->REQUEST), $pattern);
+    $args = $parser->matchargs($req, $pattern);
+    if (!$args) {
+      $msg = $parser->get_parsemsg($req);
+      return "Request doesn't match pattern for '" . $req[1] . "': " .
+        $parser->formatpattern($pattern) . " $msg";
+    }
+    $argsbankid = $args[$t->BANKID];
+    $bankid = $this->bankid;
+    if ($argsbankid && $bankid &&  $argsbankid != $bankid) {
+      return "bankid mismatch, sb: $bankid, was: $argsbankid";
+    }
+    return $args;
+  }
+
+  // Parse and match a message.
+  // Returns an array mapping parameter names to values.
+  // Returns a string if parsing or matching fails.
+  function match_message($msg) {
+    $parser = $this->parser;
+
+    $reqs = $parser->parse($msg);
+    if (!$reqs) return $parser->errmsg || "Parse failed";
+    return $this->match_pattern($reqs[0]);
   }
 
 }

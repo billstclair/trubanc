@@ -14,7 +14,7 @@ class server {
   var $ssl;
   var $t;
   var $parser;
-  var $utility;
+  var $u;
   var $pubkeydb;
   var $bankname;
   var $regfee;
@@ -35,7 +35,7 @@ class server {
     $this->t = new tokens();
     $this->pubkeydb = $db->subdir($this->t->PUBKEY);
     $this->parser = new parser($this->pubkeydb, $ssl);
-    $this->utility = new utility();
+    $this->u = new utility($this->t, $this->parser);
     $this->bankname = $bankname;
     $this->setupDB($passphrase);
   }
@@ -108,7 +108,7 @@ class server {
     $dir = $this->outboxkey($id);
     $contents = $db->contents($this->outboxkey($id));
     if ($newitem) $contents[] = $transtime;
-    $contents = $this->utility->bignum_sort($contents);
+    $contents = $this->u->bignum_sort($contents);
     $unhashed = '';
     if ($removed_times) $contents = array_diff($contents, $removed_times);
     foreach ($contents as $time) {
@@ -238,10 +238,10 @@ class server {
   // Takes as many args as you care to pass.
   function makemsg() {
     $t = $this->t;
-    $utility = $this->utility;
+    $u = $this->u;
 
     $req = func_get_args();
-    $args = $this->match_pattern($req);
+    $args = $u->match_pattern($req);
     // I don't like this at all, but I don't know what else to do
     if (!$args) return call_user_func_array(array($this, 'failmsg'), $req);
     if (is_string($args)) return $this->failmsg($args);
@@ -250,7 +250,7 @@ class server {
     foreach ($args as $k => $v) {
       if (is_int($k) && !$skip) {
         if ($msg != '(') $msg .= ',';
-        $msg .= $utility->escape($v);
+        $msg .= $u->escape($v);
       } elseif ($k == $t->MSG) {
         $skip = true;
         $msg .= ",$v";
@@ -273,7 +273,7 @@ class server {
   function failmsg() {
     $args = func_get_args();
     $msg = array_merge(array($this->bankid, $this->t->FAILED), $args);
-    return $this->banksign($this->utility->makemsg($msg));
+    return $this->banksign($this->u->makemsg($msg));
   }
 
   function maybedie($msg, $die) {
@@ -286,11 +286,12 @@ class server {
     $bankid = $this->bankid;
     $parser = $this->parser;
     $t = $this->t;
+    $u = $this->u;
 
     $reqs = $parser->parse($msg);
     if (!$reqs) return $this->maybedie($parser->errmsg, $fatal);
     $req = $reqs[0];
-    $args = $this->match_pattern($req);
+    $args = $u->match_pattern($req);
     if (is_string($args)) $this->maybedie("While matching bank-wrapped message: $args", $fatal);
     if ($args[$t->CUSTOMER] != $bankid && $bankid) {
       return $this->maybedie("bankmsg not from bank", $fatal);
@@ -310,7 +311,7 @@ class server {
 
     $req = $args[$t->MSG];      // this is already parsed
     if (!$req) return $this->maybedie("No wrapped message", $fatal);
-    $args = $this->match_pattern($req);
+    $args = $u->match_pattern($req);
     if (is_string($args)) return $this->maybedie("While matching wrapped customer message: $args", $fatal);
     if (is_string($subtype) && !$args[$t->REQUEST] == $subtype) {
       if ($fatal) die("Wrapped message wasn't of type: $subtype\n");
@@ -391,11 +392,13 @@ class server {
 
   function match_bank_signed_message($inmsg) {
     $t = $this->t;
+    $u = $this->u;
     $parser = $this->parser;
+
     $req = $parser->parse($inmsg);
     if (!$req) return $parser->errmsg;
     if ($req) $req = $req[0];
-    $args = $this->match_pattern($req);
+    $args = $u->match_pattern($req);
     if (is_string($args)) return "Failed to match bank-signed message";
     if ($args[$t->CUSTOMER] != $this->bankid) {
       return "Not signed by this bank";
@@ -404,7 +407,7 @@ class server {
     $req = $parser->parse($msg);
     if (!$req) return $parser->errmsg;
     if ($req) $req = $req[0];
-    return $this->match_pattern($req);
+    return $u->match_pattern($req);
   }
 
   // Add $amount to the bank balance for $assetid in the main account
@@ -534,13 +537,18 @@ class server {
   /*** Request processing ***/
  
   // Look up the bank's public key
-  function do_bankid($t_args, $reqs, $msg) {
+  function do_bankid($args, $reqs, $msg) {
     $t = $this->t;
     $db = $this->db;
+    $parser = $this->parser;
+
     $bankid = $this->bankid;
     // $t->BANKID => array($t->PUBKEY)
-    // pubkey has already been verified by $parser.
-    return $db->get($t->PUBKEYSIG . "/$bankid");
+    $msg = $db->get($t->PUBKEYSIG . "/$bankid");
+    $args = $this->unpack_bankmsg($msg, $t->ATREGISTER);
+    if (is_string($args)) return $this->failmsg($msg, "Bank's pubkey is hosed");
+    $req = $args[$t->MSG];
+    return $parser->get_parsemsg($req);
   }
 
   // Lookup a public key
@@ -666,6 +674,7 @@ class server {
 
   function do_spend_internal($args, $reqs, $msg) {
     $t = $this->t;
+    $u = $this->u;
     $db = $this->db;
     $bankid = $this->bankid;
     $parser = $this->parser;
@@ -728,7 +737,7 @@ class server {
     $outboxhashreq = false;
     for ($i=1; $i<count($reqs); $i++) {
       $req = $reqs[$i];
-      $reqargs = $this->match_pattern($req);
+      $reqargs = $u->match_pattern($req);
       if (is_string($req_args)) return $this->failmsg($msg, $reqargs); // match error
       $reqid = $reqargs[$t->CUSTOMER];
       $request = $reqargs[$t->REQUEST];
@@ -875,15 +884,16 @@ class server {
 
   function do_getinbox_internal($msg, $id) {
     $t = $this->t;
+    $u = $this->u;
     $db = $this->db;
 
     $inbox = $this->scaninbox($id);
     $res = $this->bankmsg($t->ATGETINBOX, $msg);
     foreach ($inbox as $inmsg) {
       $res .= '.' . $inmsg;
-      $args = $this->match_message($inmsg);
+      $args = $u->match_message($inmsg);
       if ($args && !is_string($args)) {
-        $args = $this->match_pattern($args[$t->MSG]);
+        $args = $u->match_pattern($args[$t->MSG]);
       }
       if (!$args || is_string($args) ||
           $args[$t->ID] != $id) {
@@ -922,6 +932,7 @@ class server {
 
   function do_processinbox_internal($args, $reqs, $msg) {
     $t = $this->t;
+    $u = $this->u;
     $db = $this->db;
     $bankid = $this->bankid;
     $parser = $this->parser;
@@ -956,9 +967,9 @@ class server {
         $itemreqs = $itemargs[$this->unpack_reqs_key];
         $feereq = $itemreqs[1];
         if ($feereq) {
-          $feeargs = $this->match_pattern($feereq);
+          $feeargs = $u->match_pattern($feereq);
           if ($feeargs && $feeargs[$t->REQUEST] == $t->ATTRANFEE) {
-            $feeargs = $this->match_pattern($feeargs[$t->MSG]);
+            $feeargs = $u->match_pattern($feeargs[$t->MSG]);
           }
           if (!$feeargs || $feeargs[$t->REQUEST] != $t->TRANFEE) {
             return $this->failmsg($msg, "Inbox corrupt. Fee not properly encoded");
@@ -1025,7 +1036,7 @@ class server {
     for ($i=1; $i<count($reqs); $i++) {
       $req = $reqs[$i];
       $reqmsg = $parser->get_parsemsg($req);
-      $args = $this->match_pattern($req);
+      $args = $u->match_pattern($req);
       if ($args[$t->CUSTOMER] != $id) {
         return $this->failmsg
           ($msg, "Item not from same customer as " . $t->PROCESSINBOX);
@@ -1175,6 +1186,7 @@ class server {
 
   function get_outbox_args($id, $spendtime) {
     $t = $this->t;
+    $u = $this->u;
     $db = $this->db;
     $parser = $this->parser;
     $bankid = $this->bankid;
@@ -1184,7 +1196,7 @@ class server {
     if (!$spendmsg) return "Can't find outbox item: $spendtime";
     $reqs = $parser->parse($spendmsg);
     if (!$reqs) return $parser->errmsg;
-    $spendargs = $this->match_pattern($reqs[0]);
+    $spendargs = $u->match_pattern($reqs[0]);
     $feeargs = false;
     if (count($reqs) > 1) $feeargs = $this->match_pattern($reqs[1]);
     if ($spendargs[$t->CUSTOMER] != $bankid ||
@@ -1194,8 +1206,8 @@ class server {
           $feeargs[$t->REQUEST] != $t->ATTRANFEE))) {
       return "Outbox corrupted";
     }
-    $spendargs = $this->match_pattern($spendargs[$t->MSG]);
-    if ($feeargs) $feeargs = $this->match_pattern($feeargs[$t->MSG]);
+    $spendargs = $u->match_pattern($spendargs[$t->MSG]);
+    if ($feeargs) $feeargs = $u->match_pattern($feeargs[$t->MSG]);
     if ($spendargs[$t->CUSTOMER] != $id ||
         $spendargs[$t->REQUEST] != $t->SPEND ||
         ($feeargs &&
@@ -1219,6 +1231,7 @@ class server {
 
   function do_asset_internal($args, $reqs, $msg) {
     $t = $this->t;
+    $u = $this->u;
     $db = $this->db;
     $bankid = $this->bankid;
     $parser = $this->parser;
@@ -1271,7 +1284,7 @@ class server {
 
     for ($i=1; $i<count($reqs); $i++) {
       $req = $reqs[$i];
-      $reqargs = $this->match_pattern($req);
+      $reqargs = $u->match_pattern($req);
       if (is_string($req_args)) return $this->failmsg($msg, $reqargs); // match error
       $reqid = $reqargs[$t->CUSTOMER];
       $request = $reqargs[$t->REQUEST];
@@ -1355,83 +1368,12 @@ class server {
 
   /*** End request processing ***/
 
-  // Patterns for non-request data
-  function patterns() {
-    $t = $this->t;
-    if (!$this->patterns) {
-      $patterns = array(// Customer messages
-                        $t->BALANCE => array($t->BANKID,$t->TIME,
-                                             $t->ASSET, $t->AMOUNT, $t->ACCT=>1),
-                        $t->OUTBOXHASH => array($t->BANKID,$t->TIME, $t->HASH),
-                        $t->SPEND => array($t->BANKID,$t->TIME,$t->ID,
-                                           $t->ASSET,$t->AMOUNT,$t->NOTE=>1),
-                        $t->ASSET => array($t->BANKID,$t->ASSET,
-                                           $t->SCALE,$t->PRECISION,$t->NAME),
-
-                        $t->REGISTER => array($t->BANKID,$t->PUBKEY,$t->NAME=>1),
-                        $t->SPENDACCEPT => array($t->BANKID,$t->TIME,$t->ID,$t->NOTE=>1),
-                        $t->SPENDREJECT => array($t->BANKID,$t->TIME,$t->ID,$t->NOTE=>1),
-
-                        // Bank signed messages
-                        $t->TOKENID => array($t->TOKENID),
-                        $t->BANKID => array($t->BANKID),
-                        $t->REGFEE => array($t->BANKID, $t->TIME, $t->ASSET, $t->AMOUNT),
-                        $t->TRANFEE => array($t->BANKID, $t->TIME, $t->ASSET, $t->AMOUNT),
-                        $t->TIME => array($t->ID, $t->TIME),
-                        $t->INBOX => array($t->TIME, $t->MSG),
-                        $t->ATREGISTER => array($t->MSG),
-                        $t->ATOUTBOXHASH => array($t->MSG),
-                        $t->ATGETINBOX => array($t->MSG),
-                        $t->ATBALANCE => array($t->MSG),
-                        $t->ATSPEND => array($t->MSG),
-                        $t->ATTRANFEE => array($t->MSG),
-                        $t->ATASSET => array($t->MSG),
-                        $t->ATPROCESSINBOX => array($t->MSG),
-                        $t->ATSPENDACCEPT => array($t->MSG),
-                        $t->ATSPENDREJECT => array($t->MSG),
-                        $t->REQ => array($t->ID, $t->REQ),
-                        $t->GETTIME => array($t->ID, $t->TIME)
-                        );
-      $this->patterns = $patterns;
-    }
-    return $this->patterns;
-  }
-
-  function match_pattern($req) {
-    $t = $this->t;
-    $parser = $this->parser;
-    $patterns = $this->patterns();
-    $pattern = $patterns[$req[1]];
-    if (!$pattern) return "Unknown request: '" . $req[1] . "'";
-    $pattern = array_merge(array($t->CUSTOMER,$t->REQUEST), $pattern);
-    $args = $parser->matchargs($req, $pattern);
-    if (!$args) {
-      $msg = $parser->get_parsemsg($req);
-      return "Request doesn't match pattern for '" . $req[1] . "': " .
-        $parser->formatpattern($pattern) . " $msg";
-    }
-    $argsbankid = $args[$t->BANKID];
-    $bankid = $this->bankid;
-    if ($argsbankid && $bankid &&  $argsbankid != $bankid) {
-      return "bankid mismatch, sb: $bankid, was: $argsbankid";
-    }
-    return $args;
-  }
-
-  // Parse and match a message.
-  // Returns an array mapping parameter names to values.
-  // Returns a string if parsing or matching fails.
-  function match_message($msg) {
-    $parser = $this->parser;
-    $reqs = $parser->parse($msg);
-    if (!$reqs) return $parser->errmsg || "Parse failed";
-    return $this->match_pattern($reqs[0]);
-  }
-
   function commands() {
     $t = $this->t;
+    $u = $this->u;
+
     if (!$this->commands) {
-      $patterns = $this->patterns();
+      $patterns = $u->patterns();
       $names = array($t->BANKID => array($t->PUBKEY),
                      $t->ID => array($t->BANKID,$t->ID),
                      $t->REGISTER => $patterns[$t->REGISTER],

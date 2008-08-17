@@ -69,6 +69,10 @@ class tokens {
   var $PRECISION = 'precision';
   var $HASH = 'hash';
   var $MSG = 'msg';
+
+  // Client database directories
+  var $BANK = 'bank';
+  var $URL = 'url';
 }
 
 // Copyright 2008 Bill St. Clair
