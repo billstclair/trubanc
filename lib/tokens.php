@@ -76,7 +76,7 @@ class tokens {
   var $URL = 'url';
 
   // Other client tokens
-  var $FORMATTEDAMOUNT => 'formattedamount';
+  var $FORMATTEDAMOUNT = 'formattedamount';
 }
 
 // Copyright 2008 Bill St. Clair
