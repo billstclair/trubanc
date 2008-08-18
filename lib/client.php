@@ -154,11 +154,15 @@ class client {
       return "Bank's id doesn't match its public key: $msg";
     }
 
+    // Initialize the bank in the database
     $this->bankid = $bankid;
     $db->put("$urlkey/$urlhash", $bankid);
     $db->put($this->bankkey($t->URL), $url);
     $db->put($this->bankkey($t->NAME), $name);
     $db->put($this->pubkeykey($bankid), trim($pubkey) . "\n");
+
+    // Mark the user as knowing about this bank
+    $db->put($this->userbankkey($t->REQ), 1);
 
     return false;
   }
@@ -212,9 +216,7 @@ class client {
     if (is_string($args)) return "Registration failed: $args";
 
     // Didn't fail. Notice registration here
-    $req = $args[$t->MSG];
-    $args = $u->match_pattern($req);
-    if (is_string($args)) return "While matching wrapped msg: $args";
+    $args = $args[$t->MSG];
     if ($args[$t->CUSTOMER] != $id ||
         $args[$t->REQUEST] != $t->REGISTER ||
         $args[$t->BANKID] != $bankid) return "Malformed registration message";
@@ -225,6 +227,8 @@ class client {
     return false;
   }
 
+  function spend($toid, $asset, $amount, $acct=false) {
+  }
 
   // End of API methods
 
@@ -276,6 +280,11 @@ class client {
     if ($request && $args[$t->REQUEST] != $request) {
       return "Wrong return type from bank: $msg";
     }            
+    if ($args[$t->MSG]) {
+      $msgargs = $u->match_pattern($args[$t->MSG]);
+      if (is_string($msgargs)) return "While matching bank-wrapped msg: $msgargs";
+      $args[$t->MSG] = $msgargs;
+    }
     $args[$this->unpack_reqs_key] = $reqs; // save parse results
     return $args;
   }

@@ -4,6 +4,7 @@ settings.php|Settings for index.php
 doc/idea.txt|My original idea
 doc/db.txt|Description of the server database and protocol
 doc/client.txt|Description of the client database
+plain-english.html|Source for <a href="plain-english.html">Trubanc in Plain English</a>
 
 lib/dictdb.php|A testing "database", stored in memory
 lib/fsdb.php|The "File System Database" used by Trubanc
