@@ -4,8 +4,8 @@
 
 class ssl {
   // Make a new private key, as a PEM-encoded string
-  function make_privkey($bits=2048, $passphrase=false) {
-    $privkey = openssl_pkey_new(array('private_key_bits' => $bits));
+  function make_privkey($bits=3072, $passphrase=false) {
+    $privkey = openssl_pkey_new(array('private_key_bits' => (int)$bits));
     if ($passphrase) openssl_pkey_export($privkey, $pkeyout, $passphrase);
     else openssl_pkey_export($privkey, $pkeyout);
     $res = $pkeyout;

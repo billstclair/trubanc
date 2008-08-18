@@ -27,7 +27,8 @@ if ($err) echo "$err\n";
 $err = $client->login($passphrase);
 if ($err) echo "$err\n";
 
-echo "id: " . $client->id . "\n";
+$id = $client->id;
+echo "id: $id\n";
 
 $err = $client->addbank($url);
 if ($err) echo "$err\n";

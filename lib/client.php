@@ -205,10 +205,12 @@ class client {
     $msg = $this->sendmsg($t->ID, $bankid, $id);
     $args = $this->match_bankmsg($msg, $t->ATREGISTER);
     if (is_string($args)) {
+      // Bank doesn't know us. Register with bank.
       $msg = $this->sendmsg($t->REGISTER, $bankid, $this->pubkey($id));
       $args = $this->match_bankmsg($msg, $t->ATREGISTER);
     }
     if (is_string($args)) return "Registration failed: $args";
+
     // Didn't fail. Notice registration here
     $req = $args[$t->MSG];
     $args = $u->match_pattern($req);
