@@ -25,6 +25,8 @@ class client {
   var $server;
   var $bankid;
 
+  var $unpack_reqs_key = 'unpack_reqs';
+
   // $db is an object that does put(key, value), get(key), and dir(key)
   // $ssl is an object that does the protocol of ssl.php
   function client($db, $ssl=false) {
@@ -38,7 +40,7 @@ class client {
   }
 
   // API Methods
-  // All return false on success or an error string on failure
+  // If the return is not specified, it will be false or an error string
 
   // Create a new user with the given passphrase, error if already there.
   // If $privkey is a string, use that as the private key.
@@ -92,12 +94,27 @@ class client {
   // All the API methods below require the user to be logged in.
   // $id and $privkey must be set.
 
-  // Return all the banks for the current user
+  // Return all the banks known by the current user:
   // array(array($t->BANKID => $bankid,
   //             $t->NAME => $name,
-  //             $t->URL => $url), ...)
+  //             $t->URL => $url,
+  //             $t->PUBKEYSIG => $pubkeysig), ...)
+  // $pubkeysig will be blank if the user has no account at the bank.
   function getbanks() {
+    $t = $this->t;
+    $db = $this->db;
+    $id = $this->id;
 
+    $banks = $db->contents($t->ACCOUNT . "/$id");
+    $res = array();
+    foreach ($banks as $bankid) {
+      $bank = array($t->BANKID => $bankid,
+                    $t->NAME => $this->bankprop($t->NAME),
+                    $t->URL => $this->bankprop($t->URL),
+                    $t->PUBKEYSIG => $this->bankprop($t->PUBKEYSIG));
+      $res[] = $bank;
+    }
+    return $res;
   }
 
   // Add a bank with the given URL to the database.
@@ -159,11 +176,52 @@ class client {
     if (!$url) return "Bank not known: $bankid";
     $server = new serverproxy($url);
     $this->server = $server;
+
+    $req = $this->userbankprop($t->REQ);
+    if (!$req) {
+      $db->put($this->userbankkey($t->REQ), 1);
+    }
+
+    return false;
   }
 
   // All the API methods below require the user to be logged and the bank to be set.
+  // Do this by calling newuser() or login(), and addbank() or setbank().
   // $this->id, $this->privkey, $this->bankid, & $this->server must be set.
 
+  // Register at the current bank.
+  // No error if already registered
+  function register() {
+    $t = $this->t;
+    $u = $this->u;
+    $db = $this->db;
+    $id = $this->id;
+    $bankid = $this->bankid;
+
+    // If already registered and we know it, nothing to do
+    if ($this->userbankprop($t->PUBKEYSIG)) return false;
+
+    // See if bank already knows us
+    $msg = $this->sendmsg($t->ID, $bankid, $id);
+    $args = $this->match_bankmsg($msg, $t->ATREGISTER);
+    if (is_string($args)) {
+      $msg = $this->sendmsg($t->REGISTER, $bankid, $this->pubkey($id));
+      $args = $this->match_bankmsg($msg, $t->ATREGISTER);
+    }
+    if (is_string($args)) return "Registration failed: $args";
+    // Didn't fail. Notice registration here
+    $req = $args[$t->MSG];
+    $args = $u->match_pattern($req);
+    if (is_string($args)) return "While matching wrapped msg: $args";
+    if ($args[$t->CUSTOMER] != $id ||
+        $args[$t->REQUEST] != $t->REGISTER ||
+        $args[$t->BANKID] != $bankid) return "Malformed registration message";
+    $pubkey = $args[$t->PUBKEY];
+    $keyid = $ssl->pubkey_id($pubkey);
+    if ($keyid != $id) return "Server's pubkey wrong";
+    $db->put($this->userbankkey($t->PUBKEYSIG), $msg);
+    return false;
+  }
 
 
   // End of API methods
@@ -194,8 +252,35 @@ class client {
 
     $req = func_get_args();
     $msg = call_user_func_array(array($this, 'custmsg'), $req);
-    echo "Sending: $msg\n";
     return $server->process($msg);
+  }
+
+  // Unpack a bank message
+  // Return a string if parse error or fail from bank
+  function match_bankmsg($msg, $request=false) {
+    $t = $this->t;
+    $u = $this->u;
+    $parser = $this->parser;
+    $bankid = $this->bankid;
+
+    $reqs = $parser->parse($msg);
+    if (!$reqs) return "Parse error: " . $parser->errmsg;
+
+    $req = $reqs[0];
+    $args = $u->match_pattern($req);
+    if (is_string($args)) return "While matching: $args";
+    if ($args[$t->CUSTOMER] != $bankid) return "Return message not from bank";
+    if ($args[$t->REQUEST] = $t->FAILED) return $args[$t->ERRMSG];
+    if ($request && $args[$t->REQUEST] != $request) {
+      return "Wrong return type from bank: $msg";
+    }            
+    $args[$this->unpack_reqs_key] = $reqs; // save parse results
+    return $args;
+  }
+
+  function pubkey($id) {
+    $db = $this->pubkeydb;
+    return $db->get($id);
   }
 
   function pubkeykey($id) {
@@ -203,17 +288,33 @@ class client {
     return $t->PUBKEY . "/$id";
   }
 
-  function bankkey($prop) {
+  function bankkey($prop=false) {
     $t = $this->t;
     $bankid = $this->bankid;
 
-    return $t->BANK . "/$bankid/$prop";
+    $key = $t->BANK . "/$bankid";
+    return $prop ? "$key/$prop" : $key;
   }
 
   function bankprop($prop) {
     $db = $this->db;
 
     return $db->get($this->bankkey($prop));
+  }
+
+  function userbankkey($prop=false) {
+    $t = $this->t;
+    $id = $this->id;
+    $bankid = $this->bankid;
+
+    $key = $t->ACCOUNT . "/$id/$bankid";
+    return $prop ? "$key/$prop" : $key;
+  }
+
+  function userbankprop($prop) {
+    $db = $this->db;
+
+    return $db->get($this->userbankkey($prop));
   }
 }
 

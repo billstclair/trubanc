@@ -84,6 +84,7 @@ class utility {
                         $t->SPENDREJECT => array($t->BANKID,$t->TIME,$t->ID,$t->NOTE=>1),
 
                         // Bank signed messages
+                        $t->FAILED => array($t->MSG, $t->ERRMSG),
                         $t->TOKENID => array($t->TOKENID),
                         $t->BANKID => array($t->BANKID),
                         $t->REGFEE => array($t->BANKID, $t->TIME, $t->ASSET, $t->AMOUNT),

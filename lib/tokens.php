@@ -69,6 +69,7 @@ class tokens {
   var $PRECISION = 'precision';
   var $HASH = 'hash';
   var $MSG = 'msg';
+  var $ERRMSG = 'errmsg';
 
   // Client database directories
   var $BANK = 'bank';

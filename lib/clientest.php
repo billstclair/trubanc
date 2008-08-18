@@ -27,13 +27,21 @@ if ($err) echo "$err\n";
 $err = $client->login($passphrase);
 if ($err) echo "$err\n";
 
-echo "id: '" . $client->id . "'\n";
+echo "id: " . $client->id . "\n";
 
 $err = $client->addbank($url);
 if ($err) echo "$err\n";
 else {
   echo "bankid: " . $client->bankid . "\n";
-  echo "server:"; print_r($client->server);
+  //echo "server:"; print_r($client->server);
 }
+
+/*
+$banks = $client->getbanks();
+print_r($banks);
+*/
+
+$err = $client->register();
+if ($err) echo "$err\n";
 
 ?>
