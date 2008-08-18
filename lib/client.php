@@ -1,7 +1,7 @@
 <?PHP
 
   // client.php
-  // A Trubanc client. Talks the protocol of server.php
+  // A Trubanc client API. Talks the protocol of server.php
 
 require_once "tokens.php";
 require_once "ssl.php";
@@ -13,7 +13,7 @@ class client {
   var $db;
   var $ssl;
   var $t;                       // tokens instance
-  var $p;                       // parser instance
+  var $parser;                  // parser instance
   var $u;                       // utility instance
   var $pubkeydb;
 
@@ -227,6 +227,10 @@ class client {
     return false;
   }
 
+  // Returns an error string or an array of sub-account names
+  function getaccts() {
+  }
+
   // Returns an error string or an array of items of the form:
   //
   //    array($t->ASSET => $assetid,
@@ -235,11 +239,14 @@ class client {
   //          $t->FORMATTEDAMOUNT => $formattedamount,
   //          $t->ACCT => $acct)
   //
-  //  where $assetid & $assetname describe the asset, $amount is the
-  //  amount, as an integer, $formattedamount is the amoubnt as a
-  //  decimal number with the scale and precision applied, and $acct
-  //  is the name of the sub-account, default $t->MAIN.
-  function getbalance() {
+  // where $assetid & $assetname describe the asset, $amount is the
+  // amount, as an integer, $formattedamount is the amount as a
+  // decimal number with the scale and precision applied, and $acct
+  // is the name of the sub-account, default $t->MAIN.
+  //
+  // The $acct arg is true for all sub-accounts, false for the
+  // $t->MAIN sub-account, or a string for that sub-account only
+  function getbalance($acct=true) {
   }
 
   function spend($toid, $asset, $amount, $acct=false) {
