@@ -236,6 +236,10 @@ class client {
   function getcontacts() {
   }
 
+  // Add a contact to the current bank
+  function addcontact($id, $name, $note) {
+  }
+
   // Get sub-account names.
   // Returns an error string or an array of the sub-account names
   function getaccts() {
@@ -260,12 +264,15 @@ class client {
   function getbalance($acct=true) {
   }
 
+  // Initiate a spend
   function spend($toid, $asset, $amount, $acct=false) {
   }
 
+  // Transfer from one sub-account to another
   function transfer($asset, $amount, $fromacct, $toacct) {
   }
 
+  // Get the inbox contents.
   // Returns an error string, or an array of inbox entries, each of which is
   // of one of the form:
   //
@@ -290,6 +297,7 @@ class client {
   function getinbox() {
   }
 
+  // Process the inbox contents.
   // directions is an array of array($time => $what), where
   // $time is a timestamp in the inbox, and $what is
   // array($t->SPENDACCEPT, $note), array($t->SPENDREJECT, $note), or
@@ -297,6 +305,7 @@ class client {
   function processinbox($directions) {
   }
 
+  // Get the outbox contents.
   // Returns an error string or the outbox contents as an array of
   // items of the form:
   //
