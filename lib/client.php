@@ -227,7 +227,68 @@ class client {
     return false;
   }
 
+  // Returns an error string or an array of items of the form:
+  //
+  //    array($t->ASSET => $assetid,
+  //          $t->ASSETNAME => $assetname,
+  //          $t->AMOUNT => $amount,
+  //          $t->FORMATTEDAMOUNT => $formattedamount,
+  //          $t->ACCT => $acct)
+  //
+  //  where $assetid & $assetname describe the asset, $amount is the
+  //  amount, as an integer, $formattedamount is the amoubnt as a
+  //  decimal number with the scale and precision applied, and $acct
+  //  is the name of the sub-account, default $t->MAIN.
+  function getbalance() {
+  }
+
   function spend($toid, $asset, $amount, $acct=false) {
+  }
+
+  function transfer($asset, $amount, $fromacct, $toacct) {
+  }
+
+  // Returns an error string, or an array of inbox entries, each of which is
+  // of one of the form:
+  //
+  //   array($t->REQUEST => $request
+  //         $t->ID => $fromid,
+  //         $t->TIME => $time,
+  //         $t->ASSET => $assetid,
+  //         $t->ASSETNAME => $assetname,
+  //         $t->AMOUNT => $amount,
+  //         $t->FORMATTEDAMOUNT => $formattedamount,
+  //         $t->NOTE => $note)
+  //
+  // Where $request is $t->SPEND, $t->SPENDACCEPT, or $t->SPENDREJECT,
+  // $fromid is the ID of the spender or recipient of your previous spend,
+  // $time is the timestamp from the bank on the inbox entry,
+  // $assetid & $assetname describe the asset being transferred,
+  // $amount is the amount of the asset being transferred, as an integer
+  // $formattedamount is the amount as a decimal number with the scale
+  // and precision applied,
+  // And $NOTE is the note that came back from the recipient with an
+  // accept or reject.
+  function getinbox() {
+  }
+
+  // directions is an array of array($time => $what), where
+  // $time is a timestamp in the inbox, and $what is
+  // array($t->SPENDACCEPT, $note), array($t->SPENDREJECT, $note), or
+  // any non-array to clear an accepted or rejected spend.
+  function processinbox($directions) {
+  }
+
+  // Returns an error string or the outbox contents as an array of
+  // items of the form:
+  //
+  //   array($t->ID => $recipientid,
+  //         $t->ASSET => $assetid,
+  //         $t->ASSETNAME => $assetname,
+  //         $t->AMOUNT => $amount,
+  //         $t->FORMATTEDAMOUNT => formattedamount,
+  //         $t->NOTE => $note)
+  function getoutbox() {
   }
 
   // End of API methods

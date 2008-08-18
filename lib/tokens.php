@@ -74,6 +74,9 @@ class tokens {
   // Client database directories
   var $BANK = 'bank';
   var $URL = 'url';
+
+  // Other client tokens
+  var $FORMATTEDAMOUNT => 'formattedamount';
 }
 
 // Copyright 2008 Bill St. Clair
