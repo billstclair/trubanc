@@ -286,22 +286,27 @@ class client {
   //         $t->NOTE => $note)
   //
   // Where $request is $t->SPEND, $t->SPENDACCEPT, or $t->SPENDREJECT,
-  // $fromid is the ID of the spender or recipient of your previous spend,
+  // $fromid is the ID of the sender of the inbox entry,
   // $time is the timestamp from the bank on the inbox entry,
   // $assetid & $assetname describe the asset being transferred,
-  // $amount is the amount of the asset being transferred, as an integer
+  // $amount is the amount of the asset being transferred, as an integer,
   // $formattedamount is the amount as a decimal number with the scale
   // and precision applied,
-  // And $NOTE is the note that came back from the recipient with an
-  // accept or reject.
+  // and $NOTE is the note that came from the sender.
   function getinbox() {
   }
 
   // Process the inbox contents.
-  // directions is an array of array($time => $what), where
-  // $time is a timestamp in the inbox, and $what is
-  // array($t->SPENDACCEPT, $note), array($t->SPENDREJECT, $note), or
-  // any non-array to clear an accepted or rejected spend.
+  // directions is an array of items of the form:
+  //
+  //  array($t->TIME => $time,
+  //        $t->REQUEST => $request,
+  //        $t->NOTE => $note)
+  //
+  // where $time is a timestamp in the inbox,
+  // $request is $t->SPENDACCEPT or $t->SPENDREJECT, or omitted for
+  // processing an accept or reject from a former spend recipient,
+  // and $note is the note to go with the accept or reject.
   function processinbox($directions) {
   }
 
