@@ -42,7 +42,7 @@ $dbdir/
         contact/
           <otherid>/
             name=<nickname>
-            notes=<notes>
+            note=<note>
             pubkey=<pubkey>
             pubkeysig=<pubkeysig>
         balance/

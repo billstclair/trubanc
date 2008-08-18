@@ -227,10 +227,21 @@ class client {
     return false;
   }
 
-  // Returns an error string or an array of sub-account names
+  // Get contacts for the current bank.
+  // Returns an error string or an array of items of the form:
+  //
+  //   array($t->ID, $id,
+  //         $t->NAME, $name,
+  //         $t->NOTE, $note)
+  function getcontacts() {
+  }
+
+  // Get sub-account names.
+  // Returns an error string or an array of the sub-account names
   function getaccts() {
   }
 
+  // Get user balances for all sub-accounts or just one.
   // Returns an error string or an array of items of the form:
   //
   //    array($t->ASSET => $assetid,
