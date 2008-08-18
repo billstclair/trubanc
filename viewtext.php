@@ -19,15 +19,26 @@ if ($title == '') $title = $file;
 
 $files = explode("\n", file_get_contents('viewtext.txt'));
 
-if ($file == '') {
-  if ($title == '') $title = "Text Viewer";
-  foreach($files as $idx => $line) {
-    if ($line != '') {
-      $files[$idx] = "<li><a href=\"?file=$line\">$line</a></li>\n";
+foreach($files as $idx => $line) {
+  if ($line != '') {
+    $parts = explode('|', $line);
+    $name = $parts[0];
+    $label = '';
+    if (count($parts) > 1) $label = " - " . $parts[1];
+    if ($file != '') $files[$idx] = $name;
+    else {
+      $files[$idx] = "<li><a href=\"?file=$name\">$name</a>$label";
+      if (count($files) > ($idx+2) && $files[$idx+1] == '') {
+        $files[$idx] .= "<br/>&nbsp;";
+      }
+      $files[$idx] .= "</li>\n";
     }
   }
-} else {
+}
 
+if ($file == '') {
+  if ($title == '') $title = "Text Viewer";
+} else {
   if (!in_array($file, $files)) {
     echo "Thought you could access some random file, didn't you. Not!";
     return;
