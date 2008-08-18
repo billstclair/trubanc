@@ -71,9 +71,10 @@ class tokens {
   var $MSG = 'msg';
   var $ERRMSG = 'errmsg';
 
-  // Client database directories
+  // Client database keys
   var $BANK = 'bank';
   var $URL = 'url';
+  var $NICKNAME = 'nickname';
 
   // Other client tokens
   var $FORMATTEDAMOUNT = 'formattedamount';

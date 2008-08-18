@@ -151,7 +151,8 @@ Look up pubkey
 
   Note that only registered customers can ask for another customer's
   public key. Otherwise, the bank won't know the public key with which
-  to validate the request.
+  to validate the request. Also note that this request can be replayed.
+  The response is always the same, so what's the harm?
 
 
 Get Req

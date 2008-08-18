@@ -51,6 +51,7 @@ class client {
     $t = $this->t;
     $ssl = $this->ssl;
 
+    $this->logout();
     $hash = $this->passphrasehash($passphrase);
     if ($db->get($t->PRIVKEY . "/$hash")) {
         return "Passphrase already has an associated private key";
@@ -63,6 +64,7 @@ class client {
     $privkey = $ssl->load_private_key($privkey, $passphrase);
     if (!$privkey) return "Could not load private key";
     $pubkey = $ssl->privkey_to_pubkey($privkey);
+    
     $id = $ssl->pubkey_id($pubkey);
     $db->put($t->PRIVKEY . "/$hash", $privkeystr);
     $db->put($this->pubkeykey($id), trim($pubkey) . "\n");
@@ -78,6 +80,7 @@ class client {
     $t = $this->t;
     $ssl = $this->ssl;
 
+    $this->logout();
     $hash = $this->passphrasehash($passphrase);
     $privkey = $db->GET($t->PRIVKEY . "/$hash");
     if (!$privkey) return "No account for passphrase in database";
@@ -91,14 +94,26 @@ class client {
     return false;
   }
 
+  function logout() {
+    $ssl = $this->ssl;
+
+    $this->id = false;
+    $privkey = $this->privkey;
+    if ($privkey) {
+      $this->privkey = false;
+      $ssl->free_privkey($privkey);
+    }
+    $this->bankid = false;
+    $this->server = false;
+  }
+
   // All the API methods below require the user to be logged in.
   // $id and $privkey must be set.
 
   // Return all the banks known by the current user:
   // array(array($t->BANKID => $bankid,
   //             $t->NAME => $name,
-  //             $t->URL => $url,
-  //             $t->PUBKEYSIG => $pubkeysig), ...)
+  //             $t->URL => $url), ...)
   // $pubkeysig will be blank if the user has no account at the bank.
   function getbanks() {
     $t = $this->t;
@@ -110,8 +125,7 @@ class client {
     foreach ($banks as $bankid) {
       $bank = array($t->BANKID => $bankid,
                     $t->NAME => $this->bankprop($t->NAME),
-                    $t->URL => $this->bankprop($t->URL),
-                    $t->PUBKEYSIG => $this->bankprop($t->PUBKEYSIG));
+                    $t->URL => $this->bankprop($t->URL));
       $res[] = $bank;
     }
     return $res;
@@ -195,12 +209,13 @@ class client {
 
   // Register at the current bank.
   // No error if already registered
-  function register() {
+  function register($name='') {
     $t = $this->t;
     $u = $this->u;
     $db = $this->db;
     $id = $this->id;
     $bankid = $this->bankid;
+    $ssl = $this->ssl;
 
     // If already registered and we know it, nothing to do
     if ($this->userbankprop($t->PUBKEYSIG)) return false;
@@ -210,7 +225,7 @@ class client {
     $args = $this->match_bankmsg($msg, $t->ATREGISTER);
     if (is_string($args)) {
       // Bank doesn't know us. Register with bank.
-      $msg = $this->sendmsg($t->REGISTER, $bankid, $this->pubkey($id));
+      $msg = $this->sendmsg($t->REGISTER, $bankid, $this->pubkey($id), $name);
       $args = $this->match_bankmsg($msg, $t->ATREGISTER);
     }
     if (is_string($args)) return "Registration failed: $args";
@@ -224,6 +239,7 @@ class client {
     $keyid = $ssl->pubkey_id($pubkey);
     if ($keyid != $id) return "Server's pubkey wrong";
     $db->put($this->userbankkey($t->PUBKEYSIG), $msg);
+
     return false;
   }
 
@@ -234,13 +250,53 @@ class client {
   //         $t->NAME, $name,
   //         $t->NOTE, $note)
   function getcontacts() {
+    $t = $this->t;
+    $db = $this->db;
+
+    $ids = $db->contents($this->contactkey());
+    $res = array();
+    foreach ($ids as $otherid) {
+      $res[] = array($otherid,
+                     $this->contactprop($otherid, $t->NAME),
+                     $this->contactprop($otherid, $t->NOTE));
+    }
+    return $res;
   }
 
-  // Add a contact to the current bank
-  function addcontact($id, $name, $note) {
+  // Add a contact to the current bank.
+  // If it's already there, change its nickname and note, if included
+  function addcontact($otherid, $nickname=false, $note=false) {
+    $t = $this->t;
+    $db = $this->db;
+    $pubkeydb = $this->pubkeydb;
+    $bankid = $this->bankid;
+    $ssl = $this->ssl;
+
+    if ($this->contactprop($otherid, $t->NICKNAME)) {
+      if ($nickname) $db->put($this->contactkey($otherid, $t->NICKNAME), $nickname);
+      if ($note) $db->put($this->contactkey($otherid, $t->NOTE), $note);
+      return false;
+    }
+
+    $msg = $this->sendmsg($t->ID, $bankid, $otherid);
+    $args = $this->match_bankmsg($msg, $t->ATREGISTER);
+    if (is_string($args)) return $args;
+    $args = $args[$t->MSG];
+    $pubkey = $args[$t->PUBKEY];
+    $name = $args[$t->NAME];
+    if ($otherid != $ssl->pubkey_id($pubkey)) {
+      return "pubkey from server doesn't match ID";
+    }
+
+    if (!$nickname) $nickname = $name ? $name : 'anonymous';
+    $db->put($this->contactkey($otherid, $t->NICKNAME), $nickname);
+    $db->put($this->contactkey($otherid, $t->NOTE), $note);
+    $db->put($this->contactkey($otherid, $t->NAME), $name);
+    $pubkeydb->put($otherid, $pubkey);
+    $db->put($this->contactkey($otherid, $t->PUBKEYSIG), $msg);
   }
 
-  // Get sub-account names.
+  // GET sub-account names.
   // Returns an error string or an array of the sub-account names
   function getaccts() {
   }
@@ -297,7 +353,7 @@ class client {
   }
 
   // Process the inbox contents.
-  // directions is an array of items of the form:
+  // $directions is an array of items of the form:
   //
   //  array($t->TIME => $time,
   //        $t->REQUEST => $request,
@@ -369,10 +425,10 @@ class client {
     $args = $u->match_pattern($req);
     if (is_string($args)) return "While matching: $args";
     if ($args[$t->CUSTOMER] != $bankid) return "Return message not from bank";
-    if ($args[$t->REQUEST] = $t->FAILED) return $args[$t->ERRMSG];
+    if ($args[$t->REQUEST] == $t->FAILED) return $args[$t->ERRMSG];
     if ($request && $args[$t->REQUEST] != $request) {
       return "Wrong return type from bank: $msg";
-    }            
+    }
     if ($args[$t->MSG]) {
       $msgargs = $u->match_pattern($args[$t->MSG]);
       if (is_string($msgargs)) return "While matching bank-wrapped msg: $msgargs";
@@ -419,6 +475,23 @@ class client {
     $db = $this->db;
 
     return $db->get($this->userbankkey($prop));
+  }
+
+  function contactkey($otherid=false, $prop=false) {
+    $t = $this->t;
+    $id = $this->id;
+    $bankid = $this->bankid;
+
+    $res = $t->account . "/$id/$bankid/" . $t->CONTACT;
+    if ($otherid) $res .= "/$otherid";
+    if ($prop) $res .= "/$prop";
+    return $res;
+  }
+
+  function contactprop($otherid, $prop) {
+    $db = $this->db;
+
+    return $db->get($this->contactkey($otherid, $prop));
   }
 }
 

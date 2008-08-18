@@ -19,6 +19,11 @@ class ssl {
     else return openssl_get_privatekey($privkey);
   }
 
+  // Free the private key returned by load_private_key
+  function free_privkey($privkey) {
+    openssl_free_key($privkey);
+  }
+
   // Return the public key for a private key, as a PEM-encoded string
   function privkey_to_pubkey($privkey, $passphrase=false) {
     $free = false;

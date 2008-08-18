@@ -41,9 +41,9 @@ $dbdir/
         pubkeysig=(<bankid>,@register,(<id>,register,<bankid>,<pubkey>,name=<name>))
         contact/
           <otherid>/
-            name=<nickname>
+            nickname=<nickname>
             note=<note>
-            pubkey=<pubkey>
+            name=<name>
             pubkeysig=<pubkeysig>
         balance/
           <acct>/  -- "main" is the default acct name
