@@ -11,6 +11,14 @@ $db = new fsdb("../clientdb");
 $ssl = new ssl();
 $client = new client($db, $ssl);
 
+/*
+echo $client->format_asset_value(10000, 0, 0) . "\n";
+echo $client->format_asset_value(10000, 0, 3) . "\n";
+echo $client->format_asset_value(12300000, 7, 3) . "\n";
+echo $client->format_asset_value("1234567890123", 7, 3) . "\n";
+return;
+*/
+
 $url = "http://localhost/trubanc";
 
 /*
@@ -107,6 +115,9 @@ else {
 }
 
 $asset = $client->getasset('7d4f9b262e46101c4c5dd9234c0bd95ecc878b3c');
+if (is_string($asset)) echo "$asset\n";
+else print_r($asset);
+$asset = $client->getasset('aintnosuchasset');
 if (is_string($asset)) echo "$asset\n";
 else print_r($asset);
 

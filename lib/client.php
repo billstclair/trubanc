@@ -354,16 +354,17 @@ class client {
     if (!$this->banksetp()) return "In getacct(): Bank not set";
 
     $key = $this->assetkey($assetid);
-    $msg = $db->get($assetid, $key);
-    if ($asset) {
+    $lock = $db->lock($key);
+    $msg = $db->get($key);
+    if ($msg) {
+      $db->unlock($lock);
       $args = $this->match_bankmsg($msg, $t->ATASSET);
       if (is_string($args)) return "While matching asset: $args";
       $args = $args[$t->MSG];
     } else {
-      $lock = $db->lock($key);
       $args = $this->getasset_internal($assetid, $key);
       $db->unlock($lock);
-      if (is_string($asset)) return $asset;
+      if (is_string($args)) return $args;
     }
 
     return array($t->ID => $args[$t->CUSTOMER],
@@ -688,6 +689,25 @@ class client {
     return $db->get($this->contactkey($otherid, $prop));
   }
 
+  // format an asset value for user printing
+  function format_asset_value($value, $scale, $precision) {
+    $res = bcdiv($value, bcpow(10, $scale), $scale);
+    $dotpos = strpos($res, '.');
+    if ($dotpos === false) {
+      if ($precision == 0) return $res;
+      $res .= '.' . str_repeat('0', $precision);
+      return $res;
+    }
+    // Remove trailing zeroes
+    for ($endpos = strlen($res)-1; $endpos>$dotpos; $endpos--) {
+      if ($res[$endpos] != '0') break;
+    }
+    $zeroes = $precision - ($endpos - $dotpos);
+    $zerostr = ($zeroes >= 0) ? str_repeat('0', $zeroes) : '';
+    $res = substr($res, 0, $endpos+1) . $zerostr;
+    return $res;
+  }
+
   // Send a t->ID command to the server, if there is one.
   // Parse out the pubkey, cache it in the database, and return it.
   // Return the empty string if there is no server or it doesn't know
@@ -754,7 +774,7 @@ class client {
     }
 
     $reqnum = bcadd($db->get($key), 1);
-    $db->put($key, $req);
+    $db->put($key, $reqnum);
     return $reqnum;
   }
 
