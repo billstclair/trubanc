@@ -34,7 +34,7 @@ class client {
     if (!$ssl) $ssl = new ssl();
     $this->ssl = $ssl;
     $this->t = new tokens();
-    $this->pubkeydb = $db->subdir($this->t->PUBKEY);
+    $this->pubkeydb = new pubkeydb($this, $db->subdir($this->t->PUBKEY));
     $this->parser = new parser($this->pubkeydb, $ssl);
     $this->u = new utility($this->t, $this->parser);
   }
@@ -110,6 +110,11 @@ class client {
   // All the API methods below require the user to be logged in.
   // $id and $privkey must be set.
 
+  // Return true if logged in
+  function loggedinp() {
+    return $this->id && $this->privkey;
+  }
+
   // Return all the banks known by the current user:
   // array(array($t->BANKID => $bankid,
   //             $t->NAME => $name,
@@ -119,6 +124,8 @@ class client {
     $t = $this->t;
     $db = $this->db;
     $id = $this->id;
+
+    if (!$this->loggedinp()) return "Not logged in";
 
     $banks = $db->contents($t->ACCOUNT . "/$id");
     $res = array();
@@ -138,6 +145,8 @@ class client {
   function addbank($url) {
     $db = $this->db;
     $t = $this->t;
+
+    if (!$this->loggedinp()) return "Not logged in";
 
     // Hash the URL to ensure its name will work as a file name
     $urlhash = sha1($url);
@@ -176,7 +185,8 @@ class client {
     $db->put($this->pubkeykey($bankid), trim($pubkey) . "\n");
 
     // Mark the user as knowing about this bank
-    $db->put($this->userbankkey($t->REQ), 1);
+    // Also mark this account as not yet being synced with bank
+    $db->put($this->userbankkey($t->REQ), -1);
 
     return false;
   }
@@ -188,6 +198,8 @@ class client {
     $db = $this->db;
     $t = $this->t;
 
+    if (!$this->loggedinp()) return "Not logged in";
+
     $this->bankid = $bankid;
 
     $url = $this->bankprop($t->URL);
@@ -197,7 +209,7 @@ class client {
 
     $req = $this->userbankprop($t->REQ);
     if (!$req) {
-      $db->put($this->userbankkey($t->REQ), 1);
+      $db->put($this->userbankkey($t->REQ), -1);
     }
 
     return false;
@@ -206,6 +218,11 @@ class client {
   // All the API methods below require the user to be logged and the bank to be set.
   // Do this by calling newuser() or login(), and addbank() or setbank().
   // $this->id, $this->privkey, $this->bankid, & $this->server must be set.
+
+  // Return true if the user is logged in and the bank is set
+  function banksetp() {
+    return $this->loggedinp() && $this->bankid && $this->server;
+  }
 
   // Register at the current bank.
   // No error if already registered
@@ -216,6 +233,8 @@ class client {
     $id = $this->id;
     $bankid = $this->bankid;
     $ssl = $this->ssl;
+
+    if (!$this->banksetp()) return "Bank not set";
 
     // If already registered and we know it, nothing to do
     if ($this->userbankprop($t->PUBKEYSIG)) return false;
@@ -253,6 +272,8 @@ class client {
     $t = $this->t;
     $db = $this->db;
 
+    if (!$this->banksetp()) return "Bank not set";
+
     $ids = $db->contents($this->contactkey());
     $res = array();
     foreach ($ids as $otherid) {
@@ -272,14 +293,15 @@ class client {
     $bankid = $this->bankid;
     $ssl = $this->ssl;
 
+    if (!$this->banksetp()) return "Bank not set";
+
     if ($this->contactprop($otherid, $t->NICKNAME)) {
       if ($nickname) $db->put($this->contactkey($otherid, $t->NICKNAME), $nickname);
       if ($note) $db->put($this->contactkey($otherid, $t->NOTE), $note);
       return false;
     }
 
-    $msg = $this->sendmsg($t->ID, $bankid, $otherid);
-    $args = $this->match_bankmsg($msg, $t->ATREGISTER);
+    $args = $this->get_pubkey_from_server($otherid);
     if (is_string($args)) return $args;
     $args = $args[$t->MSG];
     $pubkey = $args[$t->PUBKEY];
@@ -299,6 +321,9 @@ class client {
   // GET sub-account names.
   // Returns an error string or an array of the sub-account names
   function getaccts() {
+
+    if (!$this->banksetp()) return "Bank not set";
+
   }
 
   // Get user balances for all sub-accounts or just one.
@@ -318,14 +343,23 @@ class client {
   // The $acct arg is true for all sub-accounts, false for the
   // $t->MAIN sub-account, or a string for that sub-account only
   function getbalance($acct=true) {
+
+    if (!$this->banksetp()) return "Bank not set";
+
   }
 
   // Initiate a spend
   function spend($toid, $asset, $amount, $acct=false) {
+
+    if (!$this->banksetp()) return "Bank not set";
+
   }
 
   // Transfer from one sub-account to another
   function transfer($asset, $amount, $fromacct, $toacct) {
+
+    if (!$this->banksetp()) return "Bank not set";
+
   }
 
   // Get the inbox contents.
@@ -350,6 +384,9 @@ class client {
   // and precision applied,
   // and $NOTE is the note that came from the sender.
   function getinbox() {
+
+    if (!$this->banksetp()) return "Bank not set";
+
   }
 
   // Process the inbox contents.
@@ -364,6 +401,9 @@ class client {
   // processing an accept or reject from a former spend recipient,
   // and $note is the note to go with the accept or reject.
   function processinbox($directions) {
+
+    if (!$this->banksetp()) return "Bank not set";
+
   }
 
   // Get the outbox contents.
@@ -377,6 +417,9 @@ class client {
   //         $t->FORMATTEDAMOUNT => formattedamount,
   //         $t->NOTE => $note)
   function getoutbox() {
+
+    if (!$this->banksetp()) return "Bank not set";
+
   }
 
   // End of API methods
@@ -407,6 +450,7 @@ class client {
 
     $req = func_get_args();
     $msg = call_user_func_array(array($this, 'custmsg'), $req);
+    //echo "Sending: $msg\n";
     return $server->process($msg);
   }
 
@@ -493,6 +537,34 @@ class client {
 
     return $db->get($this->contactkey($otherid, $prop));
   }
+
+  // Send a t->ID command to the server, if there is one.
+  // Parse out the pubkey, cache it in the database, and return it.
+  // Return the empty string if there is no server or it doesn't know
+  // the id.
+  // If $wholemsg is true, return the $args for the whole $t->REGISTER
+  // message, intead of just the pubkey, and return an error message,
+  // instead of the empty string, if there's a problem.
+  function get_pubkey_from_server($id, $wholemsg=false) {
+    $t = $this->t;
+    $db = $this->db;
+    $bankid = $this->bankid;
+
+    if (!$this->banksetp()) return $wholemsg ? 'Bank not set' : '';
+
+    $msg = $this->sendmsg($t->ID, $bankid, $id);
+    $args = $this->match_bankmsg($msg, $t->ATREGISTER);
+    if (is_string($args)) return $wholemsg ? $args : '';
+    $args = $args[$t->MSG];
+    $pubkey = $args[$t->PUBKEY];
+    $pubkeykey = $this->pubkeykey($id);
+    if ($pubkey) {
+      if (!$db->get($pubkeykey)) $db->put($pubkeykey, $pubkey);
+      if ($wholemsg) return $args;
+      return $pubkey;
+    }
+    return $wholemsg ? "Can't find pubkey on server" : '';
+  }
 }
 
 class serverproxy {
@@ -506,6 +578,29 @@ class serverproxy {
   function process($msg) {
     $url = $this->url;
     return file_get_contents("$url/?msg=" . urlencode($msg));
+  }
+}
+
+// Look up a public key, from the client database first, then from the
+// current bank.
+class pubkeydb {
+
+  var $client;
+  var $pubkeydb;
+
+  function pubkeydb($client, $pubkeydb) {
+    $this->client = $client;
+    $this->pubkeydb = $pubkeydb;
+  }
+
+  function get($id) {
+    $pubkeydb = $this->pubkeydb;
+    $client = $this->client;
+
+    $res = $pubkeydb->get($id);
+    if ($res) return $res;
+
+    return $client->get_pubkey_from_server($id);
   }
 }
 
