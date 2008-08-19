@@ -36,7 +36,7 @@ class client {
     $this->t = new tokens();
     $this->pubkeydb = new pubkeydb($this, $db->subdir($this->t->PUBKEY));
     $this->parser = new parser($this->pubkeydb, $ssl);
-    $this->u = new utility($this->t, $this->parser);
+    $this->u = new utility($this->t, $this->parser, $this);
   }
 
   // API Methods
@@ -427,6 +427,11 @@ class client {
   }
 
   // End of API methods
+
+  // For utility->bankgetter
+  function bankid() {
+    return $this->bankid;
+  }
 
   function passphrasehash($passphrase) {
     return sha1(trim($passphrase));

@@ -11,6 +11,7 @@ require_once "ssl.php";
 $db = new fsdb("../trubancdb");
 $ssl = new ssl();
 $server = new server($db, $ssl, false, 'Trubanc');
+$u = $server->u;                // utility instance
 
 $privkey = "-----BEGIN RSA PRIVATE KEY-----
 MIIBOwIBAAJBAMwfcmkk2coTuYAEbdZ5iXggObNPzbSiDnVtndZFe4/4Xg0IQPfp
@@ -43,7 +44,7 @@ function custmsg() {
 
   $args = func_get_args();
   $args = array_merge(array($id), $args);
-  $msg = $server->utility->makemsg($args);
+  $msg = $server->u->makemsg($args);
   $sig = $ssl->sign($msg, $privkey);
   return "$msg:\n$sig";
 }
@@ -53,7 +54,7 @@ function custmsg2() {
 
   $args = func_get_args();
   $args = array_merge(array($id2), $args);
-  $msg = $server->utility->makemsg($args);
+  $msg = $server->u->makemsg($args);
   $sig = $ssl->sign($msg, $privkey2);
   return "$msg:\n$sig";
 }
@@ -66,6 +67,17 @@ function process($msg) {
   $res = $server->process($msg);
   echo $res;
   return $res;
+}
+
+function getreq() {
+  global $u;
+  global $bankid;
+  global $server;
+
+  $msg = $server->process(custmsg('getreq', $bankid));
+  $args = $u->match_message($msg);
+  if (is_string($args)) return false;
+  return bcadd($args['req'], 1);
 }
 
 // Fake a spend of tokens to the customer
@@ -110,7 +122,7 @@ process(custmsg('bankid',$pubkey));
 // getinbox
 if (false) {
   $msg = process(custmsg('getreq', $bankid));
-  $args = $server->match_message($msg);
+  $args = $u->match_message($msg);
   if (is_string($args)) echo "Failure parsing or matching: $args\n";
   else {
     $req = bcadd($args['req'], 1);
@@ -143,7 +155,7 @@ if (false) {
 // Acknowledge spend|accept (tokens returned)
 if (false) {
   $msg = process(custmsg('getreq', $bankid));
-  $args = $server->match_message($msg);
+  $args = $u->match_message($msg);
   if (is_string($args)) echo "Failure parsing or matching: $args\n";
   else {
     $req = bcadd($args['req'], 1);
@@ -169,7 +181,7 @@ if (false) {
 // Acknowledge spend|reject (tokens given to $id2)
 if (false) {
   $msg = process(custmsg('getreq', $bankid));
-  $args = $server->match_message($msg);
+  $args = $u->match_message($msg);
   if (is_string($args)) echo "Failure parsing or matching: $args\n";
   else {
     $req = bcadd($args['req'], 1);
@@ -188,9 +200,9 @@ if (false) {
   $scale = 7;
   $precision = 3;
   $assetname = "Bill Fake Goldgrams";
-  $assetid = $server->assetid($id, $scale, $precision, $assetname);
+  $assetid = $server->u->assetid($id, $scale, $precision, $assetname);
   $msg = process(custmsg('getreq', $bankid));
-  $args = $server->match_message($msg);
+  $args = $u->match_message($msg);
   if (is_string($args)) echo "Failure parsing or matching: $args\n";
   else {
     $req = bcadd($args['req'], 1);
@@ -203,5 +215,26 @@ if (false) {
   }
 }
 
-?>
+if (false) {
+  if ($req = getreq()) {
+    process(custmsg('getbalance', $bankid, $req));
+  }
+  if ($req = getreq()) {
+    process(custmsg('getbalance', $bankid, $req, 'main'));
+  }
+  if ($req = getreq()) {
+    process(custmsg('getbalance', $bankid, $req, 'main', $tokenid));
+  }
+  // Expect empty return. No 'froboz' account
+  if ($req = getreq()) {
+    process(custmsg('getbalance', $bankid, $req, 'froboz'));
+  }
+  // Expect empty return. No 'froboz' account
+  if ($req = getreq()) {
+    process(custmsg('getbalance', $bankid, $req, 'froboz', $tokenid));
+  }
+  // Should fail, due to bad $req
+  process(custmsg('getbalance', $bankid, $req, 'froboz', $tokenid));
+}
 
+?>

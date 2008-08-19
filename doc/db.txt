@@ -446,7 +446,7 @@ Get balance
 
   If the customer loses track of a balance, customer can send:
 
-(<id>,getbalance,<req#>,<bankid>,acct:<acct>,assetid:<assetid>)
+(<id>,getbalance,<req#>,<bankid>,acct:<acct>,asset:<assetid>)
 
   Bank compares <req#> to /account/<id>/req. If <req#> is greater,
   bank sets /account/<id>/req to <req#>.  Then bank returns

@@ -7,11 +7,13 @@ class utility {
 
   var $t;
   var $parser;
+  var $bankgetter;
   var $patterns=false;
 
-  function utility($t, $parser) {
+  function utility($t, $parser, $bankgetter) {
     $this->t = $t;
     $this->parser = $parser;
+    $this->bankgetter = $bankgetter;
   }
 
   // Sort an array of numbers represented as strings.
@@ -64,6 +66,11 @@ class utility {
     }
     $msg .= ')';
     return $msg;
+  }
+
+  // Return the id for an asset
+  function assetid($id, $scale, $precision, $name) {
+    return sha1("$id,$scale,$precision,$name");
   }
 
   // Patterns for non-request data
@@ -123,8 +130,8 @@ class utility {
         $parser->formatpattern($pattern) . " $msg";
     }
     $argsbankid = $args[$t->BANKID];
-    $bankid = $this->bankid;
-    if ($argsbankid && $bankid &&  $argsbankid != $bankid) {
+    $bankid = $this->bankgetter->bankid();
+    if (array_key_exists($t->BANKID, $args) && $bankid &&  $argsbankid != $bankid) {
       return "bankid mismatch, sb: $bankid, was: $argsbankid";
     }
     return $args;

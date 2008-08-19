@@ -35,9 +35,14 @@ class server {
     $this->t = new tokens();
     $this->pubkeydb = $db->subdir($this->t->PUBKEY);
     $this->parser = new parser($this->pubkeydb, $ssl);
-    $this->u = new utility($this->t, $this->parser);
+    $this->u = new utility($this->t, $this->parser, $this);
     $this->bankname = $bankname;
     $this->setupDB($passphrase);
+  }
+
+  // For utility->bankgetter
+  function bankid() {
+    return $this->bankid;
   }
 
   function gettime() {
@@ -133,10 +138,6 @@ class server {
                           $this->outboxhash($id, $transtime));
   }
 
-  function assetid($id, $scale, $precision, $name) {
-    return sha1("$id,$scale,$precision,$name");
-  }
-
   function is_asset($assetid) {
     return $this->db->get($this->t->ASSET . "/$assetid");
   }
@@ -171,6 +172,8 @@ class server {
     $db = $this->db;
     $ssl = $this->ssl;
     $t = $this->t;
+    $u = $this->u;
+
     $bankname = $this->bankname;
     if (!$db->get($t->PRIVKEY)) {
       // http://www.rsa.com/rsalabs/node.asp?id=2004 recommends that 3072-bit
@@ -191,7 +194,7 @@ class server {
       $db->put($t->PUBKEYSIG . "/$bankid", $regmsg);
       $token_name = "Asset Tokens";
       if ($this->bankname) $token_name = "$bankname $token_name";
-      $tokenid = $this->assetid($bankid, 0, 0, $token_name);
+      $tokenid = $u->assetid($bankid, 0, 0, $token_name);
       $this->tokenid = $tokenid;
       $db->put($t->TOKENID, $this->bankmsg($t->TOKENID, $tokenid));
       $asset = $this->bankmsg($t->ASSET, $bankid, $tokenid, 0, 0, $token_name);
@@ -631,9 +634,6 @@ class server {
   function do_gettime($args, $reqs, $msg) {
     $db = $this->db;
 
-    $err = $this->checkreq($args, $msg);
-    if ($err) return $err;
-
     $lock = $db->lock($this->accttimekey($id));
     $res = $this->do_gettime_internal($msg, $args);
     $db->unlock($lock);
@@ -643,6 +643,9 @@ class server {
   function do_gettime_internal($msg, $args) {
     $t = $this->t;
     $db = $this->db;
+
+    $err = $this->checkreq($args, $msg);
+    if ($err) return $err;
 
     $id = $args[$t->CUSTOMER];
     $time = $this->gettime();
@@ -872,9 +875,6 @@ class server {
     $t = $this->t;
     $db = $this->db;
 
-    $err = $this->checkreq($args, $msg);
-    if ($err) return $err;
-
     $id = $args[$t->CUSTOMER];
     $lock = $db->lock($this->accttimekey($id));
     $res = $this->do_getinbox_internal($msg, $id);
@@ -886,6 +886,9 @@ class server {
     $t = $this->t;
     $u = $this->u;
     $db = $this->db;
+
+    $err = $this->checkreq($args, $msg);
+    if ($err) return $err;
 
     $inbox = $this->scaninbox($id);
     $res = $this->bankmsg($t->ATGETINBOX, $msg);
@@ -1257,7 +1260,7 @@ class server {
       return $this->failmsg($msg, "Asset name must contain only letters and digits");
     }
 
-    if ($asset != $this->assetid($id, $scale, $precision, $assetname)) {
+    if ($asset != $u->assetid($id, $scale, $precision, $assetname)) {
       return $this->failmsg
         ($msg, "Asset id is not sha1 hash of 'id,scale,precision,name'");
     }
@@ -1366,6 +1369,58 @@ class server {
     return $res;
   }
 
+  function do_getbalance($args, $reqs, $msg) {
+    $t = $this->t;
+    $db = $this->db;
+
+    $id = $args[$t->CUSTOMER];
+    $lock = $db->lock($this->accttimekey($id));
+    $res = $this->do_getbalance_internal($args, $reqs, $msg);
+    $db->unlock($lock);
+    return $res;
+  }
+
+  function do_getbalance_internal($args, $reqs, $msg) {
+    $t = $this->t;
+    $db = $this->db;
+
+    $err = $this->checkreq($args, $msg);
+    if ($err) return $err;
+
+    // $t->GETBALANCE => array($t->BANKID,$t->REQ,$t->ACCT=>1,$t->ASSET=>1));
+    $id = $args[$t->CUSTOMER];
+    $acct = $args[$t->ACCT];
+    $assetid = $args[$t->ASSET];
+
+    if ($acct) $acctkeys = array($this->acctbalancekey($id, $acct));
+    else {
+      $balancekey = $this->balancekey($id);
+      $acctnames = $db->contents($balancekey);
+      $acctkeys = array();
+      foreach ($acctnames as $name) $acctkeys[] = "$balancekey/$name";
+    }
+
+    $res = '';
+    foreach ($acctkeys as $acctkey) {
+      if ($assetid) $assetkeys = array("$acctkey/$assetid");
+      else {
+        $assetnames = $db->contents($acctkey);
+        $assetkeys = array();
+        foreach ($assetnames as $name) $assetkeys[] = "$acctkey/$name";
+      }
+      foreach ($assetkeys as $assetkey) {
+        $bal = $db->get($assetkey);
+        if ($bal) {
+          if ($res) $res .= '.';
+          $res .= $bal;
+        }
+      }
+    }
+
+    return $res;
+  }
+
+
   /*** End request processing ***/
 
   function commands() {
@@ -1386,7 +1441,7 @@ class server {
                      $t->GETASSET => array($t->BANKID,$t->ASSET,$t->REQ),
                      $t->ASSET => array($t->BANKID,$t->ASSET,$t->SCALE,$t->PRECISION,$t->ASSETNAME),
                      $t->GETOUTBOX => array($t->BANKID,$t->REQ),
-                     $t->GETBALANCE => array($t->BANKID,$t->REQ,$t->ACCT));
+                     $t->GETBALANCE => array($t->BANKID,$t->REQ,$t->ACCT=>1,$t->ASSET=>1));
       $commands = array();
       foreach($names as $name => $pattern) {
         $commands[$name] = array("do_$name", $pattern);
@@ -1420,7 +1475,7 @@ class server {
                             $parser->formatpattern($pattern));
     }
     $argsbankid = $args[$t->BANKID];
-    if ($argsbankid &&  $argsbankid != $this->bankid) {
+    if (array_key_exists($t->BANKID, $args) && $argsbankid != $this->bankid) {
       return $this->failmsg($msg, "bankid mismatch");
     }
     return $this->$method($args, $parses, $msg);
