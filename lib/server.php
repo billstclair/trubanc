@@ -1420,6 +1420,39 @@ class server {
     return $res;
   }
 
+  function do_getoutbox($args, $reqs, $msg) {
+    $t = $this->t;
+    $db = $this->db;
+
+    $id = $args[$t->CUSTOMER];
+    $lock = $db->lock($this->accttimekey($id));
+    $res = $this->do_getoutbox_internal($args, $reqs, $msg);
+    $db->unlock($lock);
+    return $res;
+  }
+
+  function do_getoutbox_internal($args, $reqs, $msg) {
+    $t = $this->t;
+    $db = $this->db;
+
+    $err = $this->checkreq($args, $msg);
+    if ($err) return $err;
+
+    // $t->GETOUTBOX => array($t->BANKID,$t->REQ),
+    $id = $args[$t->CUSTOMER];
+
+    $msg = $this->bankmsg($t->ATGETOUTBOX, $msg);
+    $outboxkey = $this->outboxkey($id);
+    $contents = $db->contents($outboxkey);
+    foreach ($contents as $time) {
+      $msg .= '.' . $db->get("$outboxkey/$time");
+    }
+    $outboxhash = $db->get($this->outboxhashkey($id));
+    if ($outboxhash) $msg .= '.' . $outboxhash;
+
+    return $msg;
+  }
+
 
   /*** End request processing ***/
 

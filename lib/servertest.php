@@ -237,4 +237,12 @@ if (false) {
   process(custmsg('getbalance', $bankid, $req, 'froboz', $tokenid));
 }
 
+if (false) {
+  if ($req = getreq()) {
+    process(custmsg('getoutbox', $bankid, $req));
+  }
+  // Error for old req
+  process(custmsg('getoutbox', $bankid, $req));
+}
+
 ?>

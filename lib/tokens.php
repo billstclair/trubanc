@@ -54,6 +54,7 @@ class tokens {
   var $ATPROCESSINBOX = '@processinbox';
   var $ATSPENDACCEPT = '@spend|accept';
   var $ATSPENDREJECT = '@spend|reject';
+  var $ATGETOUTBOX = '@getoutbox';
 
   // request parameter names
   var $CUSTOMER = 'customer';

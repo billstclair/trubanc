@@ -108,6 +108,7 @@ class utility {
                         $t->ATPROCESSINBOX => array($t->MSG),
                         $t->ATSPENDACCEPT => array($t->MSG),
                         $t->ATSPENDREJECT => array($t->MSG),
+                        $t->ATGETOUTBOX => array($t->MSG),
                         $t->REQ => array($t->ID, $t->REQ),
                         $t->GETTIME => array($t->ID, $t->TIME)
                         );
@@ -131,7 +132,7 @@ class utility {
     }
     $argsbankid = $args[$t->BANKID];
     $bankid = $this->bankgetter->bankid();
-    if (array_key_exists($t->BANKID, $args) && $bankid &&  $argsbankid != $bankid) {
+    if (array_key_exists($t->BANKID, $args) && $bankid && $argsbankid != $bankid) {
       return "bankid mismatch, sb: $bankid, was: $argsbankid";
     }
     return $args;
