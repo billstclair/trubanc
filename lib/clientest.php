@@ -80,8 +80,15 @@ else {
   echo "bankid: " . $client->bankid . "\n";
 }
 
-// This fails because the customer has no tokens.
+// Succeeds this time, because this ID is already registered at the bank.
 $err = $client->register('George Jetson');
 if ($err) echo "$err\n";
+
+// Adding yourself as a contact won't happen, but it tests the code
+$err = $client->addcontact($id, "Me, myself, and I", "A little note to myself");
+if ($err) echo "$err\n";
+
+$contacts = $client->getcontacts();
+print_r($contacts);
 
 ?>

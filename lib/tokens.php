@@ -75,6 +75,7 @@ class tokens {
   var $BANK = 'bank';
   var $URL = 'url';
   var $NICKNAME = 'nickname';
+  var $CONTACT = 'contact';
 
   // Other client tokens
   var $FORMATTEDAMOUNT = 'formattedamount';

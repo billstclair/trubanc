@@ -240,6 +240,8 @@ class client {
     if ($this->userbankprop($t->PUBKEYSIG)) return false;
 
     // See if bank already knows us
+    // Resist the urge to change this to a call to
+    // get_pubkey_from_server. Trust me.
     $msg = $this->sendmsg($t->ID, $bankid, $id);
     $args = $this->match_bankmsg($msg, $t->ATREGISTER);
     if (is_string($args)) {
@@ -267,6 +269,7 @@ class client {
   //
   //   array($t->ID, $id,
   //         $t->NAME, $name,
+  //         $t->NICKNAME, $nickname,
   //         $t->NOTE, $note)
   function getcontacts() {
     $t = $this->t;
@@ -277,9 +280,10 @@ class client {
     $ids = $db->contents($this->contactkey());
     $res = array();
     foreach ($ids as $otherid) {
-      $res[] = array($otherid,
-                     $this->contactprop($otherid, $t->NAME),
-                     $this->contactprop($otherid, $t->NOTE));
+      $res[] = array($t->ID => $otherid,
+                     $t->NAME => $this->contactprop($otherid, $t->NAME),
+                     $t->NICKNAME => $this->contactprop($otherid, $t->NICKNAME),
+                     $t->NOTE => $this->contactprop($otherid, $t->NOTE));
     }
     return $res;
   }
@@ -295,13 +299,14 @@ class client {
 
     if (!$this->banksetp()) return "Bank not set";
 
-    if ($this->contactprop($otherid, $t->NICKNAME)) {
+    if ($this->contactprop($otherid, $t->PUBKEYSIG)) {
       if ($nickname) $db->put($this->contactkey($otherid, $t->NICKNAME), $nickname);
       if ($note) $db->put($this->contactkey($otherid, $t->NOTE), $note);
       return false;
     }
 
-    $args = $this->get_pubkey_from_server($otherid);
+    $msg = $this->sendmsg($t->ID, $bankid, $otherid);
+    $args = $this->match_bankmsg($msg, $t->ATREGISTER);
     if (is_string($args)) return $args;
     $args = $args[$t->MSG];
     $pubkey = $args[$t->PUBKEY];
@@ -314,7 +319,6 @@ class client {
     $db->put($this->contactkey($otherid, $t->NICKNAME), $nickname);
     $db->put($this->contactkey($otherid, $t->NOTE), $note);
     $db->put($this->contactkey($otherid, $t->NAME), $name);
-    $pubkeydb->put($otherid, $pubkey);
     $db->put($this->contactkey($otherid, $t->PUBKEYSIG), $msg);
   }
 
@@ -526,9 +530,11 @@ class client {
     $id = $this->id;
     $bankid = $this->bankid;
 
-    $res = $t->account . "/$id/$bankid/" . $t->CONTACT;
-    if ($otherid) $res .= "/$otherid";
-    if ($prop) $res .= "/$prop";
+    $res = $t->ACCOUNT . "/$id/$bankid/" . $t->CONTACT;
+    if ($otherid) {
+      $res .= "/$otherid";
+      if ($prop) $res .= "/$prop";
+    }
     return $res;
   }
 
