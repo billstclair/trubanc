@@ -89,6 +89,7 @@ class utility {
                         $t->REGISTER => array($t->BANKID,$t->PUBKEY,$t->NAME=>1),
                         $t->SPENDACCEPT => array($t->BANKID,$t->TIME,$t->ID,$t->NOTE=>1),
                         $t->SPENDREJECT => array($t->BANKID,$t->TIME,$t->ID,$t->NOTE=>1),
+                        $t->GETOUTBOX =>array($t->BANKID, $t->REQ),
 
                         // Bank signed messages
                         $t->FAILED => array($t->MSG, $t->ERRMSG),

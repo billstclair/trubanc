@@ -234,7 +234,7 @@ class client {
     $bankid = $this->bankid;
     $ssl = $this->ssl;
 
-    if (!$this->banksetp()) return "Bank not set";
+    if (!$this->banksetp()) return "In register(): Bank not set";
 
     // If already registered and we know it, nothing to do
     if ($this->userbankprop($t->PUBKEYSIG)) return false;
@@ -275,7 +275,7 @@ class client {
     $t = $this->t;
     $db = $this->db;
 
-    if (!$this->banksetp()) return "Bank not set";
+    if (!$this->banksetp()) return "In getcontacts(): Bank not set";
 
     $ids = $db->contents($this->contactkey());
     $res = array();
@@ -297,7 +297,7 @@ class client {
     $bankid = $this->bankid;
     $ssl = $this->ssl;
 
-    if (!$this->banksetp()) return "Bank not set";
+    if (!$this->banksetp()) return "In addcontact(): Bank not set";
 
     if ($this->contactprop($otherid, $t->PUBKEYSIG)) {
       if ($nickname) $db->put($this->contactkey($otherid, $t->NICKNAME), $nickname);
@@ -325,9 +325,12 @@ class client {
   // GET sub-account names.
   // Returns an error string or an array of the sub-account names
   function getaccts() {
+    $db = $this->db;
 
-    if (!$this->banksetp()) return "Bank not set";
-
+    if (!$this->banksetp()) return "In getacct(): Bank not set";
+    if ($err = $this->initbankaccts()) return $err;
+    
+    return $db->contents($this->userbalancekey());
   }
 
   // Get user balances for all sub-accounts or just one.
@@ -347,22 +350,27 @@ class client {
   // The $acct arg is true for all sub-accounts, false for the
   // $t->MAIN sub-account, or a string for that sub-account only
   function getbalance($acct=true) {
+    $t = $this->t;
+    $db = $this->db;
 
-    if (!$this->banksetp()) return "Bank not set";
+    if (!$this->banksetp()) return "In getbalance(): Bank not set";
+    if ($err = $this->initbankaccts()) return $err;
 
   }
 
   // Initiate a spend
   function spend($toid, $asset, $amount, $acct=false) {
 
-    if (!$this->banksetp()) return "Bank not set";
+    if (!$this->banksetp()) return "In spend(): Bank not set";
+    if ($err = $this->initbankaccts()) return $err;
 
   }
 
   // Transfer from one sub-account to another
   function transfer($asset, $amount, $fromacct, $toacct) {
 
-    if (!$this->banksetp()) return "Bank not set";
+    if (!$this->banksetp()) return "In transfer(): Bank not set";
+    if ($err = $this->initbankaccts()) return $err;
 
   }
 
@@ -389,7 +397,8 @@ class client {
   // and $NOTE is the note that came from the sender.
   function getinbox() {
 
-    if (!$this->banksetp()) return "Bank not set";
+    if (!$this->banksetp()) return "In getinbox(): Bank not set";
+    if ($err = $this->initbankaccts()) return $err;
 
   }
 
@@ -406,7 +415,8 @@ class client {
   // and $note is the note to go with the accept or reject.
   function processinbox($directions) {
 
-    if (!$this->banksetp()) return "Bank not set";
+    if (!$this->banksetp()) return "In processinbox(): Bank not set";
+    if ($err = $this->initbankaccts()) return $err;
 
   }
 
@@ -422,7 +432,8 @@ class client {
   //         $t->NOTE => $note)
   function getoutbox() {
 
-    if (!$this->banksetp()) return "Bank not set";
+    if (!$this->banksetp()) return "In getoutbox(): Bank not set";
+    if ($err = $this->initbankaccts()) return $err;
 
   }
 
@@ -466,15 +477,23 @@ class client {
   // Unpack a bank message
   // Return a string if parse error or fail from bank
   function match_bankmsg($msg, $request=false) {
-    $t = $this->t;
-    $u = $this->u;
     $parser = $this->parser;
-    $bankid = $this->bankid;
 
     $reqs = $parser->parse($msg);
     if (!$reqs) return "Parse error: " . $parser->errmsg;
 
     $req = $reqs[0];
+    $args = ($this->match_bankreq($req, $request));
+    $args[$this->unpack_reqs_key] = $reqs; // save parse results
+    return $args;
+  }
+
+  // Unpack a bank message that has already been parsed
+  function match_bankreq($req, $request=false) {
+    $t = $this->t;
+    $u = $this->u;
+    $bankid = $this->bankid;
+
     $args = $u->match_pattern($req);
     if (is_string($args)) return "While matching: $args";
     if ($args[$t->CUSTOMER] != $bankid) return "Return message not from bank";
@@ -485,9 +504,12 @@ class client {
     if ($args[$t->MSG]) {
       $msgargs = $u->match_pattern($args[$t->MSG]);
       if (is_string($msgargs)) return "While matching bank-wrapped msg: $msgargs";
+      if (array_key_exists($t->BANKID, $msgargs) &&
+          $msgargs[$t->BANKID] != $bankid) {
+        return "While matching bank-wrapped msg: bankid mismatch";
+      }
       $args[$t->MSG] = $msgargs;
     }
-    $args[$this->unpack_reqs_key] = $reqs; // save parse results
     return $args;
   }
 
@@ -530,6 +552,49 @@ class client {
     return $db->get($this->userbankkey($prop));
   }
 
+  function userbalancekey($acct=false, $assetid=false) {
+    $t = $this->t;
+
+    $key = $this->userbankkey($t->BALANCE);
+    if ($acct) {
+      $key .= "/$acct";
+      if ($assetid) $key .= "/$assetid";
+    }
+    return $key;
+  }
+
+  function userbalance($acct, $assetid) {
+    $db = $this->db;
+
+    $db->get($this->userbalancekey($acct, $assetid));
+  }
+
+  function useroutboxkey($time=false) {
+    $t = $this->t;
+
+    $key = $this-userbankkey($t->OUTBOX);
+    if ($time) $key .= "/$time";
+    return $key;
+  }
+
+  function useroutbox($time) {
+    $db = $this->db;
+
+    return $db->get($this->useroutboxkey($time));
+  }
+
+  function useroutboxhashkey() {
+    $t = $this->t;
+
+    return $this->userbankkey($t->OUTBOXHASH);
+  }
+
+  function useroutboxhash() {
+    $db = $this->db;
+
+    return $db->get($this->useroutboxhashkey());
+  }
+
   function contactkey($otherid=false, $prop=false) {
     $t = $this->t;
     $id = $this->id;
@@ -561,7 +626,9 @@ class client {
     $db = $this->db;
     $bankid = $this->bankid;
 
-    if (!$this->banksetp()) return $wholemsg ? 'Bank not set' : '';
+    if (!$this->banksetp()) {
+      return $wholemsg ? 'In get_pubkey_from_server: Bank not set' : '';
+    }
 
     $msg = $this->sendmsg($t->ID, $bankid, $id);
     $args = $this->match_bankmsg($msg, $t->ATREGISTER);
@@ -575,6 +642,117 @@ class client {
       return $pubkey;
     }
     return $wholemsg ? "Can't find pubkey on server" : '';
+  }
+
+  // Get a new request
+  function getreq() {
+    $t = $this->t;
+    $db = $this->db;
+
+    $key = $this->userbankkey($t->REQ);
+
+    $lock = $db->lock($key);
+    $req = bcadd($db->get($key), 1);
+    $db->put($key, $req);
+    $db->unlock($lock);
+
+    return $req;
+  }
+
+  // If we haven't yet downloaded accounts from the bank, do so now.
+  // This is how a new client instance gets initialized from an existing
+  // bank instance.
+  // Return false on success or error string.
+  function initbankaccts() {
+    $t = $this->t;
+    $db = $this->db;
+    $id = $this->id;
+    $bankid = $this->bankid;
+    $parser = $this->parser;
+
+    if ($this->userbankprop($t->REQ) == -1) {
+
+      // Get $t->REQ
+      $msg = $this->sendmsg($t->GETREQ, $bankid);
+      $args = $this->match_bankmsg($msg, $t->REQ);
+      if (is_string($args)) return "While getting req to initialize accounts: $args";
+      $reqnum = bcadd($args[$t->REQ], 1);
+
+      // Get account balances
+      $msg = $this->sendmsg($t->GETBALANCE, $bankid, $reqnum);
+      $reqs = $parser->parse($msg);
+      if (!$reqs) return "While parsing getbalance: " . $parser->errmsg;
+      $balances = array();
+      foreach ($reqs as $req) {
+        $args = $this->match_bankreq($req);
+        if (is_string($args)) return "While matching getbalance: $args";
+        $request = $args[$t->REQUEST];
+        $msgargs = $args[$t->MSG];
+        if ($msgargs[$t->CUSTOMER] != $id) {
+          return "Bank wrapped somebody else's message: $msg";
+        }
+        if ($request == $t->ATBALANCE) {
+          if ($msgargs[$t->REQUEST] != $t->BALANCE) {
+            return "Bank wrapped a non-balance request with @balance";
+          }
+          $assetid = $msgargs[$t->ASSET];
+          if (!$assetid) return "Bank wrapped balance missing asset ID";
+          $acct = $msgargs[$t->ACCT];
+          if (!$acct) $acct = $t->MAIN;
+          $balances[$acct][$assetid] = $parser->get_parsemsg($req);
+        }
+      }
+
+      // Get outbox
+      $reqnum = bcadd($reqnum, 1);
+      $msg = $this->sendmsg($t->GETOUTBOX, $bankid, $reqnum);
+      $reqs = $parser->parse($msg);
+      if (!$reqs) return "While parsing getoutbox: " . $parser->errmsg;
+      $outbox = array();
+      $outboxhash = '';
+      foreach ($reqs as $req) {
+        $args = $this->match_bankreq($req);
+        if (is_string($args)) return "While matching getoutbox: $args";
+        $request = $args[$t->REQUEST];
+        $msgargs = $args[$t->MSG];
+        if ($msgargs[$t->CUSTOMER] != $id) {
+          return "Bank wrapped somebody else's message: $msg";
+        }
+        if ($request == $t->ATSPEND) {
+          if ($msgargs[$t->REQUEST] != $t->SPEND) {
+            return "Bank wrapped a non-spend request with @spend";
+          }
+          $time = $msgargs[$t->TIME];
+          $outbox[$time] = $parser->get_parsemsg($req);
+        } elseif ($request == $t->ATOUTBOXHASH) {
+          if ($msgargs[$t->REQUEST] != $t->OUTBOXHASH) {
+            return "Bank wrapped a non-outbox request with @outboxhash";
+          }
+          $outboxhash = $parser->get_parsemsg($req);
+        } elseif ($request == $t->ATGETOUTBOX) {
+          // Nothing to do here          
+        } else {
+          return "While processing getoutbox: bad request: $request";
+        }
+      }
+
+      if (count($outbox) > 0 && !$outboxhash) {
+        return "While procesing getouxbox: outbox items but no outboxhash";
+      }
+
+      // All is well. Write the data
+      foreach ($balances as $acct => $assets) {
+        foreach ($assets as $assetid => $msg) {
+          $db->put($this->userbalancekey($acct, $assetid), $msg);
+        }
+      }
+      foreach ($outbox as $time => $msg) {
+        $db->put($this->useroutboxkey($time), $msg);
+      }
+      $db->put($this->useroutboxhashkey(), $outboxhash);
+      $db->put($this->userbankkey($t->REQ), $reqnum);
+    }
+    return false;
   }
 }
 

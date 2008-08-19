@@ -89,6 +89,21 @@ $err = $client->addcontact($id, "Me, myself, and I", "A little note to myself");
 if ($err) echo "$err\n";
 
 $contacts = $client->getcontacts();
-print_r($contacts);
+//print_r($contacts);
+
+$err = $client->initbankaccts();
+if ($err) echo "$err\n";
+
+$accts = $client->getaccts();
+if (is_string($accts)) echo "$accts\n";
+else {
+  echo "accts: ";
+  $first = true;
+  foreach ($accts as $acct) {
+    if (!$first) echo ", ";
+    echo $acct;
+  }
+  echo "\n";
+}
 
 ?>
