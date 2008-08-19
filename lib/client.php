@@ -25,6 +25,9 @@ class client {
   var $server;
   var $bankid;
 
+  // Set true by getreq()
+  var $syncedreq = false;
+
   var $unpack_reqs_key = 'unpack_reqs';
 
   // $db is an object that does put(key, value), get(key), and dir(key)
@@ -333,6 +336,61 @@ class client {
     return $db->contents($this->userbalancekey());
   }
 
+  // Look up an asset.
+  // Returns an error string or an array of items of the form:
+  //
+  //   array($t->ID => $issuerid,
+  //         $t->ASSET => $assetid,
+  //         $t->SCALE => $scale,
+  //         $t->PRECISION => $precision,
+  //         $t->ASSETNAME => $assetname)
+  //
+  // If the asset isn't found in the client database, looks it up on the
+  // server, and stores it in the client database.
+  function getasset($assetid) {
+    $t = $this->t;
+    $db = $this->db;
+
+    if (!$this->banksetp()) return "In getacct(): Bank not set";
+
+    $key = $this->assetkey($assetid);
+    $msg = $db->get($assetid, $key);
+    if ($asset) {
+      $args = $this->match_bankmsg($msg, $t->ATASSET);
+      if (is_string($args)) return "While matching asset: $args";
+      $args = $args[$t->MSG];
+    } else {
+      $lock = $db->lock($key);
+      $args = $this->getasset_internal($assetid, $key);
+      $db->unlock($lock);
+      if (is_string($asset)) return $asset;
+    }
+
+    return array($t->ID => $args[$t->CUSTOMER],
+                 $t->ASSET => $assetid,
+                 $t->SCALE => $args[$t->SCALE],
+                 $t->PRECISION => $args[$t->PRECISION],
+                 $t->ASSETNAME => $args[$t->ASSETNAME]);
+  }
+
+  function getasset_internal($assetid, $key) {
+    $t = $this->t;
+    $db = $this->db;
+
+    $bankid = $this->bankid;
+    $msg = $this->sendmsg($t->GETASSET, $bankid, $this->getreq(), $assetid);
+    $args = $this->match_bankmsg($msg, $ATASSET);
+    if (is_string($args)) return "While downloading asset: $args";
+    $args = $args[$t->MSG];
+    if ($args[$t->REQUEST] != $t->ASSET ||
+        $args[$t->BANKID] != $bankid ||
+        $args[$t->ASSET] != $assetid) {
+      return "Bank wrapped wrong object with @asset";
+    }
+    $db->put($key, $msg);
+    return $args;
+  }
+
   // Get user balances for all sub-accounts or just one.
   // Returns an error string or an array of items of the form:
   //
@@ -484,7 +542,9 @@ class client {
 
     $req = $reqs[0];
     $args = ($this->match_bankreq($req, $request));
-    $args[$this->unpack_reqs_key] = $reqs; // save parse results
+    if (!is_string($args)) {
+      $args[$this->unpack_reqs_key] = $reqs; // save parse results
+    }
     return $args;
   }
 
@@ -535,6 +595,20 @@ class client {
     $db = $this->db;
 
     return $db->get($this->bankkey($prop));
+  }
+
+  function assetkey($assetid=false) {
+    $t = $this->t;
+
+    $key = $this->bankkey($t->ASSET);
+    if ($assetid) $key .= "/$assetid";
+    return $key;
+  }
+
+  function assetprop($assetid) {
+    $db = $this->db;
+
+    return $db->get($this->assetkey($assetid));
   }
 
   function userbankkey($prop=false) {
@@ -650,13 +724,38 @@ class client {
     $db = $this->db;
 
     $key = $this->userbankkey($t->REQ);
-
     $lock = $db->lock($key);
-    $req = bcadd($db->get($key), 1);
-    $db->put($key, $req);
+    $reqnum = $this->getreq_internal($key);
     $db->unlock($lock);
 
-    return $req;
+    return $reqnum;
+  }
+
+  function getreq_internal($key) {
+    $t = $this->t;
+    $db = $this->db;
+
+    // This is rarely necessary.
+    // Might be better to only do it if a request fails, then retry.
+    // Easier for initial coding just to do it every time.
+    // Actually, if we're not in sync, we need to redownload
+    // the balances and outbox, and compare to make sure everything
+    // that's changed has a later key.
+    // That will be necessary when people have more than one client,
+    // e.g. one at home, one on laptop, one at work, one in iPhone.
+    if (!$this->syncedreq) {
+      $bankid = $this->bankid;
+      $msg = $this->sendmsg($t->GETREQ, $bankid);
+      $args = $this->match_bankmsg($msg, $t->REQ);
+      if (is_string($args)) return "While getting req from server: $args";
+      $reqnum = $args[$t->REQ];
+      $db->put($key, $reqnum);
+      $this->syncedreq = true;
+    }
+
+    $reqnum = bcadd($db->get($key), 1);
+    $db->put($key, $req);
+    return $reqnum;
   }
 
   // If we haven't yet downloaded accounts from the bank, do so now.

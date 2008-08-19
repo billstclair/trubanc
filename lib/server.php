@@ -150,7 +150,7 @@ class server {
 
   function lookup_asset_name($assetid) {
     $assetreq = $this->lookup_asset($assetid);
-    return $assetreq[$this->t->NAME];
+    return $assetreq[$this->t->ASSETNAME];
   }
 
   function is_alphanumeric($char) {
@@ -1221,6 +1221,19 @@ class server {
     return array($spendargs, $feeargs); 
   }
 
+  function do_getasset($args, $reqs, $msg) {
+    $t = $this->t;
+    $db = $this->db;
+
+    $err = $this->checkreq($args, $msg);
+    if ($err) return $err;
+
+    $assetid = $args[$t->ASSET];
+    $asset = $db->get($t->ASSET . "/$assetid");
+    if (!$asset) return $this->failmsg($msg, "Unknown asset: $assetid");
+    return $asset;
+  }
+
   function do_asset($args, $reqs, $msg) {
     $t = $this->t;
     $db = $this->db;
@@ -1471,7 +1484,7 @@ class server {
                      $t->SPEND => $patterns[$t->SPEND],
                      $t->GETINBOX => array($t->BANKID,$t->REQ),
                      $t->PROCESSINBOX => array($t->BANKID,$t->TIME,$t->TIMELIST),
-                     $t->GETASSET => array($t->BANKID,$t->ASSET,$t->REQ),
+                     $t->GETASSET => array($t->BANKID,$t->REQ,$t->ASSET),
                      $t->ASSET => array($t->BANKID,$t->ASSET,$t->SCALE,$t->PRECISION,$t->ASSETNAME),
                      $t->GETOUTBOX => array($t->BANKID,$t->REQ),
                      $t->GETBALANCE => array($t->BANKID,$t->REQ,$t->ACCT=>1,$t->ASSET=>1));

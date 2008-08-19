@@ -245,4 +245,12 @@ if (false) {
   process(custmsg('getoutbox', $bankid, $req));
 }
 
+if (false) {
+  if ($req = getreq()) {
+    process(custmsg('getasset', $bankid, $req, $tokenid));
+  }
+  // Should fail, due to bad req
+  process(custmsg('getasset', $bankid, $req, $tokenid));
+}
+
 ?>

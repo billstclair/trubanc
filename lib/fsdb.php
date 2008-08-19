@@ -65,7 +65,9 @@ class fsdb {
     $fp = @fopen($filename, 'r');
     if (!$fp) return false;
     if (!$this->locks[$key]) flock($fp, LOCK_SH);
-    $value = fread($fp, filesize($filename));
+    $size = filesize($filename);
+    if ($size == 0) $value = '';
+    else $value = fread($fp, $size);
     fclose($fp);
     return $value;
   }

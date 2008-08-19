@@ -375,7 +375,7 @@ Lookup asset
   is greater, bank sets /account/<id>/req to <req#>. Then,
   if <assetid> exists in /asset, bank returns:
 
-(<bankid>,@asset,(<issuerid>,asset,<bankid>,<assetid>,<assetname>))
+(<bankid>,@asset,(<issuerid>,asset,<bankid>,<assetid>,<scale>,<precision>,<assetname>))
 
   Otherwise, bank returns:
 

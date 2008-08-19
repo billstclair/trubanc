@@ -84,7 +84,7 @@ class utility {
                         $t->SPEND => array($t->BANKID,$t->TIME,$t->ID,
                                            $t->ASSET,$t->AMOUNT,$t->NOTE=>1),
                         $t->ASSET => array($t->BANKID,$t->ASSET,
-                                           $t->SCALE,$t->PRECISION,$t->NAME),
+                                           $t->SCALE,$t->PRECISION,$t->ASSETNAME),
 
                         $t->REGISTER => array($t->BANKID,$t->PUBKEY,$t->NAME=>1),
                         $t->SPENDACCEPT => array($t->BANKID,$t->TIME,$t->ID,$t->NOTE=>1),
