@@ -24,8 +24,8 @@ $pubkey = $ssl->privkey_to_pubkey($privkey, $passphrase);
 $id = $ssl->pubkey_id($pubkey);
   
 echo "ID: $id<br>\n"; 
-echo "<pre>\n$privkey</pre>\n";
 echo "<pre>\n$pubkey</pre>\n";
+echo "<pre>\n$privkey</pre>\n";
 }
 
 if (!$keysize || !is_numeric($keysize)) $keysize = 512;
