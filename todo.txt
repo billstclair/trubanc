@@ -2,6 +2,14 @@ Remember the last successful spend or processinbox message and its result, and r
 
 Credit the bank for usage tokens paid for files. Some of this may be already done, but that code needs reviewing.
 
+Encrypt the client<->server messages. SSL could do this, but why bother, when we can easily do it ourselves. Why pay for an SSL certificate and the SSL connection overhead, when you don't have to?
+
+  sent: (<id>,getsessionkey,<bankid>,<reqid>)
+  rcvd: (<bankid>,sessionkey,<id>,<encrypted: [<sessionid>,<sessionkey>]>)
+
+  sent: [<sessionid>,<encryptedmessage>]
+  rcvd: [<sessionid>,<encryptedresponse>]
+
 Remove zero-balance files and credit a usage token. This requires a new message that captures all the files for, e.g., an account, so the customer can't claim a non-zero balance later on for the now missing file.
 
 spend|cancel to take back a spend before the other guy has accepted or rejected it.
