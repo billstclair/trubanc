@@ -261,8 +261,8 @@ class server {
   }
 
   function shorten_failmsg_msg($msg) {
-    if (strlen($msg) > 256) {
-      $msg = substr($msg, 0, 253) . "...";
+    if (strlen($msg) > 1024) {
+      $msg = substr($msg, 0, 1021) . "...";
     }
     return $msg;
   }
