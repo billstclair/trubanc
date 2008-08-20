@@ -32,6 +32,7 @@ if ($msg) {
 <html>
 <head>
 <title>Trubanc.com</title>
+<link rel="shortcut icon" href="site-icon.png"/>
 </head>
 <body>
 <center>
