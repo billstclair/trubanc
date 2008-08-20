@@ -119,7 +119,7 @@ class server {
     $db = $this->db;
     $u = $this->u;
 
-    $hash = $this->outboxhash($id, $transtime)
+    $hash = $this->outboxhash($id, $transtime);
     return $this->bankmsg($this->t->OUTBOXHASH,
                           $this->bankid,
                           $this->getacctlast($id),
