@@ -5,6 +5,7 @@
 
 $index_file = "index.inc";      // Displayed when there's no "msg" param
 $dbdir = '../protected/trubancdb'; // The database directory
+$bank_name = 'Trubanc';            // The bank name, for database initialization
 
 // Copyright 2008 Bill St. Clair
 //

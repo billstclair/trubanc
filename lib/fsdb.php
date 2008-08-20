@@ -47,12 +47,12 @@ class fsdb {
     if (!$fp) {
       if ($blank) return '';
       if (!$this->rmkdir(dirname($filename))) return false;
-      $fp = fopen($filename, 'w');
+      $fp = @fopen($filename, 'w');
       if (!$fp) return $blank ? '' : false;
     }
     if (!$this->locks[$key]) flock($fp, LOCK_EX);
     if ($blank) {
-      unlink($filename);
+      @unlink($filename);
       // Should delete the empty directories in the path, too.
     }
     else fwrite($fp, $value);

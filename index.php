@@ -1,5 +1,6 @@
 <?php
 
+// Define $dbdir, $bank_name, & $index_file
 require_once "settings.php";
 
 function mq($x) {
@@ -18,7 +19,7 @@ if ($msg) {
 
   $db = new fsdb($dbdir);
   $ssl = new ssl();
-  $server = new server($db, $ssl, false, 'Trubanc');
+  $server = new server($db, $ssl, false, $bank_name);
   if ($debug) {
     echo "msg: <pre>$msg</pre>\n";
     echo "response: <pre>";
