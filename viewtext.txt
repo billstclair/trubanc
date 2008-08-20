@@ -5,6 +5,7 @@ index.inc|The HTML for the home page when not invoked as a server
 doc/idea.txt|My original idea
 doc/db.txt|Description of the server database and protocol
 doc/client.txt|Description of the client database
+todo.txt|Stuff to do
 plain-english.html|Source for <a href="plain-english.html">Trubanc in Plain English</a>
 
 lib/fsdb.php|The "File System Database" used by Trubanc
