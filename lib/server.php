@@ -260,9 +260,17 @@ class server {
     return $this->banksign($msg);
   }
 
+  function shorten_failmsg_msg($msg) {
+    if (strlen($msg) > 256) {
+      $msg = substr($msg, 0, 253) . "...";
+    }
+    return $msg;
+  }
+
   // Takes as many args as you care to pass
   function failmsg() {
     $args = func_get_args();
+    if (count($args) > 0) $args[0] = $this->shorten_failmsg_msg($args[0]);
     $msg = array_merge(array($this->bankid, $this->t->FAILED), $args);
     return $this->banksign($this->u->makemsg($msg));
   }
@@ -1511,6 +1519,9 @@ class server {
     $argsbankid = $args[$t->BANKID];
     if (array_key_exists($t->BANKID, $args) && $argsbankid != $this->bankid) {
       return $this->failmsg($msg, "bankid mismatch");
+    }
+    if (strlen($args[$t->NOTE]) > 4096) {
+      return $this->failmsg($msg, "Note too long. Max: 4096 chars");
     }
     return $this->$method($args, $parses, $msg);
   }
