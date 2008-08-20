@@ -1027,36 +1027,16 @@ class client {
     return false;
   }
 
-  function outboxhash($transtime, $newitem=false, $removed_times=false) {
-    $parser = $this->parser;
+  function outboxhashmsg($transtime, $newitem=false, $removed_times=false) {
     $db = $this->db;
     $u = $this->u;
 
-    $contents = $db->contents($this->useroutboxkey());
-    if ($newitem) $contents[] = $transtime;
-    $contents = $u->bignum_sort($contents);
-    $unhashed = '';
-    if ($removed_times) $contents = array_diff($contents, $removed_times);
-    foreach ($contents as $time) {
-      if (bccomp($time, $transtime) <= 0) {
-        if ($time == $transtime) $item = $newitem;
-        else {
-          $args = $this->unpack_bankmsg($db->get("$dir/$time"));
-          $item = $args[$t->MSG];
-        }
-        if ($unhashed != '') $unhashed .= '.';
-        $unhashed .= trim($item);
-      }
-    }
-    $hash = sha1($unhashed);
-    return $hash;
-  }
-
-  function outboxhashmsg($transtime, $newitem=false, $removed_times=false) {
+    $hash = $u->outboxhash
+      ($db, $this->useroutboxkey(), $transtime, $newitem, $removed_items);
     return $this->custmsg($this->t->OUTBOXHASH,
                           $this->bankid,
                           $transtime,
-                          $this->outboxhash($transtime, $newitem, $removed_times));
+                          $hash);
   }
 
 }

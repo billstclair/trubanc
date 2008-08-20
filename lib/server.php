@@ -107,31 +107,19 @@ class server {
     return $this->accountdir($id) . $this->t->OUTBOX;
   }
 
-  function outboxhash($id, $transtime, $newitem=false, $removed_times=false) {
-    $parser = $this->parser;
+  function outboxhash($id, $transtime, $newitem=false, $removed_items=false) {
     $db = $this->db;
-    $dir = $this->outboxkey($id);
-    $contents = $db->contents($this->outboxkey($id));
-    if ($newitem) $contents[] = $transtime;
-    $contents = $this->u->bignum_sort($contents);
-    $unhashed = '';
-    if ($removed_times) $contents = array_diff($contents, $removed_times);
-    foreach ($contents as $time) {
-      if (bccomp($time, $transtime) <= 0) {
-        if ($time == $transtime) $item = $newitem;
-        else {
-          $args = $this->unpack_bankmsg($db->get("$dir/$time"));
-          $item = $args[$t->MSG];
-        }
-        if ($unhashed != '') $unhashed .= '.';
-        $unhashed .= trim($item);
-      }
-    }
-    $hash = sha1($unhashed);
-    return $hash;
+    $u = $this->u;
+
+    return $u->outboxhash($db, $this->outboxkey($id), $this, $transtime,
+                          $newitem, $removed_items);
   }
 
   function outboxhashmsg($id, $transtime) {
+    $db = $this->db;
+    $u = $this->u;
+
+    $hash = $this->outboxhash($id, $transtime)
     return $this->bankmsg($this->t->OUTBOXHASH,
                           $this->bankid,
                           $this->getacctlast($id),
@@ -820,7 +808,7 @@ class server {
     if ($errmsg != '') return $this->failmsg($msg, "Balance discrepanies: $errmsg");
 
     $spendmsg = $parser->get_parsemsg($reqs[0]);
-    $outboxhash = $this->outboxhash($id, $time, $spendmsg);
+    $outboxhash = $u->outboxhash($id, $time, $spendmsg);
     if ($outboxhash != $hash) {
       return $this->failmsg($msg, $t->OUTBOXHASH . ' mismatch');
     }

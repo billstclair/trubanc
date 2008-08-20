@@ -150,6 +150,31 @@ class utility {
     return $this->match_pattern($reqs[0]);
   }
 
+  function outboxhash ($db, $key, $unpacker, $transtime,
+                       $newitem=false, $removed_times=false) {
+    $parser = $this->parser;
+    $u = $this->u;
+
+    $contents = $db->contents($key);
+    if ($newitem) $contents[] = $transtime;
+    $contents = $u->bignum_sort($contents);
+    $unhashed = '';
+    if ($removed_times) $contents = array_diff($contents, $removed_times);
+    foreach ($contents as $time) {
+      if (bccomp($time, $transtime) <= 0) {
+        if ($time == $transtime) $item = $newitem;
+        else {
+          $args = $unpacker->unpack_bankmsg($db->get("$key/$time"));
+          $item = $args[$t->MSG];
+        }
+        if ($unhashed != '') $unhashed .= '.';
+        $unhashed .= trim($item);
+      }
+    }
+    $hash = sha1($unhashed);
+    return $hash;
+  }
+
 }
 
 // Test code
