@@ -136,8 +136,8 @@ class utility {
     if (array_key_exists($t->BANKID, $args) && $bankid && $argsbankid != $bankid) {
       return "bankid mismatch, sb: $bankid, was: $argsbankid";
     }
-    if (strlen($args[$t->NOTE]) > 8192) {
-      return "Note too long. Max: 8192 chars";
+    if (strlen($args[$t->NOTE]) > 4096) {
+      return "Note too long. Max: 4096 chars";
     }
     return $args;
   }
