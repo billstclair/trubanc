@@ -5,10 +5,18 @@ Credit the bank for usage tokens paid for files. Some of this may be already don
 Encrypt the client<->server messages. SSL could do this, but why bother, when we can easily do it ourselves. Why pay for an SSL certificate and the SSL connection overhead, when you don't have to?
 
   sent: (<id>,getsessionkey,<bankid>,<reqid>)
-  rcvd: (<bankid>,sessionkey,<id>,<encrypted: [<sessionid>,<sessionkey>]>)
+  rcvd: (<bankid>,sessionkey,<id>,<pubkey encrypted: [<sessionid>,<sessionkey>]>)
 
-  sent: [<sessionid>,<encryptedmessage>]
-  rcvd: [<sessionid>,<encryptedresponse>]
+  sent: [<sessionid>,<sessionkey encrypted: message>]
+  rcvd: [<sessionid>,<sessionkey encrypted: response>]
+           or
+        [<sessionid>,unknown]
+
+  sent: [<sessionid>,
+         <sessionkey encrypted: (<id>,closesession,<bankid>,<sessionid>)>]
+  rcvd: [<sessionid>,
+         <sessionkey encrypted:
+           (<bankid>,@closesession,(<id>,closesession,<bankid>,<sessionid>))>]
 
 Remove zero-balance files and credit a usage token. This requires a new message that captures all the files for, e.g., an account, so the customer can't claim a non-zero balance later on for the now missing file.
 
