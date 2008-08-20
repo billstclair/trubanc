@@ -455,7 +455,7 @@ Get balance
   assetid is not specified, then information about all assetids is
   returned.
 
-(<bankid>,@balance,(<id>,balance,<bankid>,time#>,<assetid>,<amount>,acct:<acct>))...
+(<bankid>,@balance,(<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>))...
 
   Otherwise, bank returns:
 

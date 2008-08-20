@@ -10,12 +10,13 @@ require_once "ssl.php";
 $db = new fsdb("../clientdb");
 $ssl = new ssl();
 $client = new client($db, $ssl);
+$t = $client->t;
 
 /*
-echo $client->format_asset_value(10000, 0, 0) . "\n";
-echo $client->format_asset_value(10000, 0, 3) . "\n";
-echo $client->format_asset_value(12300000, 7, 3) . "\n";
-echo $client->format_asset_value("1234567890123", 7, 3) . "\n";
+echo $client->format_value(10000, 0, 0) . "\n";
+echo $client->format_value(10000, 0, 3) . "\n";
+echo $client->format_value(12300000, 7, 3) . "\n";
+echo $client->format_value("1234567890123", 7, 3) . "\n";
 return;
 */
 
@@ -120,5 +121,23 @@ else print_r($asset);
 $asset = $client->getasset('aintnosuchasset');
 if (is_string($asset)) echo "$asset\n";
 else print_r($asset);
+
+$balance = $client->getbalance();
+if (is_string($balance)) echo "$balance\n";
+else {
+  foreach ($balance as $acct => $acctbals) {
+    echo "Sub-account: $acct\n";
+    foreach ($acctbals as $bal) {
+      $asset = $bal[$t->ASSET];
+      $assetname = $bal[$t->ASSETNAME];
+      $amount = $bal[$t->AMOUNT];
+      $formattedamount = $bal[$t->FORMATTEDAMOUNT];
+      echo "  asset:       $asset\n";
+      echo "    name:      $assetname\n";
+      echo "    amount:    $amount\n";
+      echo "    formatted: $formattedamount\n";
+    }
+  }
+}
 
 ?>

@@ -189,7 +189,7 @@ class client {
 
     // Mark the user as knowing about this bank
     // Also mark this account as not yet being synced with bank
-    $db->put($this->userbankkey($t->REQ), -1);
+    $db->put($this->userreqkey(), -1);
 
     return false;
   }
@@ -212,7 +212,7 @@ class client {
 
     $req = $this->userbankprop($t->REQ);
     if (!$req) {
-      $db->put($this->userbankkey($t->REQ), -1);
+      $db->put($this->userreqkey(), -1);
     }
 
     return false;
@@ -395,26 +395,68 @@ class client {
   // Get user balances for all sub-accounts or just one.
   // Returns an error string or an array of items of the form:
   //
-  //    array($t->ASSET => $assetid,
-  //          $t->ASSETNAME => $assetname,
-  //          $t->AMOUNT => $amount,
-  //          $t->FORMATTEDAMOUNT => $formattedamount,
-  //          $t->ACCT => $acct)
+  //    array($acct => array($t->ASSET => $assetid,
+  //                         $t->ASSETNAME => $assetname,
+  //                         $t->AMOUNT => $amount,
+  //                         $t->FORMATTEDAMOUNT => $formattedamount))
   //
   // where $assetid & $assetname describe the asset, $amount is the
   // amount, as an integer, $formattedamount is the amount as a
   // decimal number with the scale and precision applied, and $acct
-  // is the name of the sub-account, default $t->MAIN.
+  // is the name of the sub-account(s).
   //
   // The $acct arg is true for all sub-accounts, false for the
-  // $t->MAIN sub-account, or a string for that sub-account only
+  // $t->MAIN sub-account only, or a string for that sub-account only.
   function getbalance($acct=true) {
+    $t = $this->t;
+    $db = $this->db;
+
+    $lock = $db->lock($this->userreqkey());
+    $res = $this->getbalance_internal($acct);
+    $db->unlock($lock);
+
+    return $res;
+  }
+
+  function getbalance_internal($acct) {
     $t = $this->t;
     $db = $this->db;
 
     if (!$this->banksetp()) return "In getbalance(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
 
+    $accts = array();
+    if (!$acct) $accts[] = $t->MAIN;
+    if (is_string($acct)) $accts[] = $acct;
+    else {
+      $accts = $db->contents($this->userbalancekey());
+    }
+
+    $res = array();
+    foreach ($accts as $acct) {
+      $assetids = $db->contents($this->userbalancekey($acct));
+      foreach ($assetids as $assetid) {
+        $msg = $this->userbalance($acct, $assetid);
+        $args = $this->match_bankmsg($msg, $t->ATBALANCE);
+        if (is_string($args)) return "While gathering balances: $args";
+        $args = $args[$t->MSG];
+        $assetid = $args[$t->ASSET];
+        $amount = $args[$t->AMOUNT];
+        $asset = $this->getasset($assetid);
+        if (is_string($asset)) {
+          $formattedamount = $amount;
+          $assetname = "Unknown asset";
+        } else {
+          $formattedamount = $this->format_asset_value($amount, $asset);
+          $assetname = $asset[$t->ASSETNAME];
+        }
+        $res[$acct][] = array($t->ASSET => $assetid,
+                              $t->ASSETNAME => $assetname,
+                              $t->AMOUNT => $amount,
+                              $t->FORMATTEDAMOUNT => $formattedamount);
+      }
+    }
+    return $res;
   }
 
   // Initiate a spend
@@ -627,6 +669,12 @@ class client {
     return $db->get($this->userbankkey($prop));
   }
 
+  function userreqkey() {
+    $t = $this->t;
+
+    return $this->userbankkey($t->REQ);
+  }
+
   function userbalancekey($acct=false, $assetid=false) {
     $t = $this->t;
 
@@ -641,7 +689,7 @@ class client {
   function userbalance($acct, $assetid) {
     $db = $this->db;
 
-    $db->get($this->userbalancekey($acct, $assetid));
+    return $db->get($this->userbalancekey($acct, $assetid));
   }
 
   function useroutboxkey($time=false) {
@@ -689,8 +737,18 @@ class client {
     return $db->get($this->contactkey($otherid, $prop));
   }
 
+  // format an asset value from the asset ID or $this->getasset($assetid)
+  function format_asset_value($value, $assetid) {
+    $t = $this->t;
+
+    if (is_string($assetid)) $asset = $this->getasset($assetid);
+    else $asset = $assetid;
+    if (is_string($asset)) return $value;
+    return $this->format_value($value, $asset[$t->SCALE], $asset[$t->PRECISION]);
+  }
+
   // format an asset value for user printing
-  function format_asset_value($value, $scale, $precision) {
+  function format_value($value, $scale, $precision) {
     $res = bcdiv($value, bcpow(10, $scale), $scale);
     $dotpos = strpos($res, '.');
     if ($dotpos === false) {
@@ -743,7 +801,7 @@ class client {
     $t = $this->t;
     $db = $this->db;
 
-    $key = $this->userbankkey($t->REQ);
+    $key = $this->userreqkey();
     $lock = $db->lock($key);
     $reqnum = $this->getreq_internal($key);
     $db->unlock($lock);
@@ -869,7 +927,7 @@ class client {
         $db->put($this->useroutboxkey($time), $msg);
       }
       $db->put($this->useroutboxhashkey(), $outboxhash);
-      $db->put($this->userbankkey($t->REQ), $reqnum);
+      $db->put($this->userreqkey(), $reqnum);
     }
     return false;
   }
