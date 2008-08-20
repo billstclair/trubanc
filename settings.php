@@ -3,7 +3,8 @@
   // settings.php
   // web server configuration settings
 
-$dbdir = '../protected/trubancdb';
+$index_file = "index.inc";      // Displayed when there's no "msg" param
+$dbdir = '../protected/trubancdb'; // The database directory
 
 // Copyright 2008 Bill St. Clair
 //

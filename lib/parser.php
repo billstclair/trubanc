@@ -163,7 +163,7 @@ class parser {
           }
           $ssl = $this->ssl;
           if (!($ssl->verify($msg, $tok, $pubkey))) {
-            $this->errmsg = "Failure to verify signature at $pos for $msg";
+            $this->errmsg = "Signature verification failed at $pos";
             return false;
           }
           $dict[$this->msgkey] = substr($str, $start, $pos + strlen($tok) - $start);
