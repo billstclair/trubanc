@@ -1,11 +1,11 @@
 <html>
 <head>
-<title>Trubanc.com</title>
+<title>Trubanc</title>
 <link rel="shortcut icon" href="site-icon.png"/>
 </head>
 <body>
 <center>
-<h1>Trubanc.com</h1>
+<h1>Trubanc</h1>
 <p>
 <img src="trubanc-logo.jpg" alt="Truebanc" width="376" height="355"/>
 <p>
