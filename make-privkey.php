@@ -42,7 +42,7 @@ function hsc($x) {
   <td><input type="text" name="keysize" value="<? echo hsc($keysize); ?>"/></td>
   </tr><tr>
   <td>Passphrase:</td>
-  <td><input type="text" name="passphrase" value=""/></td>
+  <td><input type="password" name="passphrase" value=""/></td>
   </tr><tr>
   <td>&nbsp;</td>
   <td><input type="submit" value="Generate"/></td>
