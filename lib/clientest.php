@@ -122,22 +122,34 @@ $asset = $client->getasset('aintnosuchasset');
 if (is_string($asset)) echo "$asset\n";
 else print_r($asset);
 
+function printbal($bal) {
+  global $t;
+  $asset = $bal[$t->ASSET];
+  $assetname = $bal[$t->ASSETNAME];
+  $amount = $bal[$t->AMOUNT];
+  $formattedamount = $bal[$t->FORMATTEDAMOUNT];
+  echo "  asset:       $asset\n";
+  echo "    name:      $assetname\n";
+  echo "    amount:    $amount\n";
+  echo "    formatted: $formattedamount\n";
+}
+
 $balance = $client->getbalance();
 if (is_string($balance)) echo "$balance\n";
 else {
   foreach ($balance as $acct => $acctbals) {
     echo "Sub-account: $acct\n";
     foreach ($acctbals as $bal) {
-      $asset = $bal[$t->ASSET];
-      $assetname = $bal[$t->ASSETNAME];
-      $amount = $bal[$t->AMOUNT];
-      $formattedamount = $bal[$t->FORMATTEDAMOUNT];
-      echo "  asset:       $asset\n";
-      echo "    name:      $assetname\n";
-      echo "    amount:    $amount\n";
-      echo "    formatted: $formattedamount\n";
+      printbal($bal);
     }
   }
+}
+
+$balance = $client->getbalance($acct, $bal[$t->ASSET]);
+if (is_string($balance)) echo "$balance\n";
+else {
+  echo "Last balance above:\n";
+  printbal($balance);
 }
 
 ?>

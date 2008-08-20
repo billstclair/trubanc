@@ -407,68 +407,95 @@ class client {
   //
   // The $acct arg is true for all sub-accounts, false for the
   // $t->MAIN sub-account only, or a string for that sub-account only.
-  function getbalance($acct=true) {
-    $t = $this->t;
-    $db = $this->db;
-
-    $lock = $db->lock($this->userreqkey());
-    $res = $this->getbalance_internal($acct);
-    $db->unlock($lock);
-
-    return $res;
-  }
-
-  function getbalance_internal($acct) {
+  // The $assetid arg is false for all asset or an ID for that asset only.
+  //
+  // If you a specific $acct and a specific $assetid, the result
+  // is an array mapping property names to values, not an array of arrays.
+  function getbalance($acct=true, $assetid=false) {
     $t = $this->t;
     $db = $this->db;
 
     if (!$this->banksetp()) return "In getbalance(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
 
-    $accts = array();
-    if (!$acct) $accts[] = $t->MAIN;
-    if (is_string($acct)) $accts[] = $acct;
+    $lock = $db->lock($this->userreqkey());
+    $res = $this->getbalance_internal($acct, $assetid);
+    $db->unlock($lock);
+
+    return $res;
+  }
+
+  function getbalance_internal($inacct, $inassetid) {
+    $t = $this->t;
+    $db = $this->db;
+
+    if (!$inacct) $inacct = $t->MAIN;
+    if (is_string($inacct)) $accts = array($inacct);
     else {
       $accts = $db->contents($this->userbalancekey());
     }
 
     $res = array();
     foreach ($accts as $acct) {
-      $assetids = $db->contents($this->userbalancekey($acct));
+      if ($inassetid) $assetids = array($inassetid);
+      else $assetids = $db->contents($this->userbalancekey($acct));
       foreach ($assetids as $assetid) {
         $msg = $this->userbalance($acct, $assetid);
-        $args = $this->match_bankmsg($msg, $t->ATBALANCE);
-        if (is_string($args)) return "While gathering balances: $args";
-        $args = $args[$t->MSG];
-        $assetid = $args[$t->ASSET];
-        $amount = $args[$t->AMOUNT];
-        $asset = $this->getasset($assetid);
-        if (is_string($asset)) {
-          $formattedamount = $amount;
-          $assetname = "Unknown asset";
-        } else {
-          $formattedamount = $this->format_asset_value($amount, $asset);
-          $assetname = $asset[$t->ASSETNAME];
+        if ($msg) {
+          $args = $this->match_bankmsg($msg, $t->ATBALANCE);
+          if (is_string($args)) return "While gathering balances: $args";
+          $args = $args[$t->MSG];
+          $assetid = $args[$t->ASSET];
+          $amount = $args[$t->AMOUNT];
+          $asset = $this->getasset($assetid);
+          if (is_string($asset)) {
+            $formattedamount = $amount;
+            $assetname = "Unknown asset";
+          } else {
+            $formattedamount = $this->format_asset_value($amount, $asset);
+            $assetname = $asset[$t->ASSETNAME];
+          }
+          $res[$acct][] = array($t->ASSET => $assetid,
+                                $t->ASSETNAME => $assetname,
+                                $t->AMOUNT => $amount,
+                                $t->FORMATTEDAMOUNT => $formattedamount);
         }
-        $res[$acct][] = array($t->ASSET => $assetid,
-                              $t->ASSETNAME => $assetname,
-                              $t->AMOUNT => $amount,
-                              $t->FORMATTEDAMOUNT => $formattedamount);
       }
+    }
+    if (is_string($inacct) && $inassetid) {
+      if (count($res) == 0) $res = false;
+      else $res = $res[$inacct][0];
     }
     return $res;
   }
 
   // Initiate a spend
-  function spend($toid, $asset, $amount, $acct=false) {
+  // $toid is the id of the recipient of the spend
+  // $assetid is the id of the asset to spend
+  // $formattedamount is the formatted amount to spend
+  // $acct is the source sub-account, default $t->MAIN
+  function spend($toid, $assetid, $formattedamount, $acct=false) {
+    $t = $this->t;
+    $db = $this->db;
 
     if (!$this->banksetp()) return "In spend(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
 
+    $lock = $db->lock($this->userreqkey());
+    $res = $this->spend_internal($toid, $assetid, $formattedamount, $acct);
+    $db->unlock($lock);
+
+    return $res;
+  }
+
+  function spend_internal($toid, $assetid, $formattedamount, $acct) {
+    $t = $this->t;
+    $db = $this->db;
+
   }
 
   // Transfer from one sub-account to another
-  function transfer($asset, $amount, $fromacct, $toacct) {
+  function transfer($assetid, $formattedamount, $fromacct, $toacct) {
 
     if (!$this->banksetp()) return "In transfer(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
