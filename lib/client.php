@@ -474,7 +474,7 @@ class client {
   // $assetid is the id of the asset to spend
   // $formattedamount is the formatted amount to spend
   // $acct is the source sub-account, default $t->MAIN
-  function spend($toid, $assetid, $formattedamount, $acct=false) {
+  function spend($toid, $assetid, $formattedamount, $acct=false, $note) {
     $t = $this->t;
     $db = $this->db;
 
@@ -482,7 +482,7 @@ class client {
     if ($err = $this->initbankaccts()) return $err;
 
     $lock = $db->lock($this->userreqkey());
-    $res = $this->spend_internal($toid, $assetid, $formattedamount, $acct);
+    $res = $this->spend_internal($toid, $assetid, $formattedamount, $acct, $note);
     $db->unlock($lock);
 
     return $res;
@@ -491,7 +491,45 @@ class client {
   function spend_internal($toid, $assetid, $formattedamount, $acct) {
     $t = $this->t;
     $db = $this->db;
+    $bankid = $this->bankid;
+    $server = $this->server;
+    $parser = $this->parser;
 
+    if (!$acct) $acct = $t->MAIN;
+
+    $amount = $this->unformat_amount($formattedamount, $assetid);
+    if ($amount < 0) return "You may not spend a negative amount";
+
+    $bal = $this->balance($acct, $assetid);
+    if (!$bal) return "No balance for asset in acct: $acct";
+
+    $oldamount = $bal[$t->AMOUNT];
+    $newamount = bcsub($oldamount, $amount);
+    if (bccomp($oldamount, 0) >= 0 &&
+        bccomp($newamount,  0) < 0) {
+      return "Insufficient balance";
+    }
+
+    $time = $this->gettime();
+    if (!$time) return "Unable to get timestamp for transaction from bank";
+    if ($note) $spend = $this->custmsg($t->SPEND, $bankid, $time, $toid, $note);
+    else $spend = $this->custmsg($t->SPEND, $bankid, $time, $toid);
+    /*** Need to get and compute fee and it's balance ***/
+    $balance = $this->custmsg
+      ($t->BALANCE, $bankid, $time, $assetid, $newamount, $acct);
+    $outboxhash = $this->outboxhashmsg($time, $spend);
+
+    $msg = "$spend.$fee.$balance.$outboxhash";
+    $msg = $server->process($msg);
+    $reqs = $parser->parse($msg);
+    if (!$reqs) return "Can't parse bank return from spend: $msg";
+    $spendargs = $this->match_bankmsg($reqs[0], $t->ATSPEND);
+    if (is_string($spendargs)) return "Error from spend: $spendargs";
+
+    // Make sure spend wraps our $spend message.
+    // Process the rest of the return
+    // Update balances, outbox, and outboxhash
+    
   }
 
   // Transfer from one sub-account to another
@@ -774,9 +812,22 @@ class client {
     return $this->format_value($value, $asset[$t->SCALE], $asset[$t->PRECISION]);
   }
 
+  // Unformat an asset value from the asset ID or $this->getasset($assetid)
+  function unformat_asset_value($formattedvalue, $assetid) {
+    $t = $this->t;
+
+    if (is_string($assetid)) $asset = $this->getasset($assetid);
+    else $asset = $assetid;
+    if (is_string($asset)) return $value;
+    return $this->unformat_value($formattedvalue, $asset[$t->SCALE]);
+  }
+
   // format an asset value for user printing
   function format_value($value, $scale, $precision) {
-    $res = bcdiv($value, bcpow(10, $scale), $scale);
+    if ($scale == 0 && $precision == 0) return $value;
+    if ($scale > 0) {
+      $res = bcdiv($value, bcpow(10, $scale), $scale);
+    }
     $dotpos = strpos($res, '.');
     if ($dotpos === false) {
       if ($precision == 0) return $res;
@@ -791,6 +842,11 @@ class client {
     $zerostr = ($zeroes >= 0) ? str_repeat('0', $zeroes) : '';
     $res = substr($res, 0, $endpos+1) . $zerostr;
     return $res;
+  }
+
+  function unformat_value($formattedvalue, $scale) {
+    if ($scale == 0) return $formattedvalue;
+    return bcmul($formattedvalue, bcpow(10, $scale), 0);
   }
 
   // Send a t->ID command to the server, if there is one.
@@ -852,7 +908,7 @@ class client {
       $bankid = $this->bankid;
       $msg = $this->sendmsg($t->GETREQ, $bankid);
       $args = $this->match_bankmsg($msg, $t->REQ);
-      if (is_string($args)) return "While getting req from server: $args";
+      if (is_string($args)) return false;
       $reqnum = $args[$t->REQ];
       $db->put($key, $reqnum);
       $this->syncedreq = true;
@@ -861,6 +917,18 @@ class client {
     $reqnum = bcadd($db->get($key), 1);
     $db->put($key, $reqnum);
     return $reqnum;
+  }
+
+  // Get a timestamp from the server
+  function gettime() {
+    $t = $this->t;
+    $bankid = $this->bankid;
+
+    $msg = $this->sendmsg($t->GETTIME, $bankid, $this->getreq());
+    $args = $this->match_bankmsg($msg, $t->TIME);
+    if (is_string($args)) return false;
+    $args = $args[$t->MSG];
+    return $args[$t->TIME];
   }
 
   // If we haven't yet downloaded accounts from the bank, do so now.
@@ -958,6 +1026,39 @@ class client {
     }
     return false;
   }
+
+  function outboxhash($transtime, $newitem=false, $removed_times=false) {
+    $parser = $this->parser;
+    $db = $this->db;
+    $u = $this->u;
+
+    $contents = $db->contents($this->useroutboxkey());
+    if ($newitem) $contents[] = $transtime;
+    $contents = $u->bignum_sort($contents);
+    $unhashed = '';
+    if ($removed_times) $contents = array_diff($contents, $removed_times);
+    foreach ($contents as $time) {
+      if (bccomp($time, $transtime) <= 0) {
+        if ($time == $transtime) $item = $newitem;
+        else {
+          $args = $this->unpack_bankmsg($db->get("$dir/$time"));
+          $item = $args[$t->MSG];
+        }
+        if ($unhashed != '') $unhashed .= '.';
+        $unhashed .= trim($item);
+      }
+    }
+    $hash = sha1($unhashed);
+    return $hash;
+  }
+
+  function outboxhashmsg($transtime, $newitem=false, $removed_times=false) {
+    return $this->custmsg($this->t->OUTBOXHASH,
+                          $this->bankid,
+                          $transtime,
+                          $this->outboxhash($transtime, $newitem, $removed_times));
+  }
+
 }
 
 class serverproxy {
