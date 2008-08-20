@@ -354,7 +354,7 @@ class client {
     if (!$this->banksetp()) return "In getacct(): Bank not set";
 
     $key = $this->assetkey($assetid);
-    $lock = $db->lock($key);
+    $lock = $db->lock($key, true);
     $msg = $db->get($key);
     if ($msg) {
       $db->unlock($lock);
@@ -380,7 +380,7 @@ class client {
 
     $bankid = $this->bankid;
     $msg = $this->sendmsg($t->GETASSET, $bankid, $this->getreq(), $assetid);
-    $args = $this->match_bankmsg($msg, $ATASSET);
+    $args = $this->match_bankmsg($msg, $t->ATASSET);
     if (is_string($args)) return "While downloading asset: $args";
     $args = $args[$t->MSG];
     if ($args[$t->REQUEST] != $t->ASSET ||
@@ -390,6 +390,85 @@ class client {
     }
     $db->put($key, $msg);
     return $args;
+  }
+
+  // Look up the transaction cost.
+  // Returns an error string or an array of the form:
+  //
+  //   array($t->TRANFEE => ARRAY(ARRAY($t->ASSET => $assetid,
+  //                                    $t->AMOUNT => $amount),
+  //                              ...),
+  //         $t->REGFEE => ARRAY(ARRAY($t->ASSET => $assetid,
+  //                                   $t->AMOUNT => $assetid),
+  //                             ...),
+  //         $t->FEE|<operation> => ARRAY(ARRAY($t->ASSET => $assetid,
+  //                                            $t->AMOUNT => $assetid),
+  //                                      ...),
+  //         ...)
+  //
+  // Currently, only the tranfee and regfee are supported by the server,
+  // and only a single fee, in usage tokens, is charged for each.
+  // So that's all the spend code handles.
+  //
+  // If the asset isn't found in the client database, looks it up on the
+  // server, and stores it in the client database.
+  function getfees($reload=false) {
+    $t = $this->t;
+    $db = $this->db;
+
+    if (!$this->banksetp()) return "In getfees(): Bank not set";
+
+    $key = $this->tranfeekey();
+    $lock = $db->lock($key, true);
+    $msg = $db->get($key);
+    if ($msg) {
+      $db->unlock($lock);
+      $args = $this->match_bankmsg($msg, $t->TRANFEE);
+      if (is_string($args)) return "While matching tranfee: $args";
+    } else {
+      $args = $this->getfees_internal($key);
+      $db->unlock($lock);
+      if (is_string($args)) return $args;
+    }
+
+    $tranfee = array($t->ASSET => $args[$t->ASSET],
+                     $t->AMOUNT => $args[$t->AMOUNT]);
+
+    $msg = $this->regfee();
+    if (!$msg) return "Regfee not initialized";
+    $args = $this->match_bankmsg($msg, $t->REGFEE);
+    if (is_string($args)) return "While matching regfee: $args";
+
+    $regfee = array($t->ASSET => $args[$t->ASSET],
+                    $t->AMOUNT => $args[$t->AMOUNT]);
+
+    return array($t->TRANFEE => array($tranfee),
+                 $t->REGFEE => array($regfee));
+  }
+
+  function getfees_internal($key) {
+    $t = $this->t;
+    $db = $this->db;
+    $parser = $this->parser;
+    $bankid = $this->bankid;
+
+    $msg = $this->sendmsg($t->GETFEES, $bankid, $this->getreq());
+    $reqs = $parser->parse($msg);
+    if (!$reqs) return "While parsing getfees return message: " . $parser->errmsg;
+    $feeargs = false;
+    foreach ($reqs as $req) {
+      $args = $this->match_bankreq($req);
+      if (is_string($args)) return "While matching getfees return: $args";
+      if ($args[$t->REQUEST] == $t->TRANFEE) {
+        $db->put($key, $parser->get_parsemsg($req));
+        $feeargs = $args;
+      } elseif ($args[$t->REQUEST] == $t->REGFEE) {
+        $db->put($this->regfeekey(), $parser->get_parsemsg($req));
+      }
+    }
+
+    if (!$feeargs) $feeargs = "No tranfee from getfees request";
+    return $feeargs;
   }
 
   // Get user balances for all sub-accounts or just one.
@@ -717,6 +796,30 @@ class client {
     $db = $this->db;
 
     return $db->get($this->assetkey($assetid));
+  }
+
+  function tranfeekey() {
+    $t = $this->t;
+
+    return $this->bankkey($t->TRANFEE);
+  }
+
+  function tranfee() {
+    $db = $this->db;
+
+    return $db->get($this->tranfeekey());
+  }
+
+  function regfeekey() {
+    $t = $this->t;
+
+    return $this->bankkey($t->REGFEE);
+  }
+
+  function regfee() {
+    $db = $this->db;
+
+    return $db->get($this->regfeekey());
   }
 
   function userbankkey($prop=false) {

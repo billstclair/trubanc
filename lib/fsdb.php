@@ -89,7 +89,7 @@ class fsdb {
       if (!$fp) return false;
     }
     flock($fp, LOCK_EX);
-    $lock = array($fp, $key, 1);
+    $lock = array($fp, $key, 1, $create ? $filename : '');
     $this->locks[$key] = $lock;
     return $lock;
   }
@@ -97,6 +97,11 @@ class fsdb {
   function unlock($lock) {
     if ($lock) {
       if (--$lock[2] <= 0) {
+        $filename = $lock[3];
+        // The unlink probably has to go after the fclose on windows
+        if ($filename && filesize($filename) == 0) {
+          unlink($filename);
+        }
         fclose($lock[0]);
         unset($this->locks[$lock[1]]);
       }

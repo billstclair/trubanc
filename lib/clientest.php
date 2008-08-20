@@ -152,4 +152,17 @@ else {
   printbal($balance);
 }
 
+$fees = $client->getfees();
+if (is_string($fees)) echo "$fees\n";
+else {
+  foreach ($fees as $type => $feelist) {
+    echo "$type:\n";
+    foreach ($feelist as $fee) {
+      foreach ($fee as $k => $v) {
+        echo "  $k: $v\n";
+      }
+    }
+  }
+}
+
 ?>
