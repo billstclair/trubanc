@@ -1,6 +1,7 @@
 index.php|The web site index page and server web page
 settings.php|Settings for index.php
 index.inc|The HTML for the home page when not invoked as a server
+make-privkey.php|Utility for creating Trubanc-compatible public/private key pairs
 
 doc/idea.txt|My original idea
 doc/db.txt|Description of the server database and protocol

@@ -50,7 +50,7 @@ Spend
 =====
 1) Customer sends spend, tranfee, balance, accthash, outboxhash, balancehash
 2) Bank sends back @spend, @tranfee, @balance, @accthash, @outboxhash, @balancehash
-3) User sends final @balancehash to commit the transaction.
+3) Customer sends final @balancehash to commit the transaction.
    or (<id>,@rollback,<bankid>,<time>) to roll it back.
 4) Bank returns another level of @balancehash.
 
