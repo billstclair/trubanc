@@ -81,15 +81,17 @@ class fsdb {
     }
     $filename = $this->filename($key);
     $fp = @fopen($filename, 'r');
+    $created = false;
     if (!$fp) {
       if ($create) {
-        touch($filename);
+        if ($this->rmkdir(dirname($filename))) @touch($filename);
+        $created = true;
         $fp = @fopen($filename, 'r');
       }
       if (!$fp) return false;
     }
     flock($fp, LOCK_EX);
-    $lock = array($fp, $key, 1, $create ? $filename : '');
+    $lock = array($fp, $key, 1, $created ? $filename : false);
     $this->locks[$key] = $lock;
     return $lock;
   }
@@ -98,11 +100,14 @@ class fsdb {
     if ($lock) {
       if (--$lock[2] <= 0) {
         $filename = $lock[3];
-        // The unlink probably has to go after the fclose on windows
-        if ($filename && filesize($filename) == 0) {
-          unlink($filename);
+        if ($filename && file_exists($filename) && @filesize($filename) == 0) {
+          @unlink($filename);
         }
         fclose($lock[0]);
+        // Windows won't let you delete an open file
+        if ($filename && file_exists($filename) && @filesize($filename) == 0) {
+          @unlink($filename);
+        }
         unset($this->locks[$lock[1]]);
       }
     }
