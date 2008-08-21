@@ -27,11 +27,10 @@ foreach($files as $idx => $line) {
     if (count($parts) > 1) $label = " - " . $parts[1];
     if ($file != '') $files[$idx] = $name;
     else {
-      $files[$idx] = "<li><a href=\"?file=$name\">$name</a>$label";
+      $files[$idx] = "<input type='radio' name='file' value='$name'/> <a href=\"?file=$name\">$name</a>$label<br/>";
       if (count($files) > ($idx+2) && $files[$idx+1] == '') {
-        $files[$idx] .= "<br/>&nbsp;";
+        $files[$idx] .= "<br/>";
       }
-      $files[$idx] .= "</li>\n";
     }
   }
 }
@@ -106,11 +105,11 @@ if ($file != '') {
 </div>
 <?
 } else {
-  echo "You may view the following files:<p>\n<ul>\n";
+  echo "You may view the following files.<br>Click on a file name or click a radio button and click one of the buttons below the list.<p>\n";
+  echo "<form action='#1' method='get'>\n";
   foreach ($files as $line) echo $line;
-  echo "</ul>\n";
-  echo '<p>Add "?search=foo" to search for foo' . "\n";
-  echo '<br>Add "?numbers=yes" to add line numbers' . "\n";
+  echo "<p>Search selected file for: <input type='text' name='search'> <input type='submit' name='Go' value='Go'/>\n";
+  echo "<br>View selected file with line numbers? <input type='submit' name='numbers' value='Yes'>\n";
  }
 ?>
 </body>
