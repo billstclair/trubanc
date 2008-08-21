@@ -286,7 +286,7 @@ If they don't match, bank returns:
   To commit the transaction, the customer countersigns the
   balancehash, and sends it back to the bank:
 
-  (<id>,@balancehash,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>)))
+  (<id>,commit,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>)))
 
   The bank checks that <time#> matches the timestamp in the saved
   transaction. If it does the bank sets /account/<id>/time to 0,
@@ -297,7 +297,12 @@ If they don't match, bank returns:
   /account/<id>/outboxhash, and /account/<id>/balancehash with the
   customer's hashes, and sends:
 
-  (<bankid>,@balancehash,(<id>,@balancehash,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>))))
+  (<bankid>,@commit,(<id>,commit,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>))))
+
+  If the bank no longer has a record of the first phase of the
+  transaction, it will send:
+
+  (<bankid>,failed,(<id>,commit,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>))),errcode:<errcode>,reason:<reason>)
 
   If the customer disagrees with the banks first response, he can rollback
   the transaction by sending:
@@ -307,7 +312,7 @@ If they don't match, bank returns:
   The bank removes the /account/<id>/transaction file, and responds
   with:
 
-  (<bankid>,#rollback,(<id>,rollback,<bankid>,<time#>))
+  (<bankid>,@rollback,(<id>,rollback,<bankid>,<time#>))
 
   If the bank charges non-refunable fees for spends, they must be
   included with the customer's spend message, and they will be
@@ -408,7 +413,7 @@ Process Inbox
   To commit the transaction, the customer countersigns the
   balancehash, and sends it back to the bank:
 
-  (<id>,@balancehash,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time11#>,<balancecount>,<balancehash>)))
+  (<id>,commit,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time11#>,<balancecount>,<balancehash>)))
 
   The bank sets /account/<id>/last to <time11#>, sets
   /account/<id>/time to <time12#>, removes the transaction from
@@ -420,7 +425,12 @@ Process Inbox
   /account/<id>/outboxhash, and /account/<id>/balancehash with the
   signed hashes, and sends back:
 
-  (<bankid>,@balancehash,(<id>,@balancehash,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time11#>,<balancecount>,<balancehash>))))
+  (<bankid>,@commit,(<id>,commit,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time11#>,<balancecount>,<balancehash>))))
+
+  If the bank no longer has a record of the first phase of the
+  transaction, it will send:
+
+  (<bankid>,failed,(<id>,commit,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>))),errcode:<errcode>,reason:<reason>)
 
   If the customer disagrees with the banks first response, he can
   rollback the transaction by sending:
@@ -430,7 +440,7 @@ Process Inbox
   The bank removes the /account/<id>/transaction file, and responds
   with:
 
-  (<bankid>,#rollback,(<id>,rollback,<bankid>,<time11#>))
+  (<bankid>,@rollback,(<id>,rollback,<bankid>,<time11#>))
 
   This is the most complicated function in the system. It has to deal
   with two kinds of inbox items. The first is spontaneous spends from

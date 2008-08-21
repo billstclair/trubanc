@@ -20,49 +20,15 @@ Encrypt the client<->server messages. SSL could do this, but why bother, when we
          <sessionkey encrypted:
            (<bankid>,@closesession,(<id>,closesession,<bankid>,<sessionid>))>]
 
------
+Unfortunately, the PHP OpenSSL library doesn't give sufficient access to OpenSSL's encryption functions, so we'll have to rely on mcrypt:
 
-Keep acct and balance hashes. Spend and processinbox become two-stage
-processes.  Also, add a count to the outbox hash and the new accthash
-and balancehash. Makes it easier to see if something is missing.
+http://us3.php.net/manual/en/function.mcrypt-module-open.php
 
-account
-  <id>
-    balance
-      <acct>
-        accthash=(<bankid>,@accthash,(<id>,accthash,<bankid>,<time>,<count><hash>))
-        <assetid>=(<bankid>,@balance,(<id>,balance,<bankid>,<time>,<assetid>,<amount>))
-    outbox
-      ...
-    outboxhash=(<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time>,<count>,<hash>))
-    balancehash=(<id>,@balancehash,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time>,<count>,<hash>)))
+Recommends aes256-ctr:
+  http://www.ietf.org/rfc/rfc4344.txt
+Unfortunately, PHP's mcrypt library doesn't provide CTR. CBC or CFB will have to do.
 
-The <hash> values for accthash hash the customer 'balance' items,
-counting the total number within one <acct>
-
-The <hash> values for balancehash hash the accthash <hash> values and
-the outboxhash <hash> value, counting the total number of <acct>
-directories, plus one for the outboxhash.
-
-The additional surrounding customer-signed @balancehash is the final kiss:
-
-Spend
-=====
-1) Customer sends spend, tranfee, balance, accthash, outboxhash, balancehash
-2) Bank sends back @spend, @tranfee, @balance, @accthash, @outboxhash, @balancehash
-3) Customer sends final @balancehash to commit the transaction.
-   or (<id>,@rollback,<bankid>,<time>) to roll it back.
-4) Bank returns another level of @balancehash.
-
-processinbox
-============
-1) Customer sends processinbox, spend|accept, spend|reject, balance,
-   accthash, outboxhash, balancehash
-2) Bank sends back @processinbox, @spend|accept, @spend|reject, @balance,
-   @accthash, @outboxhash, @balancehash
-3) Customer sends final @balancehash to commit the transaction.
-   or (<id>,rollback,<bankid>,<time>) to roll it back.
-4) Bank returns another level of @balancehash.
+That document also recommends periodic rekeying. Can do that just be closing the session and starting a new one. Client needs to keep track of the number of messages or number of bytes sent, and have a rekey period.
 
 -----
 
