@@ -53,8 +53,9 @@ $dbdir/
       req=<req#>    -- starts at 0. New requests must have a higher number
       balancehash=(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<count>,<hash>))
       balance/
+        total/
+          <assetid>=(<bankid>,@total,(<id>,total,<bankid>,<time#>,<assetid>,<amount>))
         <acct>/  -- "main" is the default acct name
-          accthash=(<bankid>,@accthash,(<id>,accthash,<bankid>,<time#>,<acct>,<count>,<hash>))
           <assetid>=(<bankid>,@balance,(<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>))
       outboxhash=(<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time#>,<count>,<hash>))
       outbox/
@@ -239,18 +240,18 @@ Spend
   (<id>,balance,<bankid>,<time#>,<assetid2>,<amount2>,acct:<acct2>).
   ...
   (<id>,balance,<bankid>,<time#>,<assetidN>,<amountN>,acct:<acctN>).
-  (<id>,accthash,<bankid>,<time#>,<acct>,<count>,<hash>).
-  (<id>,accthash,<bankid>,<time#>,<acct2>,<count2>,<hash2>).
+  (<id>,total,<bankid>,<time#>,<assetid>,<amount>).
+  (<id>,total,<bankid>,<time#>,<assetid2,<amount2>).
   ...
-  (<id>,accthash,<bankid>,<time#>,<acctN>,<countN>,<hashN>).
+  (<id>,total,<bankid>,<time#>,<assetidN>,<amountN>).
   (<id>,outboxhash,<bankid>,<time#>,<outboxcount>,<outboxhash>).
   (<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>)
 
   Bank checks that the <time#> is equal to /account/<id>/time, that
   the balances match (after subtracting the spend amount fees), and
-  that the hashes match what the customer sent. If they match, comutes
-  the item list below, stores it in the database in the file
-  /account/<id>/transaction, and returns:
+  that the totals and hashes match what the customer sent. If they
+  match, bank computes the item list below, stores it in the database
+  in the file /account/<id>/transaction, and returns:
 
 (<bankid>,@spend,(<id>,spend,<time#>,<id2>,<bankid>,<assetid>,<amount>,note:<note>,acct:<acct>)).
   (<bankid>,@tranfee,(<id>,tranfee,<bankid>,<time#>,<tokenid>,<amount2fee>)).
@@ -258,10 +259,10 @@ Spend
   (<bankid>,@balance,(<id>,balance,<time#>,<bankid>,assetid2>,<amount2>,acct:<acct2>)).
   ...
   (<bankid>,@balance,(<id>,balance,<time#>,<bankid>,<assetidN>,<amountN>,acct:<acctN>)).
-  (<bankid>,@accthash,(<id>,accthash,<bankid>,<time#>,<acct>,<count>,<hash>)).
-  (<bankid>,@accthash,(<id>,accthash,<bankid>,<time#>,<acct2>,<count2>,<hash2>)).
+  (<bankid>,@total,(<id>,total,<bankid>,<time#>,<assetid>,<amount>)).
+  (<bankid>,@total,(<id>,total,<bankid>,<time#>,<assetid2>,<amount2>)).
   ...
-  (<bankid>,@accthash,(<id>,accthash,<bankid>,<time#>,<acctN>,<countN>,<hashN>)).
+  (<bankid>,@total,(<id>,total,<bankid>,<time#>,<assetidN>,<amountN>)).
   (<bankid,@outboxhash,(<id>,outboxhash,<bankid>,<time#>,<outboxcount>,<outboxhash>)).
   (<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>))
 
@@ -271,17 +272,17 @@ If they don't match, bank returns:
 
   This is the first phase of the two-phase commit for spends.
 
-  Note that there's a hash for each <acct>, an outbox hash, and a
-  balance hash. Each <acct> hash is the sha1 hash of the customer
-  "balance" items in that <acct>, sorted alphabetically by <assetid>,
-  and tacked together with periods ("."). The outbox hash is the sha1
-  hash of the customer "spend"."tranfee" items, alphabetically sorted by
+  Note that there's a total for each <assetid>, an outbox hash, and a
+  balance hash. Each <total> is the total of the assets in that
+  <assetid> over all <acct>s, sorted alphabetically by <assetid>, and
+  tacked together with periods ("."). The outbox hash is the sha1 hash
+  of the customer "spend"."tranfee" items, alphabetically sorted by
   timestamp, and also tacked together with periods. The bankhash is
-  the sha1 hash of the <acct> hashes, alphabetically sorted by <acct>, plus
-  the outboxhash, tacked together with periods. Each hash also
-  contains a count, which is the number of items that were tacked
-  together. This isn't strictly necessary, but it can help to identify
-  problems if the client and server disagree on something.
+  the sha1 hash of the "total" items , alphabetically sorted by
+  <assetid>, plus the outboxhash, tacked together with periods. The
+  two hashes also contain a count, which is the number of items that
+  were tacked together. This isn't strictly necessary, but it can help
+  to identify problems if the client and server disagree on something.
 
   To commit the transaction, the customer countersigns the
   balancehash, and sends it back to the bank:
@@ -292,10 +293,11 @@ If they don't match, bank returns:
   transaction. If it does the bank sets /account/<id>/time to 0,
   stores the spend in /account/<id>/outbox/<time#> and
   /account/<id2>/inbox/<time#>, sets the
-  /account/<id>/balance/<acct>/<assetid> to the customer's balance
-  items, updates /account/<id>/balance/<acct>/accthash,
-  /account/<id>/outboxhash, and /account/<id>/balancehash with the
-  customer's hashes, and sends:
+  /account/<id>/balance/<acct>/<assetid> to the balances from
+  /account/<id>/transaction, updates the
+  /account/<id>/balance/total/<assetid> with the totals from
+  /account/<id>/transaction, udpates /account/<id>/outboxhash, and
+  /account/<id>/balancehash with the signed hashes, and sends:
 
 (<bankid>,@commit,(<id>,commit,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>))))
 
@@ -378,16 +380,17 @@ Process Inbox
   (<id>,balance,<bankid>,<time11#>,assetid2>,<amount2>,acct:<acct2>).
   ...
   (<id>,balance,<bankid>,<time11#>,<assetidN>,<amount3>,acct:<acctN>).
-  (<id>,accthash,<bankid>,<time11#>,<acct2>,<count2>,<hash2>).
+  (<id>,total,<bankid>,<time11#>,<assetid>,<amount>).
+  (<id>,total,<bankid>,<time11#>,<assetid2>,<amount2>).
   ...
-  (<id>,accthash,<bankid>,<time11#>,<acctN>,<countN>,<hashN>).
+  (<id>,total,<bankid>,<time11#>,<assetidN>,<amountN>).
   (<id>,outboxhash,<bankid>,<time11#>,<outboxcount>,<outboxhash>).
   (<id>,balancehash,<bankid>,<time11#>,<balancecount>,<balancehash>)
 
   Bank compares <time11#> to /account/<id>/time. If it's the
   same. Bank processes the requested inbox transactions, and compares
-  the result to the balances and hashes sent by customer. If correct,
-  bank computes the response below, stores it in
+  the result to the balances, totals, and hashes sent by customer. If
+  correct, bank computes the response below, stores it in
   /account/<id>/tranaction, and responds with:
 
 (<bankid,@processinbox,(<id>,processinbox,<bankid>,<time11#>,<time7#>|<time8#>|<time9#>).
@@ -397,10 +400,10 @@ Process Inbox
   (<bankid>,@balance,(<id>,balance,<bankid>,time11#>,assetid2>,<amount2>,acct:<acct2>)).
   ...
   (<bankid>,@balance,(<id>,balance,<bankid>,<time11#>,<assetidN>,<amount3>,acct:<acctN>)).
-  (<bankid>,@accthash,(<id>,accthash,<bankid>,<time11#>,<acct>,<count>,<hash>)).
-  (<bankid>,@accthash,(<id>,accthash,<bankid>,<time11#>,<acct2>,<count2>,<hash2>)).
+  (<bankid>,@total,(<id>,total,<bankid>,<time11#>,<assetid>,<amount>.
+  (<bankid>,@total,(<id>,total,<bankid>,<time11#>,<assetid2>,<amount2>.
   ...
-  (<bankid>,@accthash,(<id>,accthash,<bankid>,<time11#>,<acctN>,<countN>,<hashN>)).
+  (<bankid>,@total,(<id>,total,<bankid>,<time11#>,<assetidN>,<amountN>.
   (<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time11#>,<outboxcount>,<outboxhash>)).
   (<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time11#>,<balancecount>,<balancehash>))
 
@@ -420,10 +423,11 @@ Process Inbox
   /account/<id>/inbox/, removes completed transactions from
   /account/<id>/outbox/, signs and adds spend|accept and spend|reject
   items to the other customers' inboxes, updates the
-  /account/<id>/balance/<acctN>/<assetidN> with the balances the
-  customer sent, updates /account/<id>/balance/<acct>/accthash,
-  /account/<id>/outboxhash, and /account/<id>/balancehash with the
-  signed hashes, and sends back:
+  /account/<id>/balance/<acctN>/<assetidN> with the balances from
+  /account/<id>/transaction, updates
+  /account/<id>/balance/total/<assetid> with the totals from
+  /account/<id>/transaction, updates /account/<id>/outboxhash, and
+  /account/<id>/balancehash with the signed hashes, and sends back:
 
 (<bankid>,@commit,(<id>,commit,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time11#>,<balancecount>,<balancehash>))))
 

@@ -24,11 +24,11 @@ Unfortunately, the PHP OpenSSL library doesn't give sufficient access to OpenSSL
 
 http://us3.php.net/manual/en/function.mcrypt-module-open.php
 
-Recommends aes256-ctr:
-  http://www.ietf.org/rfc/rfc4344.txt
-Unfortunately, PHP's mcrypt library doesn't provide CTR. CBC or CFB will have to do.
+http://www.ietf.org/rfc/rfc4344.txt recommends aes256-ctr.
 
-That document also recommends periodic rekeying. Can do that just be closing the session and starting a new one. Client needs to keep track of the number of messages or number of bytes sent, and have a rekey period.
+Unfortunately, PHP's mcrypt library doesn't provide CTR. CBC or CFB will have to do. The openssl on my machine supports aes-256-cbc and aes-256-cfb, so either will do.
+
+rfc4344 also recommends periodic rekeying. Can do that by closing the session and starting a new one. Client needs to keep track of the number of messages or number of bytes sent, per session, and have a rekey period.
 
 -----
 
