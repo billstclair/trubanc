@@ -46,9 +46,10 @@ $dbdir/
             name=<name>
             pubkeysig=<pubkeysig>
         balancehash=(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<count>,<hash>))
+        total/
+          <assetid>=(<bankid>,@total,(<id>,total,<bankid>,<time#>,<assetid>,<amount>))
         balance/
           <acct>/  -- "main" is the default acct name
-            accthash=(<bankid>,@accthash,(<id>,accthash,<bankid>,<time#>,<acct>,<count>,<hash>))
             <assetid>=(<bankid>,@balance,(<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>))
         outboxhash=(<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time#>,<count>,<hash>))
         outbox/
@@ -67,4 +68,6 @@ $dbdir/
           (<bankid,@processinbox,(<id>,processinbox,<bankid>,<time11#>,<time7#>|<time8#>|<time9#>)...
         history/
           -- Needs more work. Likely wants to be indexed multiple ways
+          -- and probably organized in directories to keep any one listing
+          -- from getting too long to handle
           <time>=<message>...
