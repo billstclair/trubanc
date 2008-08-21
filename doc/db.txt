@@ -51,20 +51,26 @@ $dbdir/
                        <time#>,<time2#> after an "inbox" query.
       last=<time#>  -- The last used value of /account/<id>/time
       req=<req#>    -- starts at 0. New requests must have a higher number
+      balancehash=(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<count>,<hash>))
       balance/
         <acct>/  -- "main" is the default acct name
+          accthash=(<bankid>,@accthash,(<id>,accthash,<bankid>,<time#>,<acct>,<count>,<hash>))
           <assetid>=(<bankid>,@balance,(<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>))
+      outboxhash=(<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time#>,<count>,<hash>))
       outbox/
         <time2#>=(<bankid>,@spend,(<id>,spend,<bankid>,<time2#>,<id2>,<assetid2>,<amount2>,note:<note2>,acct:<acct2>)).
                  (<bankid>,@tranfee,(<id>,tranfee,<bankid>,<time2#>,<tokenid>,<amount2fee>))
         <time3#>=(<bankid>,@spend,(<id>,spend,<bankid>,<time3#>,<id3>,<assetid3>,<amount3>,note:<note3>,acct:<acct3>)).
                  (<bankid>,@tranfee,(<id>,tranfee,<bankid>,<time3#>,<tokenid>,<amount3fee>))
-      outboxhash=(<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time#>,<hash>))
       inbox/
         <time5#>=(<bankid>,inbox,<time5#>,(<id2>,spend|accept,<bankid>,<time2#>,<id>,note:<note22>))
         <time6#>=(<bankid>,inbox,<time6#>,(<id3>,spend|reject,<bankid>,<time3#>,<id>,note:<note32>))
         <time7#>=(<bankid>,inbox,<time7#>,(<id4>,spend,<bankid>,<time4#>,<id>,<assetid4>,<amount4>,note:<note4>)).
                  (<bankid>,@tranfee,(<id>,tranfee,<bankid>,<time4#>,<tokenid>,<amount4fee>))
+      transaction/
+        (<bankid>,@spend,(<id>,spend,<time#>,<id2>,<bankid>,<assetid>,<amount>,note:<note>,acct:<acct>))...
+          or
+        (<bankid,@processinbox,(<id>,processinbox,<bankid>,<time11#>,<time7#>|<time8#>|<time9#>)...
 
 
 === Transactions ===
@@ -233,17 +239,18 @@ Spend
   (<id>,balance,<bankid>,<time#>,<assetid2>,<amount2>,acct:<acct2>).
   ...
   (<id>,balance,<bankid>,<time#>,<assetidN>,<amountN>,acct:<acctN>).
-  (<id>,outboxhash,<bankid>,<time#>,<outboxhash>)
+  (<id>,accthash,<bankid>,<time#>,<acct>,<count>,<hash>).
+  (<id>,accthash,<bankid>,<time#>,<acct2>,<count2>,<hash2>).
+  ...
+  (<id>,accthash,<bankid>,<time#>,<acctN>,<countN>,<hashN>).
+  (<id>,outboxhash,<bankid>,<time#>,<outboxcount>,<outboxhash>).
+  (<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>)
 
   Bank checks that the <time#> is equal to /account/<id>/time, that
   the balances match (after subtracting the spend amount fees), and
-  that the hash of all the outbox entries (after adding the new one),
-  sorted numerically by <time#>, match what the customer sent. If they
-  match, bank sets /account/<id>/time to 0, stores the spend in
-  /account/<id>/outbox/<time#> and /account/<id2>/inbox/<time#>, sets
-  the /account/<id>/balance/<acct>/<assetid> to the customer's balance
-  items, updates /account/<id>/hash with the customer's hash item, and
-  sends:
+  that the hashes match what the customer sent. If they match, comutes
+  the item list below, stores it in the database in the file
+  /account/<id>/transaction, and returns:
 
 (<bankid>,@spend,(<id>,spend,<time#>,<id2>,<bankid>,<assetid>,<amount>,note:<note>,acct:<acct>)).
   (<bankid>,@tranfee,(<id>,tranfee,<bankid>,<time#>,<tokenid>,<amount2fee>)).
@@ -251,11 +258,56 @@ Spend
   (<bankid>,@balance,(<id>,balance,<time#>,<bankid>,assetid2>,<amount2>,acct:<acct2>)).
   ...
   (<bankid>,@balance,(<id>,balance,<time#>,<bankid>,<assetidN>,<amountN>,acct:<acctN>)).
-  (<bankid>,@outboxhash,(<id>,outboxhash,<time#>,<bankid>,<hash>))
+  (<bankid>,@accthash,(<id>,accthash,<bankid>,<time#>,<acct>,<count>,<hash>)).
+  (<bankid>,@accthash,(<id>,accthash,<bankid>,<time#>,<acct2>,<count2>,<hash2>)).
+  ...
+  (<bankid>,@accthash,(<id>,accthash,<bankid>,<time#>,<acctN>,<countN>,<hashN>)).
+  (<bankid,@outboxhash,(<id>,outboxhash,<bankid>,<time#>,<outboxcount>,<outboxhash>)).
+  (<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>))
 
 If they don't match, bank returns:
 
 (<bankid>,failed,(<id>,spend,<bankid>,<time#>,<id2>,<assetid>,<amount>,note:<note>,acct:<acct>),errcode:<errcode>,reason:<reason>)
+
+  This is the first phase of the two-phase commit for spends.
+
+  Note that there's a hash for each <acct>, an outbox hash, and a
+  balance hash. Each <acct> hash is the sha1 hash of the customer
+  "balance" items in that <acct>, sorted alphabetically by <assetid>,
+  and tacked together with periods ("."). The outbox hash is the sha1
+  hash of the customer "spend"."tranfee" items, alphabetically sorted by
+  timestamp, and also tacked together with periods. The bankhash is
+  the sha1 hash of the <acct> hashes, alphabetically sorted by <acct>, plus
+  the outboxhash, tacked together with periods. Each hash also
+  contains a count, which is the number of items that were tacked
+  together. This isn't strictly necessary, but it can help to identify
+  problems if the client and server disagree on something.
+
+  To commit the transaction, the customer countersigns the
+  balancehash, and sends it back to the bank:
+
+  (<id>,@balancehash,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>)))
+
+  The bank checks that <time#> matches the timestamp in the saved
+  transaction. If it does the bank sets /account/<id>/time to 0,
+  stores the spend in /account/<id>/outbox/<time#> and
+  /account/<id2>/inbox/<time#>, sets the
+  /account/<id>/balance/<acct>/<assetid> to the customer's balance
+  items, updates /account/<id>/balance/<acct>/accthash,
+  /account/<id>/outboxhash, and /account/<id>/balancehash with the
+  customer's hashes, and sends:
+
+  (<bankid>,@balancehash,(<id>,@balancehash,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>))))
+
+  If the customer disagrees with the banks first response, he can rollback
+  the transaction by sending:
+
+  (<id>,rollback,<bankid>,<time#>)
+
+  The bank removes the /account/<id>/transaction file, and responds
+  with:
+
+  (<bankid>,#rollback,(<id>,rollback,<bankid>,<time#>))
 
   If the bank charges non-refunable fees for spends, they must be
   included with the customer's spend message, and they will be
@@ -321,18 +373,17 @@ Process Inbox
   (<id>,balance,<bankid>,<time11#>,assetid2>,<amount2>,acct:<acct2>).
   ...
   (<id>,balance,<bankid>,<time11#>,<assetidN>,<amount3>,acct:<acctN>).
-  (<id>,outboxhash,<bankid>,<time11#>,<hash>)
+  (<id>,accthash,<bankid>,<time11#>,<acct2>,<count2>,<hash2>).
+  ...
+  (<id>,accthash,<bankid>,<time11#>,<acctN>,<countN>,<hashN>).
+  (<id>,outboxhash,<bankid>,<time11#>,<outboxcount>,<outboxhash>).
+  (<id>,balancehash,<bankid>,<time11#>,<balancecount>,<balancehash>)
 
-Bank compares <time11#> to /account/<id>/time. If it's the same. Bank
-processes the requested inbox transactions, and compares the result to
-the balances and outboxhash sent by customer. If correct, bank sets
-/account/<id>/last to <time11#>, sets /account/<id>/time to 0, removes
-the transaction from /account/<id>/inbox/, removes completed
-transactions from /account/<id>/outbox/, signs and adds spend|accept
-and spend|reject items to the other customers' inboxes, updates the
-/account/<id>/balance/<acctN>/<assetidN> with the balances the
-customer sent, updates /account/<id>/outboxhash with the outboxhash
-item the customer sent, and sends back:
+  Bank compares <time11#> to /account/<id>/time. If it's the
+  same. Bank processes the requested inbox transactions, and compares
+  the result to the balances and hashes sent by customer. If correct,
+  bank computes the response below, stores it in
+  /account/<id>/tranaction, and responds with:
 
 (<bankid,@processinbox,(<id>,processinbox,<bankid>,<time11#>,<time7#>|<time8#>|<time9#>).
   (<bankid>,@spend|accept,(<id>,spend|accept,<bankid>,<id4>,<time4#>,note:<note42>)).
@@ -341,27 +392,61 @@ item the customer sent, and sends back:
   (<bankid>,@balance,(<id>,balance,<bankid>,time11#>,assetid2>,<amount2>,acct:<acct2>)).
   ...
   (<bankid>,@balance,(<id>,balance,<bankid>,<time11#>,<assetidN>,<amount3>,acct:<acctN>)).
-  (<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time11#>,<hash>))
+  (<bankid>,@accthash,(<id>,accthash,<bankid>,<time11#>,<acct>,<count>,<hash>)).
+  (<bankid>,@accthash,(<id>,accthash,<bankid>,<time11#>,<acct2>,<count2>,<hash2>)).
+  ...
+  (<bankid>,@accthash,(<id>,accthash,<bankid>,<time11#>,<acctN>,<countN>,<hashN>)).
+  (<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time11#>,<outboxcount>,<outboxhash>)).
+  (<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time11#>,<balancecount>,<balancehash>))
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,processinbox,<bankid>,<time11#>|<time6#>|<time7#>|<time8#>|<time9#>),errcode:<errcode>,reason:<reason>)
+  (<bankid>,failed,(<id>,processinbox,<bankid>,<time11#>|<time6#>|<time7#>|<time8#>|<time9#>),errcode:<errcode>,reason:<reason>)
 
-This is the most complicated function in the system. It has to deal
-with two kinds of inbox items. The first is spontaneous spends from
-another customer. These get deposited in your account if you
-accept. Whether accepted or rejected gets put in the other guys inbox,
-where it becomes the second type of inbox item. These acknowledge
-earlier spends. When you process one of them, it and the corresponding
-outbox item can be removed, forever.
+  Again, that was the first phase of the two phase commit.
 
-Note that the customer decides which <acct> names will get the spends
-and the usage token refunds by where he specifies the balances in the
-"balance" items. The bank only verifies that the assets can be
-distributed as the customer requested.
+  To commit the transaction, the customer countersigns the
+  balancehash, and sends it back to the bank:
 
-Rejected spends credit the usage tokens to the recipient, not the
-spender. This discourages spam, even in an otherwise free bank.
+  (<id>,@balancehash,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time11#>,<balancecount>,<balancehash>)))
+
+  The bank sets /account/<id>/last to <time11#>, sets
+  /account/<id>/time to <time12#>, removes the transaction from
+  /account/<id>/inbox/, removes completed transactions from
+  /account/<id>/outbox/, signs and adds spend|accept and spend|reject
+  items to the other customers' inboxes, updates the
+  /account/<id>/balance/<acctN>/<assetidN> with the balances the
+  customer sent, updates /account/<id>/balance/<acct>/accthash,
+  /account/<id>/outboxhash, and /account/<id>/balancehash with the
+  signed hashes, and sends back:
+
+  (<bankid>,@balancehash,(<id>,@balancehash,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time11#>,<balancecount>,<balancehash>))))
+
+  If the customer disagrees with the banks first response, he can
+  rollback the transaction by sending:
+
+  (<id>,rollback,<bankid>,<time11#>)
+
+  The bank removes the /account/<id>/transaction file, and responds
+  with:
+
+  (<bankid>,#rollback,(<id>,rollback,<bankid>,<time11#>))
+
+  This is the most complicated function in the system. It has to deal
+  with two kinds of inbox items. The first is spontaneous spends from
+  another customer. These get deposited in your account if you
+  accept. Whether accepted or rejected gets put in the other guys
+  inbox, where it becomes the second type of inbox item. These
+  acknowledge earlier spends. When you process one of them, it and the
+  corresponding outbox item can be removed, forever.
+
+  Note that the customer decides which <acct> names will get the spends
+  and the usage token refunds by where he specifies the balances in the
+  "balance" items. The bank only verifies that the assets can be
+  distributed as the customer requested.
+
+  Rejected spends credit the usage tokens to the recipient, not the
+  spender. This discourages spam, even in an otherwise free bank.
 
 
 Lookup asset
