@@ -52,9 +52,9 @@ $dbdir/
       last=<time#>  -- The last used value of /account/<id>/time
       req=<req#>    -- starts at 0. New requests must have a higher number
       balancehash=(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<count>,<hash>))
+      total/
+        <assetid>=(<bankid>,@total,(<id>,total,<bankid>,<time#>,<assetid>,<amount>))
       balance/
-        total/
-          <assetid>=(<bankid>,@total,(<id>,total,<bankid>,<time#>,<assetid>,<amount>))
         <acct>/  -- "main" is the default acct name
           <assetid>=(<bankid>,@balance,(<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>))
       outboxhash=(<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time#>,<count>,<hash>))
@@ -295,7 +295,7 @@ If they don't match, bank returns:
   /account/<id2>/inbox/<time#>, sets the
   /account/<id>/balance/<acct>/<assetid> to the balances from
   /account/<id>/transaction, updates the
-  /account/<id>/balance/total/<assetid> with the totals from
+  /account/<id>/total/<assetid> with the totals from
   /account/<id>/transaction, udpates /account/<id>/outboxhash, and
   /account/<id>/balancehash with the signed hashes, and sends:
 
@@ -333,7 +333,7 @@ If they don't match, bank returns:
   the fees in the corresponding outbox item. spend_accept inbox items
   do not.
 
-  /account/<id>/balance/total is only used if the customer has more
+  /account/<id>/total is only used if the customer has more
   than one <acct>. Otherwise, only that <acct> is updated, and no
   "total" items are sent back and forth or stored. This quickly
   answers the question of what your total holdings are of each asset.
@@ -430,7 +430,7 @@ Process Inbox
   items to the other customers' inboxes, updates the
   /account/<id>/balance/<acctN>/<assetidN> with the balances from
   /account/<id>/transaction, updates
-  /account/<id>/balance/total/<assetid> with the totals from
+  /account/<id>/total/<assetid> with the totals from
   /account/<id>/transaction, updates /account/<id>/outboxhash, and
   /account/<id>/balancehash with the signed hashes, and sends back:
 
