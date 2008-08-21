@@ -273,16 +273,16 @@ If they don't match, bank returns:
   This is the first phase of the two-phase commit for spends.
 
   Note that there's a total for each <assetid>, an outbox hash, and a
-  balance hash. Each <total> is the total of the assets in that
-  <assetid> over all <acct>s, sorted alphabetically by <assetid>, and
-  tacked together with periods ("."). The outbox hash is the sha1 hash
-  of the customer "spend"."tranfee" items, alphabetically sorted by
-  timestamp, and also tacked together with periods. The bankhash is
-  the sha1 hash of the "total" items , alphabetically sorted by
-  <assetid>, plus the outboxhash, tacked together with periods. The
-  two hashes also contain a count, which is the number of items that
-  were tacked together. This isn't strictly necessary, but it can help
-  to identify problems if the client and server disagree on something.
+  balance hash. Each "total" is the total of the assets in that
+  <assetid> over all <acct>s. The outbox hash is the sha1 hash of the
+  customer "spend"."tranfee" items, alphabetically sorted by
+  timestamp, and tacked together with periods. The bankhash is the
+  sha1 hash of the customer "total" items , alphabetically sorted by
+  <assetid>, plus the customer outboxhash item, tacked together with
+  periods. The two hashes also contain a count, which is the number of
+  items that were tacked together. This isn't strictly necessary, but
+  it can help to identify problems if the client and server disagree
+  on something.
 
   To commit the transaction, the customer countersigns the
   balancehash, and sends it back to the bank:
