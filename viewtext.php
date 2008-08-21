@@ -110,6 +110,7 @@ if ($file != '') {
   foreach ($files as $line) echo $line;
   echo "<p>Search selected file for: <input type='text' name='search'> <input type='submit' name='Go' value='Go'/>\n";
   echo "<br>View selected file with line numbers? <input type='submit' name='numbers' value='Yes'>\n";
+  echo "</form>\n";
  }
 ?>
 </body>
