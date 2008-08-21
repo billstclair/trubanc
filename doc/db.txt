@@ -333,6 +333,11 @@ If they don't match, bank returns:
   the fees in the corresponding outbox item. spend_accept inbox items
   do not.
 
+  /account/<id>/balance/total is only used if the customer has more
+  than one <acct>. Otherwise, only that <acct> is updated, and no
+  "total" items are sent back and forth or stored. This quickly
+  answers the question of what your total holdings are of each asset.
+
 Query Inbox
 ------------
 
