@@ -91,7 +91,6 @@ class ssl {
     $bits = $this->pubkey_bits($pubkey);
     $msglen = strlen($message);
     $chars = $bits / 8;
-    echo "chars: $chars\n";
     $res = '';
     for ($i = 0; $i<$msglen; $i+=$chars) {
       $msg = substr($message, $i, $chars);
@@ -109,7 +108,6 @@ class ssl {
   function privkey_decrypt($message, $privkey) {
     $bits = $this->privkey_bits($privkey);
     $chars = $bits / 8;
-    echo "chars: $chars\n";
     $msglen = strlen($message);
     $res = '';
     for ($i = 0; $i<$msglen; $i+=$chars) {
