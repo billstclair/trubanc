@@ -479,6 +479,7 @@ class server {
   //   'acctbals' => array(<acct> => array(<asset> => $msg))
   //   'bals => array(<asset> => <amount>)
   //   'tokens' => total new /account/<id>/balance/<acct>/<asset> files
+  //   'accts => array(<acct> => true);
   //   'oldneg' => array(<asset> => <acct>), negative balances in current account
   //   'newneg' => array(<asset> => <acct>), negative balances in updated account
   // Returns an error string on error, or false on no error.
@@ -490,6 +491,8 @@ class server {
     $amount = $args[$t->AMOUNT];
     $acct = $args[$t->ACCT];
     if (!$acct) $acct = $t->MAIN;
+
+    $state['accts'][$acct] = true;
 
     if ((!$creating_asset || $asset != $creating_asset) && !$this->is_asset($asset)) {
       return "Unknown asset id: $asset";
@@ -656,7 +659,9 @@ class server {
     $err = $this->checkreq($args, $msg);
     if ($err) return $err;
 
-    return $db->get($t->REGFEE) . "." . $db->get($t->TRANFEE);
+    $regfee = $db->get($t->REGFEE);
+    $tranfee = $db->get($t->TRANFEE);
+    return "$regfee.$tranfee";
   }
 
   // Process a spend
@@ -725,15 +730,19 @@ class server {
       $bals[$assetid] = bcsub(0, $amount);
     }
     $acctbals = array();
+    $totals = array();
+    $accts = array();
     $oldneg = array();
     $newneg = array();
 
     $state = array('acctbals' => $acctbals,
                    'bals' => $bals,
                    'tokens' => $tokens,
+                   'accts' => $accts,
                    'oldneg' => $oldneg,
                    'newneg' => $newneg);
     $outboxhashreq = false;
+    $balancehashreq = false;
     for ($i=1; $i<count($reqs); $i++) {
       $req = $reqs[$i];
       $reqargs = $u->match_pattern($req);
@@ -757,6 +766,13 @@ class server {
         $reqmsg = $parser->get_parsemsg($req);
         $errmsg = $this->handle_balance_msg($id, $reqmsg, $reqargs, $state);
         if ($errmsg) return $this->failmsg($msg, $errmsg);
+      } elseif ($request == $t->TOTAL) {
+        $assetid = $reqargs[$t->ASSET];
+        $amount = $reqargs[$t->AMOUNT];
+        if ($totals[$assetid]) {
+          return $this->failmsg($msg, "Duplicate total asset: $assetid");
+        }
+        $totals[$assetid] = $amount;
       } elseif ($request == $t->OUTBOXHASH) {
         if ($outboxhashreq) {
           return $this->failmsg($msg, $t->OUTBOXHASH . " appeared multiple times");
@@ -764,6 +780,12 @@ class server {
         $outboxhashreq = $req;
         $outboxhashmsg = $parser->get_parsemsg($req);
         $hash = $reqargs[$t->HASH];
+      } elseif ($request == $t->BALANCEHASH) {
+        if ($balancehashreq) {
+          return $this->failmsg($msg, $t->BALANCEHASH . " appeared multiple times");
+        }
+        $balancehashreq = $req;
+        $balancehash = $reqargs[$t->HASH];            
       } else {
         return $this->failmsg($msg, "$request not valid for spend. Only " .
                               $t->TRANFEE . ', ' . $t->BALANCE . ", and " .
@@ -774,6 +796,7 @@ class server {
     $acctbals = $state['acctbals'];
     $bals = $state['bals'];
     $tokens = $state['tokens'];
+    $accts = $state['accts'];
     $oldneg = $state['oldneg'];
     $newneg = $state['newneg'];
 
