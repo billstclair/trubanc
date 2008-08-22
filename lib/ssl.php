@@ -90,11 +90,11 @@ class ssl {
   function pubkey_encrypt($message, $pubkey) {
     $bits = $this->pubkey_bits($pubkey);
     $msglen = strlen($message);
-    $chars = $bits / 8;
+    $chars = $bits/8 - 11;
     $res = '';
     for ($i = 0; $i<$msglen; $i+=$chars) {
       $msg = substr($message, $i, $chars);
-      openssl_public_encrypt($msg, $enc, $pubkey, OPENSSL_NO_PADDING);
+      openssl_public_encrypt($msg, $enc, $pubkey);
       $res .= $enc;
     }
     return $res;
@@ -112,7 +112,7 @@ class ssl {
     $res = '';
     for ($i = 0; $i<$msglen; $i+=$chars) {
       $msg = substr($message, $i, $chars);
-      openssl_private_decrypt($msg, $dec, $privkey, OPENSSL_NO_PADDING);
+      openssl_private_decrypt($msg, $dec, $privkey);
       $res .= $dec;
     }
     return $res;
