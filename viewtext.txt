@@ -14,6 +14,7 @@ lib/parser.php|Parser for the protocol strings
 lib/ssl.php|Interface to PHP's SSL wrapper
 lib/tokens.php|All the names used in the database and protocol
 lib/utility.php|Some utility functions
+lib/cryptest.php|Test code for encryption
 
 lib/server.php|The server
 lib/servertest.php|Test code for the server
