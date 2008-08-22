@@ -38,7 +38,7 @@ make it easy to see. I'm working on a web client, which I'll link to here when i
 <p>
 You may view code in progress <a href="viewtext.php">here</a>.
 <br/>
-To discuss, join <a href="irc://irc.freenode.net/#Trubanc">#Trubanc</a> on irc.freenode.net.
+To discuss, join <a href="irc://irc.freenode.net/#Trubanc">#Trubanc</a> on irc.freenode.net (<a href="http://embed.mibbit.com/?server=irc.freenode.com&channel=%23Trubanc">via mibbit</a>)
 </center>
 Git repository at <a href="http://repo.or.cz/w/Trubanc.git">repo.or.cz/w/Trubanc.git</a>.<br>
 To download the code to the "trubanc" subdir of pwd:
