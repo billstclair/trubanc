@@ -19,6 +19,11 @@ class ssl {
     else return openssl_get_privatekey($privkey);
   }
 
+  // Another name for load_private_key
+  function load_privkey($privkey, $passphrase = false) {
+    return $this->load_private_key($privkey, $passphrase);
+  }
+
   // Free the private key returned by load_private_key
   function free_privkey($privkey) {
     openssl_free_key($privkey);
@@ -45,6 +50,12 @@ class ssl {
     return $keydata['bits'];
   }    
 
+  // Return number of bits for loaded private key
+  function privkey_bits($privkey) {
+    $keydata = openssl_pkey_get_details($privkey);
+    return $keydata['bits'];
+  }
+
   // Return the ID of a public key: the SHA1 hash of it.
   // The key should be a PEM-encoded string, just as returned from
   // privkey_to_pubkey
@@ -70,6 +81,46 @@ class ssl {
   function verify($msg, $signature, $pubkey) {
     return openssl_verify($msg, base64_decode($signature), $pubkey) == 1;
   }
+
+  // $pubkey is a public key string.
+  // $message is a message to encrypt.
+  // Returns encrypted message.
+  // Only works for multiple of the key size.
+  // Only works for ascii data (or something like that).
+  function pubkey_encrypt($message, $pubkey) {
+    $bits = $this->pubkey_bits($pubkey);
+    $msglen = strlen($message);
+    $chars = $bits / 8;
+    echo "chars: $chars\n";
+    $res = '';
+    for ($i = 0; $i<$msglen; $i+=$chars) {
+      $msg = substr($message, $i, $chars);
+      openssl_public_encrypt($msg, $enc, $pubkey, OPENSSL_NO_PADDING);
+      $res .= $enc;
+    }
+    return $res;
+  }
+
+  // $privkey is a loaded private key.
+  // $message is a message to decrypt.
+  // Returns decrypted message.
+  // Only works for multiple of the key size.
+  // Only works for ascii data (or something like that).
+  function privkey_decrypt($message, $privkey) {
+    $bits = $this->privkey_bits($privkey);
+    $chars = $bits / 8;
+    echo "chars: $chars\n";
+    $msglen = strlen($message);
+    $res = '';
+    for ($i = 0; $i<$msglen; $i+=$chars) {
+      $msg = substr($message, $i, $chars);
+      openssl_private_decrypt($msg, $dec, $privkey, OPENSSL_NO_PADDING);
+      $res .= $dec;
+    }
+    return $res;
+  }
+
+
 }
 
 // test code
