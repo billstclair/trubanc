@@ -786,6 +786,7 @@ class server {
         }
         $balancehashreq = $req;
         $balancehash = $reqargs[$t->HASH];            
+        $balancehashmsg = $parser->get_parsemsg($req);
       } else {
         return $this->failmsg($msg, "$request not valid for spend. Only " .
                               $t->TRANFEE . ', ' . $t->BALANCE . ", and " .
@@ -805,11 +806,23 @@ class server {
       return $this->failmsg($msg, $t->TRANFEE . " missing");
     }
 
-    // outboxhash must be included
-    if (!$outboxhashreq) {
+    // outboxhash must be included, except on self spends
+    if ($id != $id2 && !$outboxhashreq) {
       return $this->failmsg($msg, $t->OUTBOXHASH . " missing");
     }
 
+    // Totals must be included if there is more than one $acct
+    $curaccts = $db->contents($this->balancekey($id));
+    $allaccts = array_merge($curaccts, $accts);
+    $newaccts = array_diff_key($accts, $curaccts);
+    $needtotals = (count($allaccts) > 1) && (($id != $id2) || $tokens > 1);
+    if (!$needtotals && count($totals) > 0) {
+      return $this->failmsg($msg, $t->TOTAL . " included unnecessarily");
+    }
+    if ($needtotals) {
+      // *** Continue here ***
+    }
+      
     // Check that we have exactly as many negative balances after the transaction
     // as we had before.
     if (count($oldneg) != count($newneg)) {
