@@ -85,8 +85,6 @@ class ssl {
   // $pubkey is a public key string.
   // $message is a message to encrypt.
   // Returns encrypted message.
-  // Only works for multiple of the key size.
-  // Only works for ascii data (or something like that).
   function pubkey_encrypt($message, $pubkey) {
     $bits = $this->pubkey_bits($pubkey);
     $msglen = strlen($message);
@@ -103,8 +101,6 @@ class ssl {
   // $privkey is a loaded private key.
   // $message is a message to decrypt.
   // Returns decrypted message.
-  // Only works for multiple of the key size.
-  // Only works for ascii data (or something like that).
   function privkey_decrypt($message, $privkey) {
     $bits = $this->privkey_bits($privkey);
     $chars = $bits / 8;
