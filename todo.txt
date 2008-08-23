@@ -34,19 +34,19 @@ rfc4344 also recommends periodic rekeying. Can do that by closing the session an
 
 Bank Counterfeiting
 
-As it is now, the bank can counterfeit assets. Unless the issuer cooperates, this will put the bank out of balance, but who's to know, unless they hire an auditing firm to audit the database? This means that issuers have to trust the banks they issue for, or they could end up with more liabilities than they promised. One way around this is to have the issuer approve every transaction. Actually, approve it twice, once when the spend happens, and again when the spend|accept or spend|reject happens.
+As it is now, the bank can counterfeit assets. This will put the bank out of balance, but who's to know, unless they hire an auditing firm to audit the database? This means that issuers have to trust the banks they issue for, or they could end up with more liabilities than they promised. One way around this is to have the issuer approve every transaction. Actually, approve it twice, once when the spend happens, and again when the spend|accept or spend|reject happens.
 
-The issuer would sign an approval of the new balance, or spend, without the customer <id>, just the <time#>. Otherwise, the issuer would know identities of all the holderes of his currency, which many customers are not likely to want. Letting the bank have that information is bad enough, if what you really want is totally anonymous digital cash.
+The issuer would sign an approval of the new balance, or spend, without the customer <id>, just the <time#>. Otherwise, the issuer would know identities of all the holders of his currency, which many customers are not likely to want. Letting the bank have that information is bad enough, if what you really want is totally anonymous digital cash.
 
 The bank would supply the issuer with:
 
   (<bankid>,debit|request,<issuerid>,<time#>,<assetid>,<amount>).
   (<bankid>,debit,<issuerid>,<time2#>,<assetid>,<amount2>).
-  (<bankid,credit,<issuerid>,<time#>,<assetid>,<amount3>)
+  (<bankid>,credit,<issuerid>,<time#>,<assetid>,<amount3>)
 
 This means that we're spending from the previously approved <time2#> balance, and asking for approval of the spend and the new <time#> balance. <amount2> - <amount> = <amount3>, basically breaking up the <time2#> balance entry into a spend and the <time#> balance entry.
 
-The issuer sends back:
+The issuer removes the <time2#> balance|approved item from his database, adds the <tim#> balance|approved and debit|approved entries, and sends back:
 
   (<issuerid>,debit|approved,<bankid>,<time#>,<assetid>,<amount>).
   (<issuerid>,balance|approved,<bankid>,<time#>,<assetid>,<amount3>)
@@ -59,11 +59,11 @@ If the recipient accepts this spend, the bank sends to the issuer:
 
   (<bankid>,debit|accepted,(<issuerid>,debit|approved,<bankid>,<time#>,<assetid>,<amount>)).
   (<bankid>,debit,<issuerid>,<time4#>,<assetid>,<amount4>).
-  (<bankid,credit,<issuerid>,<time3#>,<assetid>,<amount5>)
+  (<bankid>,credit,<issuerid>,<time3#>,<assetid>,<amount5>)
 
 Here <amount> + <amount4> = <amount5>, joining the <time4#> balance with the <time#> debit approval to create the <time3#> balance.
 
-The issuer sends back:
+The issuer removes the <time#> debit|approved item and the <time4#> balance|approved item from his database, adds the <time3#> balance|approved item, and sends back:
 
   (<issuerid>,balance|approved,<bankid>,<time3#>,<assetid>,<amount5>)
 
@@ -71,13 +71,18 @@ Or, if the issuer doesn't find the <time#> debit|approved item or the <time4#> b
 
   (<issuerid>,credit|rejected,(<bankid>,credit|request,<issuerid>,<time3#>,<assetid>,<amount>))
 
-If the recipient rejects the spend, the bank sends to the issuer:
+If the recipient rejects the spend, and the spender acknowledges the rejection, the bank sends to the issuer:
 
   (<bankid>,debit|rejected,(<issuerid>,debit|approved,<bankid>,<time#>,<assetid>,<amount>)).
+  (<bankid>,debit,<issuerid>,<time#>,<assetid>,<amount3>)
+  (<bankid>,credit,<issuerid>,<time5#>,<assetid>,<amount2>)
 
-The issuer sends back:
+<amount> + <amount3> = <amount2>.
+
+The issuer removes the <time#> debit|approved item and the <time#> balance|approved item from his database, adds the <time5#> balance|approved item, and sends back:
 
   (<issuerid>,@debit|rejected,(<bankid>,debit|rejected,(<issuerid>,debit|approved,<bankid>,<time#>,<assetid>,<amount>))).
+  (<issuerid>,balance|approved,<bankid>,<time5#>,<assetid>,<amount2>)
 
 The bank sends the issuer's balance|approved items back to the customer with successful response to a spend or processinbox request:
 
