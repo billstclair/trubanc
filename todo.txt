@@ -89,6 +89,8 @@ The bank sends the issuer's balance|approved items back to the customer with suc
   (<bankid>,@balance,(<id>,balance,<bankid>,<time#>,<assetid>,<amount3>)).
     (<bankid>,@balance|approved,(<issuerid>,balance|approved,<bankid>,<time#>,<assetid>,<amount3>))
 
+Or maybe the customer doesn't need to care about that, leaving the issuer approval between the bank and the issuer. The customer's balances are guaranteed, but if the bank counterfeits, the currency will inflate, making his balances worth less than the backing commodity that the issuer promised.
+
 Now we've tranformed the bank counterfeiting problem into an issuer reliability problem. We're depending on the issuer to approve balance changes. If he doesn't, the customer is stuck with a bunch of worthless assets. Many issuers won't be in the position to create a reliable server to approve all balance transformations. They'll have to trust that the bank won't counterfeit their assets.
 
 If the issuer trusts the bank, his assets can have value beyond his disappearance. If he doesn't, then if his server disappears, none of his assets can ever be traded again. So I don't know if I'll ever implement this. We'll just have to trust banks not to counterfeit, encourage them to get audited by independent auditing firms, and let the market put out of business banks that aren't honest or don't get properly audited.
