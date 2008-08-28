@@ -117,8 +117,8 @@ class server {
     $db = $this->db;
     $u = $this->u;
 
-    return $u->outboxhash($db, $this->outboxkey($id), $this, $transtime,
-                          $newitem, $removed_items);
+    return $u->dirhash($db, $this->outboxkey($id), $this, $transtime,
+                       $newitem, $removed_items);
   }
 
   function outboxhashmsg($id, $transtime) {
@@ -839,7 +839,9 @@ class server {
         }
       }
       $tokamt = $tokens;
+      $totcnt = 1;
       if ($assetid != $tokenid) {
+        $totcnt = 2;
         if (!isset($totals[$assetid])) {
           return $this->failmsg($msg, "Missing total for spent asset");
         }
@@ -851,6 +853,9 @@ class server {
                                 $old_token_total - $tokens);
         }
       } else $tokamt += $amount;
+      if (count($totals) != $totcnt) {
+        return $this->failmsg($msg, "Wrong number of total items");
+      }
       if ($tokamt != 0) {
         if (!isset($totals[$tokenid])) {
           return $this->failmsg($msg, "Missing total for tokenid");

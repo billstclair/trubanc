@@ -153,8 +153,8 @@ class utility {
     return $this->match_pattern($reqs[0]);
   }
 
-  function outboxhash ($db, $key, $unpacker, $transtime,
-                       $newitem=false, $removed_times=false) {
+  function dirhash($db, $key, $unpacker, $transtime,
+                   $newitem=false, $removed_times=false) {
     $parser = $this->parser;
     $u = $this->u;
 
@@ -169,6 +169,7 @@ class utility {
         else {
           $args = $unpacker->unpack_bankmsg($db->get("$key/$time"));
           $item = $args[$t->MSG];
+          $item = $parser->get_parsemsg($item);
         }
         if ($unhashed != '') $unhashed .= '.';
         $unhashed .= trim($item);
