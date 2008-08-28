@@ -153,30 +153,37 @@ class utility {
     return $this->match_pattern($reqs[0]);
   }
 
-  function dirhash($db, $key, $unpacker, $transtime,
-                   $newitem=false, $removed_times=false) {
+  // Return the hash of a directory, $key, of bank-signed messages.
+  // The hash is of the user messages wrapped by the bank signing.
+  // $newitems is a new item or an array of new items, not bank-signed.
+  // $removed_names is an array of names in the $key dir to remove.
+  // $unpacker is an object on which to call the unpack_bankmsg()
+  // method with a single-arg, a bank-signed message. It returns
+  // a parsed and matched $args array whose $t->MSG element is
+  // the parsed user message wrapped by the bank signing.
+  function dirhash($db, $key, $unpacker, $newitem=false, $removed_names=false) {
     $parser = $this->parser;
-    $u = $this->u;
 
     $contents = $db->contents($key);
-    if ($newitem) $contents[] = $transtime;
-    $contents = $u->bignum_sort($contents);
-    $unhashed = '';
-    if ($removed_times) $contents = array_diff($contents, $removed_times);
-    foreach ($contents as $time) {
-      if (bccomp($time, $transtime) <= 0) {
-        if ($time == $transtime) $item = $newitem;
-        else {
-          $args = $unpacker->unpack_bankmsg($db->get("$key/$time"));
-          $item = $args[$t->MSG];
-          $item = $parser->get_parsemsg($item);
-        }
-        if ($unhashed != '') $unhashed .= '.';
-        $unhashed .= trim($item);
+    $items = array();
+    foreach ($contents as $name) {
+      if (!$removed_names || !in_array($name, $removed_names)) {
+        $msg = $db->get("$key/$name");
+        $args = $unpacker->unpack_bankmsg($msg);
+        if (!$args || is_string($args)) return false;
+        $req = $args[$t->MSG];
+        if (!$req) return false;
+        $msg = $parser->get_parsemsg($req);
+        if (!$msg) return false;
+        $items[] = $msg;
       }
     }
-    $hash = sha1($unhashed);
-    return $hash;
+    if ($newitem) {
+      if (is_string($newitem)) $items[] = $newitem;
+      else $items = array_merge($items, $newitem);
+    }
+    sort($items);
+    return sha1(implode('.', array_map('trim', $items)));
   }
 
 }

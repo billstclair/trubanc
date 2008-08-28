@@ -596,7 +596,7 @@ class client {
     /*** Need to get and compute fee and it's balance ***/
     $balance = $this->custmsg
       ($t->BALANCE, $bankid, $time, $assetid, $newamount, $acct);
-    $outboxhash = $this->outboxhashmsg($time, $spend);
+    $outboxhash = $this->outboxhashmsg($spend);
 
     $msg = "$spend.$fee.$balance.$outboxhash";
     $msg = $server->process($msg);
@@ -1130,12 +1130,12 @@ class client {
     return false;
   }
 
-  function outboxhashmsg($transtime, $newitem=false, $removed_times=false) {
+  function outboxhashmsg($newitem=false, $removed_times=false) {
     $db = $this->db;
     $u = $this->u;
 
-    $hash = $u->outboxhash
-      ($db, $this->useroutboxkey(), $transtime, $newitem, $removed_items);
+    $hash = $u->dirhash
+      ($db, $this->useroutboxkey(), $newitem, $removed_times);
     return $this->custmsg($this->t->OUTBOXHASH,
                           $this->bankid,
                           $transtime,

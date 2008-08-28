@@ -1,14 +1,5 @@
 Finish two-phase commit for spend and inboxhash.
 
-Change utility->dirhash to take a list of new items, and to sort the user messages, alphabetically, instead of knowing anything about timestamps.
-
-  function dirhash($db, $key, $unpacker,
-                   $newitems=false, $removed_items=false)
-
-Collect the current contents of $key in $db. Remove bank wrappers, and make a list. Add the $newitems, which are NOT bank-wrapped, to that list. Remove the $removed_items, also not bank-wrapped, from the list. Sort alphabetically. Then concatenate with periods and take the sha1() hash.
-
-Or maybe we'll have to collect bank-wrapped items from the $key, remove the bank-wrapped $removed_items, remove the bank wrappers, add the $new_items. Whichever is more natural.
-
 -----
 
 Remember the last successful spend or processinbox message and its result, and resend the result if the message is resent. This can heal responses that are lost in transit.

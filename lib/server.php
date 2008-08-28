@@ -113,23 +113,21 @@ class server {
     return $this->accountdir($id) . $this->t->OUTBOX;
   }
 
-  function outboxhash($id, $transtime, $newitem=false, $removed_items=false) {
+  function outboxhash($id, $newitem=false, $removed_items=false) {
     $db = $this->db;
     $u = $this->u;
 
-    return $u->dirhash($db, $this->outboxkey($id), $this, $transtime,
-                       $newitem, $removed_items);
+    return $u->dirhash($db, $this->outboxkey($id), $this, $newitem, $removed_items);
   }
 
-  function outboxhashmsg($id, $transtime) {
+  function outboxhashmsg($id) {
     $db = $this->db;
     $u = $this->u;
 
-    $hash = $this->outboxhash($id, $transtime);
     return $this->bankmsg($this->t->OUTBOXHASH,
                           $this->bankid,
                           $this->getacctlast($id),
-                          $this->outboxhash($id, $transtime));
+                          $this->outboxhash($id));
   }
 
   function is_asset($assetid) {
@@ -207,7 +205,7 @@ class server {
       $msg = $this->bankmsg($t->ATBALANCE, $msg);
       $db->put("$mainkey/$tokenid", $msg);
       $db->put($this->outboxhashkey($bankid),
-               $this->bankmsg($t->ATOUTBOXHASH, $this->outboxhashmsg($bankid, 0)));
+               $this->bankmsg($t->ATOUTBOXHASH, $this->outboxhashmsg($bankid)));
     } else {
       $privkey = $ssl->load_private_key($db->get($t->PRIVKEY), $passphrase);
       $this->privkey = $privkey;
@@ -902,7 +900,7 @@ class server {
     if ($errmsg != '') return $this->failmsg($msg, "Balance discrepanies: $errmsg");
 
     $spendmsg = $parser->get_parsemsg($reqs[0]);
-    $outboxhash = $u->outboxhash($id, $time, $spendmsg);
+    $outboxhash = $u->outboxhash($id, $spendmsg);
     if ($outboxhash != $hash) {
       return $this->failmsg($msg, $t->OUTBOXHASH . ' mismatch');
     }
@@ -1223,7 +1221,7 @@ class server {
     if ($errmsg != '') return $this->failmsg($msg, "Balance discrepanies: $errmsg");
 
     if ($outboxhashreq) {
-      $outboxhash = $this->outboxhash($id, $time, false, $outboxtimes);
+      $outboxhash = $this->outboxhash($id, false, $outboxtimes);
       if ($outboxhash != $hash) {
         return $this->failmsg
           ($msg, $t->OUTBOXHASH . " mismatch ($hash != $outboxhash)");
