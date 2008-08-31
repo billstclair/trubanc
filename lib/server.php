@@ -124,10 +124,14 @@ class server {
     $db = $this->db;
     $u = $this->u;
 
+    $array = $this->outboxhash($id);
+    $hash = $array['hash'];
+    $count = $array['count'];
     return $this->bankmsg($this->t->OUTBOXHASH,
                           $this->bankid,
                           $this->getacctlast($id),
-                          $this->outboxhash($id));
+                          $count,
+                          $hash);
   }
 
   function is_asset($assetid) {
@@ -784,6 +788,7 @@ class server {
         $outboxhashreq = $req;
         $outboxhashmsg = $parser->get_parsemsg($req);
         $hash = $reqargs[$t->HASH];
+        $hashcount = $reqargs[$t->COUNT];
       } elseif ($request == $t->BALANCEHASH) {
         if ($balancehashreq) {
           return $this->failmsg($msg, $t->BALANCEHASH . " appeared multiple times");
@@ -900,8 +905,10 @@ class server {
     if ($errmsg != '') return $this->failmsg($msg, "Balance discrepanies: $errmsg");
 
     $spendmsg = $parser->get_parsemsg($reqs[0]);
-    $outboxhash = $u->outboxhash($id, $spendmsg);
-    if ($outboxhash != $hash) {
+    $hasharray = $this->outboxhash($id, $spendmsg);
+    $outboxhash = $hasharray['hash'];
+    $outboxcnt = $hasharray['count'];
+    if ($outboxhash != $hash || $outboxcnt != $hashcount) {
       return $this->failmsg($msg, $t->OUTBOXHASH . ' mismatch');
     }
 

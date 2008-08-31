@@ -75,6 +75,7 @@ class tokens {
   var $ERRMSG = 'errmsg';
   var $TOTAL = 'total';
   var $BALANCEHASH = 'balancehash';
+  var $COUNT = 'count';
 
   // Client database keys
   var $BANK = 'bank';

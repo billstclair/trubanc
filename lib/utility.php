@@ -80,7 +80,7 @@ class utility {
       $patterns = array(// Customer messages
                         $t->BALANCE => array($t->BANKID,$t->TIME,
                                              $t->ASSET, $t->AMOUNT, $t->ACCT=>1),
-                        $t->OUTBOXHASH => array($t->BANKID,$t->TIME, $t->HASH),
+                        $t->OUTBOXHASH => array($t->BANKID, $t->TIME, $t->COUNT, $t->HASH),
                         $t->SPEND => array($t->BANKID,$t->TIME,$t->ID,
                                            $t->ASSET,$t->AMOUNT,$t->NOTE=>1),
                         $t->ASSET => array($t->BANKID,$t->ASSET,
@@ -161,6 +161,10 @@ class utility {
   // method with a single-arg, a bank-signed message. It returns
   // a parsed and matched $args array whose $t->MSG element is
   // the parsed user message wrapped by the bank signing.
+  // Returns array('hash'=>$hash, 'count'=>$count)
+  // Where $hash is the sha1 hash, and $count is the number of items
+  // hashed.
+  // Returns false if there's a problem.
   function dirhash($db, $key, $unpacker, $newitem=false, $removed_names=false) {
     $parser = $this->parser;
 
@@ -183,7 +187,8 @@ class utility {
       else $items = array_merge($items, $newitem);
     }
     sort($items);
-    return sha1(implode('.', array_map('trim', $items)));
+    $hash = sha1(implode('.', array_map('trim', $items)));
+    return array('hash' => $hash, 'count' => count($items));
   }
 
 }
