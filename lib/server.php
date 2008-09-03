@@ -134,6 +134,34 @@ class server {
                           $hash);
   }
 
+  function balancehashkey($id) {
+    return $this->accountdir($id) . $this->t->BALANCEHASH;
+  }
+
+  function balancehash($id, $newitem=false, $removed_items=false) {
+    $db = $this->db;
+    $u = $this->u;
+
+    $key = $this->balancekey($id);
+    $accts = $db->contents($key);
+    if (count($accts) > 1) $key = $this->totalkey($id);
+    return $u->dirhash($db, $key, $this, $newitem, $removed_items);
+  }
+
+  function balancehashmsg($id) {
+    $db = $this->db;
+    $u = $this->u;
+
+    $array = $this->balancehash($id);
+    $hash = $array['hash'];
+    $count = $array['count'];
+    return $this->bankmsg($this->t->BALANCEHASH,
+                          $this->bankid,
+                          $this->getacctlast($id),
+                          $count,
+                          $hash);
+  }
+
   function is_asset($assetid) {
     return $this->db->get($this->t->ASSET . "/$assetid");
   }

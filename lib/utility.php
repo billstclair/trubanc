@@ -81,6 +81,7 @@ class utility {
                         $t->BALANCE => array($t->BANKID,$t->TIME,
                                              $t->ASSET, $t->AMOUNT, $t->ACCT=>1),
                         $t->OUTBOXHASH => array($t->BANKID, $t->TIME, $t->COUNT, $t->HASH),
+                        $t->BALANCEHASH => array($t->BANKID, $t->TIME, $t->COUNT, $t->HASH),
                         $t->SPEND => array($t->BANKID,$t->TIME,$t->ID,
                                            $t->ASSET,$t->AMOUNT,$t->NOTE=>1),
                         $t->ASSET => array($t->BANKID,$t->ASSET,
