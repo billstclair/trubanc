@@ -121,9 +121,11 @@ class server {
   }
 
   function outboxhashmsg($id) {
+    $t = $this->t;
+
     $array = $this->outboxhash($id);
-    $hash = $array['hash'];
-    $count = $array['count'];
+    $hash = $array[$t->HASH];
+    $count = $array[$t->COUNT];
     return $this->bankmsg($this->t->OUTBOXHASH,
                           $this->bankid,
                           $this->getacctlast($id),
@@ -147,9 +149,11 @@ class server {
   }
 
   function balancehashmsg($id) {
+    $t = $this->t;
+
     $array = $this->balancehash($id);
-    $hash = $array['hash'];
-    $count = $array['count'];
+    $hash = $array[$t->HASH];
+    $count = $array[$t->COUNT];
     return $this->bankmsg($this->t->BALANCEHASH,
                           $this->bankid,
                           $this->getacctlast($id),
@@ -815,14 +819,15 @@ class server {
         }
         $outboxhashreq = $req;
         $outboxhashmsg = $parser->get_parsemsg($req);
-        $hash = $reqargs[$t->HASH];
-        $hashcount = $reqargs[$t->COUNT];
+        $outboxhash = $reqargs[$t->HASH];
+        $outboxhashcnt = $reqargs[$t->COUNT];
       } elseif ($request == $t->BALANCEHASH) {
         if ($balancehashreq) {
           return $this->failmsg($msg, $t->BALANCEHASH . " appeared multiple times");
         }
         $balancehashreq = $req;
-        $balancehash = $reqargs[$t->HASH];            
+        $balancehash = $reqargs[$t->HASH];
+        $balancehashcnt = $reqargs[$t->COUNT];
         $balancehashmsg = $parser->get_parsemsg($req);
       } else {
         return $this->failmsg($msg, "$request not valid for spend. Only " .
@@ -841,11 +846,6 @@ class server {
     // tranfee must be included if there's a transaction fee
     if ($tokens != 0 && !$feemsg) {
       return $this->failmsg($msg, $t->TRANFEE . " missing");
-    }
-
-    // outboxhash must be included, except on self spends
-    if ($id != $id2 && $id != $bankid && !$outboxhashreq) {
-      return $this->failmsg($msg, $t->OUTBOXHASH . " missing");
     }
 
     // Totals must be included if there is more than one $acct
@@ -902,9 +902,6 @@ class server {
       }
     }
       
-    // Check balancehash
-    // *** Continue here ***
-
     // Check that we have exactly as many negative balances after the transaction
     // as we had before.
     if (count($oldneg) != count($newneg)) {
@@ -933,12 +930,49 @@ class server {
     }
     if ($errmsg != '') return $this->failmsg($msg, "Balance discrepanies: $errmsg");
 
-    $spendmsg = $parser->get_parsemsg($reqs[0]);
-    $hasharray = $this->outboxhash($id, $spendmsg);
-    $outboxhash = $hasharray['hash'];
-    $outboxcnt = $hasharray['count'];
-    if ($outboxhash != $hash || $outboxcnt != $hashcount) {
-      return $this->failmsg($msg, $t->OUTBOXHASH . ' mismatch');
+    // Check outboxhash
+    // outboxhash must be included, except on self spends
+    if ($id != $id2 && $id != $bankid) {
+      if (!$outboxhashreq) {
+        return $this->failmsg($msg, $t->OUTBOXHASH . " missing");
+      } else {
+        $spendmsg = $parser->get_parsemsg($reqs[0]);
+        $hasharray = $this->outboxhash($id, $spendmsg);
+        $hash = $hasharray[$t->HASH];
+        $hashcnt = $hasharray[$t->COUNT];
+        if ($outboxhash != $hash || $outboxcnt != $hashcnt) {
+          return $this->failmsg($msg, $t->OUTBOXHASH . ' mismatch');
+        }
+      }
+
+      // balancehash must be included, except on self spends
+      if (!$balancehashreq) {
+        return $this->failmsg($msg, $t->BALANCEHASH . " missing");
+      } else {
+        $newtotals = array();
+        $deltotals = array();
+        if ($needtotals) {
+          $key = $this->totalkey($id);
+          foreach ($totals as $k -> $v) {
+            $newtotals[] = $v;
+            $deltotals[] = $k;
+          }
+        } else {
+          $key = $this->balancekey($id);
+          $accts = $db->contents($key);
+          if (count($accts) > 0) $key = $accts[0];
+          foreach ($bals as $k => $v) {
+            $newtotals[] = $v;
+            $deltotals[] = $k;
+          }
+        }
+        $hasharray = $u->dirhash($db, $key, $this, $newtotals, $deltotals);
+        $hash = $hasharray[$t->HASH];
+        $hashcnt = $hasharray[$t->COUNT];
+        if ($balancehash != $hash || $balancehashcnt != $hashcnt) {
+          return $this->failmsg($msg, $t->BALANCEHASH . ' mismatch');
+        }
+      }
     }
 
     // All's well with the world. Commit this baby.
@@ -970,13 +1004,25 @@ class server {
     }
 
     // Update totals
+    if ($needtotals) {
+      foreach ($totals as $k => $v) {
+        $totalitem = $this->bankmsg($t->ATTOTAL, $v);
+        $res .= ".$totalitem";
+        $db->put($this->totalkey($id, $k), $totalitem);
+      }
+    }
 
-    // Update balancehash
+    if ($id != $id2 && $id != $bankid) {
+      // Update outboxhash
+      $outboxhash_item = $this->bankmsg($t->ATOUTBOXHASH, $outboxhashmsg);
+      $res .= ".$outboxhash_item";
+      $db->put($this->outboxhashkey($id), $outboxhash_item);
 
-    // Update outboxhash
-    $outboxhash_item = $this->bankmsg($t->ATOUTBOXHASH, $outboxhashmsg);
-    $res .= ".$outboxhash_item";
-    $db->put($this->outboxhashkey($id), $outboxhash_item);
+      // Update balancehash
+      $balancehash_item = $this->bankmsg($t->ATBALANCEHASH, $balancehashmsg);
+      $res .= ".$balancehash_item";
+      $db->put($this->balancehashkey($id), $balancehash_item);
+    }
 
     if ($id != $id2) {
       // Append spend to outbox

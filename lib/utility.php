@@ -191,7 +191,7 @@ class utility {
     }
     sort($items);
     $hash = sha1(implode('.', array_map('trim', $items)));
-    return array('hash' => $hash, 'count' => count($items));
+    return array($t->HASH => $hash, $t->COUNT => count($items));
   }
 
 }
