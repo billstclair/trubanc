@@ -102,6 +102,7 @@ class utility {
                         $t->INBOX => array($t->TIME, $t->MSG),
                         $t->ATREGISTER => array($t->MSG),
                         $t->ATOUTBOXHASH => array($t->MSG),
+                        $t->ATBALANCEHASH => array($t->MSG),
                         $t->ATGETINBOX => array($t->MSG),
                         $t->ATBALANCE => array($t->MSG),
                         $t->ATSPEND => array($t->MSG),
@@ -168,6 +169,7 @@ class utility {
   // Returns false if there's a problem.
   function dirhash($db, $key, $unpacker, $newitem=false, $removed_names=false) {
     $parser = $this->parser;
+    $t = $this->t;
 
     $contents = $db->contents($key);
     $items = array();

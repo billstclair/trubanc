@@ -80,40 +80,6 @@ function getreq() {
   return bcadd($args['req'], 1);
 }
 
-// Fake a spend of tokens to the customer
-$tokenid = $server->tokenid;
-$t = $server->t;
-$bankid = $server->bankid;
-$regfee = $server->regfee;
-if (!$db->get("account/$id/inbox/1") && !$db->get("pubkey/$id")) {
-  $server->gettime();           // eat a transaction
-  $db->put($server->inboxkey($id) . "/5",
-           $server->bankmsg($t->INBOX, 5,
-                            $server->signed_spend(5, $id, $tokenid, $regfee * 2, "Gift")));
-  $db->put($server->inboxkey($id2) . "/5",
-           $server->bankmsg($t->INBOX, 5,
-                            $server->signed_spend(5, $id2, $tokenid, $regfee * 2, "Gift")));
-}
-$assetbalancekey = $server->assetbalancekey($id, $tokenid);
-if (!$db->get($assetbalancekey)) {
-  // signed_balance($time, $asset, $amount, $acct=false)
-  $server->add_to_bank_balance($tokenid, -20);
-  $msg = custmsg($t->BALANCE, $bankid, 2, $tokenid, 20);
-  $msg = $server->bankmsg($t->ATBALANCE, $msg);
-  $db->put($assetbalancekey, $msg);
-}
-$assetbalancekey = $server->assetbalancekey($id2, $tokenid);
-if (!$db->get($assetbalancekey)) {
-  // signed_balance($time, $asset, $amount, $acct=false)
-  $server->add_to_bank_balance($tokenid, -20);
-  $msg = custmsg2($t->BALANCE, $bankid, 2, $tokenid, 20);
-  $msg = $server->bankmsg($t->ATBALANCE, $msg);
-  $db->put($assetbalancekey, $msg);
-}
-
-// This is necessary for spend, processinbox, and asset test below
-// $db->put($t->TIME, 5);
-
 process(custmsg('bankid',$pubkey));
 //process(custmsg("register",$bankid,$pubkey,"George Jetson"));
 //process(custmsg2("register",$bankid,$pubkey2,"Jane Jetson"));

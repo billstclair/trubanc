@@ -121,9 +121,6 @@ class server {
   }
 
   function outboxhashmsg($id) {
-    $db = $this->db;
-    $u = $this->u;
-
     $array = $this->outboxhash($id);
     $hash = $array['hash'];
     $count = $array['count'];
@@ -145,13 +142,11 @@ class server {
     $key = $this->balancekey($id);
     $accts = $db->contents($key);
     if (count($accts) > 1) $key = $this->totalkey($id);
+    else $key = "$key/" . $accts[0];
     return $u->dirhash($db, $key, $this, $newitem, $removed_items);
   }
 
   function balancehashmsg($id) {
-    $db = $this->db;
-    $u = $this->u;
-
     $array = $this->balancehash($id);
     $hash = $array['hash'];
     $count = $array['count'];
@@ -236,8 +231,12 @@ class server {
       $msg = $this->bankmsg($t->BALANCE, $bankid, 0, $tokenid, -1);
       $msg = $this->bankmsg($t->ATBALANCE, $msg);
       $db->put("$mainkey/$tokenid", $msg);
+      /*** No need for the hashes for the bank ***
       $db->put($this->outboxhashkey($bankid),
                $this->bankmsg($t->ATOUTBOXHASH, $this->outboxhashmsg($bankid)));
+      $db->put($this->balancehashkey($bankid),
+               $this->bankmsg($t->ATBALANCEHASH, $this->balancehashmsg($bankid)));
+      */
     } else {
       $privkey = $ssl->load_private_key($db->get($t->PRIVKEY), $passphrase);
       $this->privkey = $privkey;
@@ -522,6 +521,7 @@ class server {
   function handle_balance_msg($id, $msg, $args, &$state, $creating_asset=false) {
     $t = $this->t;
     $db = $this->db;
+    $bankid = $this->bankid;
 
     $asset = $args[$t->ASSET];
     $amount = $args[$t->AMOUNT];
@@ -551,7 +551,7 @@ class server {
 
     $assetbalancekey = $this->assetbalancekey($id, $asset, $acct);
     $acctmsg = $db->get($assetbalancekey);
-    if (!$acctmsg) $state['tokens']++;
+    if (!$acctmsg && $id != $bankid) $state['tokens']++;
     else {
       $acctargs = $this->unpack_bankmsg($acctmsg, $t->ATBALANCE, $t->BALANCE);
       if (is_string($acctargs) || !$acctargs ||
@@ -754,8 +754,8 @@ class server {
     $tokens = 0;
     $tokenid = $this->tokenid;
     $feemsg = '';
-    if ($id != $id2) {
-      // Spends to yourself are free
+    if ($id != $id2 && $id != $bankid) {
+      // Spends to yourself are free, as are spends from the bank
       $tokens = $this->tranfee;
     }
 
@@ -844,7 +844,7 @@ class server {
     }
 
     // outboxhash must be included, except on self spends
-    if ($id != $id2 && !$outboxhashreq) {
+    if ($id != $id2 && $id != $bankid && !$outboxhashreq) {
       return $this->failmsg($msg, $t->OUTBOXHASH . " missing");
     }
 
@@ -852,7 +852,8 @@ class server {
     $curaccts = $db->contents($this->balancekey($id));
     $allaccts = array_merge($curaccts, $accts);
     $newaccts = array_diff_key($accts, $curaccts);
-    $needtotals = (count($allaccts) > 1) && (($id != $id2) || $tokens > 1);
+    $needtotals = (count($allaccts) > 1) && ($id != $bankid) &&
+      (($id != $id2) || $tokens > 1);
     if (!$needtotals && count($totals) > 0) {
       return $this->failmsg($msg, $t->TOTAL . " included unnecessarily");
     }
