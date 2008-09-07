@@ -975,9 +975,6 @@ class server {
       }
     }
 
-    echo "Spend all checked and ready\n";
-    echo "spendmsg: $spendmsg\n";
-
     // All's well with the world. Commit this baby.
     $newtime = $this->gettime();
     $outbox_item = $this->bankmsg($t->ATSPEND, $spendmsg);
