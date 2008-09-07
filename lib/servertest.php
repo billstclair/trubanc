@@ -12,6 +12,9 @@ $db = new fsdb("../trubancdb");
 $ssl = new ssl();
 $server = new server($db, $ssl, false, 'Trubanc');
 $u = $server->u;                // utility instance
+$tokenid = $server->tokenid;
+$bankid = $server->bankid;
+$t = $server->t;
 
 $privkey = "-----BEGIN RSA PRIVATE KEY-----
 MIIBOwIBAAJBAMwfcmkk2coTuYAEbdZ5iXggObNPzbSiDnVtndZFe4/4Xg0IQPfp
@@ -38,6 +41,16 @@ H3CnJ8Ul3VWvyL5hVjFDHYnD6n18+xqsnjeSQ4bRnQ==
 ";
 $pubkey2 = $ssl->privkey_to_pubkey($privkey2);
 $id2 = $ssl->pubkey_id($pubkey2);
+
+function bankmsg() {
+  global $bankid, $server, $ssl, $privkey;
+
+  $args = func_get_args();
+  $args = array_merge(array($bankid), $args);
+  $msg = $server->u->makemsg($args);
+  $sig = $ssl->sign($msg, $server->privkey);
+  return "$msg:\n$sig";
+}
 
 function custmsg() {
   global $id, $server, $ssl, $privkey;
@@ -80,8 +93,51 @@ function getreq() {
   return bcadd($args['req'], 1);
 }
 
+function getbankreq() {
+  global $u;
+  global $bankid;
+  global $server;
+
+  $msg = $server->process(bankmsg('getreq', $bankid));
+  $args = $u->match_message($msg);
+  if (is_string($args)) return false;
+  return bcadd($args['req'], 1);
+}
+
+function getbanktran() {
+  global $u;
+  global $bankid;
+  global $server;
+
+  $req = getbankreq();
+  if (!$req) return $false;
+  $msg = bankmsg('gettime', $bankid, $req);
+  $msg = $server->process($msg);
+  $args = $u->match_message($msg);
+  if (is_string($args)) return false;
+  return $args['time'];
+}
+
 process(custmsg('bankid',$pubkey));
-//process(custmsg("register",$bankid,$pubkey,"George Jetson"));
+$req = getbankreq();
+echo "req: $req\n";
+
+if (!$db->contents($server->inboxkey($id)) &&
+    !$db->contents($server->balancekey($id))) {
+  $tran = getbanktran();
+  $amt = 20;
+  $spend = bankmsg('spend',$bankid,$tran,$id,$tokenid,$amt,"Welcome to Trubanc!");
+  $msg = $db->get($server->assetbalancekey($bankid, $tokenid));
+  $bal = $server->unpack_bankmsg($msg, $t->ATBALANCE, $t->BALANCE, $t->AMOUNT);
+  echo "bal: $bal\n";
+  $bal = bankmsg('balance',$bankid,$tran,$tokenid,$bal - $amt);
+  process("$spend.$bal");
+}
+
+if (!$server->pubkeydb->get($id)) {
+  process(custmsg("register",$bankid,$pubkey,"George Jetson"));
+}
+
 //process(custmsg2("register",$bankid,$pubkey2,"Jane Jetson"));
 //process(custmsg('id',$bankid,$id));
 

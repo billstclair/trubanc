@@ -91,6 +91,7 @@ class utility {
                         $t->SPENDACCEPT => array($t->BANKID,$t->TIME,$t->ID,$t->NOTE=>1),
                         $t->SPENDREJECT => array($t->BANKID,$t->TIME,$t->ID,$t->NOTE=>1),
                         $t->GETOUTBOX =>array($t->BANKID, $t->REQ),
+                        $t->GETTIME => array($t->BANKID, $t->TIME),
 
                         // Bank signed messages
                         $t->FAILED => array($t->MSG, $t->ERRMSG),
@@ -112,8 +113,7 @@ class utility {
                         $t->ATSPENDACCEPT => array($t->MSG),
                         $t->ATSPENDREJECT => array($t->MSG),
                         $t->ATGETOUTBOX => array($t->MSG),
-                        $t->REQ => array($t->ID, $t->REQ),
-                        $t->GETTIME => array($t->ID, $t->TIME)
+                        $t->REQ => array($t->ID, $t->REQ)
                         );
       $this->patterns = $patterns;
     }

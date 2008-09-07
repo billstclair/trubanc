@@ -932,11 +932,11 @@ class server {
 
     // Check outboxhash
     // outboxhash must be included, except on self spends
+    $spendmsg = $parser->get_parsemsg($reqs[0]);
     if ($id != $id2 && $id != $bankid) {
       if (!$outboxhashreq) {
         return $this->failmsg($msg, $t->OUTBOXHASH . " missing");
       } else {
-        $spendmsg = $parser->get_parsemsg($reqs[0]);
         $hasharray = $this->outboxhash($id, $spendmsg);
         $hash = $hasharray[$t->HASH];
         $hashcnt = $hasharray[$t->COUNT];
@@ -974,6 +974,9 @@ class server {
         }
       }
     }
+
+    echo "Spend all checked and ready\n";
+    echo "spendmsg: $spendmsg\n";
 
     // All's well with the world. Commit this baby.
     $newtime = $this->gettime();
