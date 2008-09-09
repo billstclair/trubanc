@@ -138,18 +138,15 @@ if (!$server->pubkeydb->get($id)) {
   process(custmsg("register",$bankid,$pubkey,"George Jetson"));
 }
 
+process(custmsg('id',$bankid,$id));
+
 //process(custmsg2("register",$bankid,$pubkey2,"Jane Jetson"));
-//process(custmsg('id',$bankid,$id));
 
 // getinbox
-if (false) {
-  $msg = process(custmsg('getreq', $bankid));
-  $args = $u->match_message($msg);
-  if (is_string($args)) echo "Failure parsing or matching: $args\n";
+if (true) {
+  $req = getreq();
+  if (!$req) echo "Couldn't get req\n";
   else {
-    $req = bcadd($args['req'], 1);
-    //process(custmsg('gettime', $bankid, $req));
-    //process(custmsg('getfees', $bankid, $req));
     process(custmsg('getinbox', $bankid, $req));
   }
 }

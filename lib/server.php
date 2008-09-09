@@ -1043,12 +1043,12 @@ class server {
 
     $id = $args[$t->CUSTOMER];
     $lock = $db->lock($this->accttimekey($id));
-    $res = $this->do_getinbox_internal($msg, $id);
+    $res = $this->do_getinbox_internal($args, $msg, $id);
     $db->unlock($lock);
     return $res;
   }
 
-  function do_getinbox_internal($msg, $id) {
+  function do_getinbox_internal($args, $msg, $id) {
     $t = $this->t;
     $u = $this->u;
     $db = $this->db;
@@ -1082,8 +1082,8 @@ class server {
         $times = array($this->gettime(), $this->gettime());
         $db->put($key, implode(',', $times));
       }
-      $res .= '.' . $this->bankmsg($t->GETTIME, $id, $times[0]);
-      $res .= '.' . $this->bankmsg($t->GETTIME, $id, $times[1]);
+      $res .= '.' . $this->bankmsg($t->TIME, $id, $times[0]);
+      $res .= '.' . $this->bankmsg($t->TIME, $id, $times[1]);
     }
     return $res;
   }
