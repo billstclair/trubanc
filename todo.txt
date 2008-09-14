@@ -1,3 +1,5 @@
+$newtotals for balancehash in spend and processinbox needs to be user messages, not just amounts.
+
 Finish two-phase commit for spend and inboxhash.
 
 -----

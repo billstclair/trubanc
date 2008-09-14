@@ -118,14 +118,11 @@ function getbanktran() {
   return $args['time'];
 }
 
-process(custmsg('bankid',$pubkey));
-$req = getbankreq();
-echo "req: $req\n";
-
+// Spend tokens from bank to $id to give him an account
 if (!$db->contents($server->inboxkey($id)) &&
     !$db->contents($server->balancekey($id))) {
   $tran = getbanktran();
-  $amt = 20;
+  $amt = 50;
   $spend = bankmsg('spend',$bankid,$tran,$id,$tokenid,$amt,"Welcome to Trubanc!");
   $msg = $db->get($server->assetbalancekey($bankid, $tokenid));
   $bal = $server->unpack_bankmsg($msg, $t->ATBALANCE, $t->BALANCE, $t->AMOUNT);
@@ -134,20 +131,54 @@ if (!$db->contents($server->inboxkey($id)) &&
   process("$spend.$bal");
 }
 
+// Register $id, if not yet registered
 if (!$server->pubkeydb->get($id)) {
+  // Get the bankid. This command does not require an acount
+  process(custmsg('bankid',$pubkey));
   process(custmsg("register",$bankid,$pubkey,"George Jetson"));
+  process(custmsg('id',$bankid,$id));
 }
-
-process(custmsg('id',$bankid,$id));
 
 //process(custmsg2("register",$bankid,$pubkey2,"Jane Jetson"));
 
+$trans = $db->get($server->accttimekey($id));
+
 // getinbox
-if (true) {
+if (!$trans) {
   $req = getreq();
   if (!$req) echo "Couldn't get req\n";
   else {
     process(custmsg('getinbox', $bankid, $req));
+    $trans = $db->get($server->accttimekey($id));
+  }
+}
+
+$arr = explode(',', $trans);
+$time = $arr[0];
+echo "trans: $trans, time: $time\n";
+
+// Accept the registration spend
+$key = $server->inboxkey($id);
+$inbox = $db->contents($key);
+if (count($inbox) == 2) {
+  $in0 = $inbox[0];
+  $in1 = $inbox[1];
+  $msg0 = $db->get("$key/" . $in0);
+  $msg1 = $db->get("$key/" . $in1);
+  $amt0 = $server->unpack_bankmsg($msg0, $t->INBOX, $t->SPEND, $t->AMOUNT);
+  $amt1 = $server->unpack_bankmsg($msg1, $t->INBOX, $t->SPEND, $t->AMOUNT);
+  if ($amt0 == 50 && $amt1 == -10) {
+    $time0 = $server->unpack_bankmsg($msg0, $t->INBOX, $t->SPEND, $t->TIME);
+    $time1 = $server->unpack_bankmsg($msg1, $t->INBOX, $t->SPEND, $t->TIME);
+    $msg = custmsg($t->PROCESSINBOX, $bankid, $time, "$in0|$in1");
+    $acc0 = custmsg($t->SPENDACCEPT, $bankid, $time0, $bankid);
+    $acc1 = custmsg($t->SPENDACCEPT, $bankid, $time1, $bankid);
+    $bal = custmsg($t->BALANCE, $bankid, $trans, $tokenid, 39);
+    $array = $u->dirhash($db, $server->acctbalancekey($id), $server, $bal);
+    $hash = $array[$t->HASH];
+    $count = $array[$t->COUNT];
+    $balhash = custmsg($t->BALANCEHASH, $bankid, $time, $count, $hash);
+    process("$msg.$acc0.$acc1.$bal.$balhash");
   }
 }
 

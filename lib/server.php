@@ -83,11 +83,13 @@ class server {
     return $this->accountdir($id) . $this->t->BALANCE;
   }
 
-  function acctbalancekey($id, $acct='main') {
+  function acctbalancekey($id, $acct=false) {
+    if ($acct === false) $acct = $t->MAIN;
     return $this->balancekey($id) . "/$acct";
   }
 
-  function assetbalancekey($id, $asset, $acct='main') {
+  function assetbalancekey($id, $asset, $acct=false) {
+    if ($acct === false) $acct = $t->MAIN;
     return $this->acctbalancekey($id, $acct) . "/$asset";
   }
 
@@ -976,6 +978,7 @@ class server {
     }
 
     // All's well with the world. Commit this puppy.
+    // Eventually, the commit will be done as a second phase.
     $newtime = $this->gettime();
     $outbox_item = $this->bankmsg($t->ATSPEND, $spendmsg);
     $inbox_item = $this->bankmsg($t->INBOX, $newtime, $spendmsg);
@@ -1022,13 +1025,13 @@ class server {
       $balancehash_item = $this->bankmsg($t->ATBALANCEHASH, $balancehashmsg);
       $res .= ".$balancehash_item";
       $db->put($this->balancehashkey($id), $balancehash_item);
-    }
 
-    if ($id != $id2) {
       // Append spend to outbox
       $db->put($this->outboxdir($id) . "/$time", $outbox_item);
+    }
 
-      // Append spend to recipient's inbox
+    // Append spend to recipient's inbox
+    if ($id != $id2) {
       $db->put($this->inboxkey($id2) . "/$newtime", $inbox_item);
     }
 
@@ -1224,7 +1227,7 @@ class server {
         $inboxpair = $spends[$itemtime];
         if (!$inboxpair || count($inboxpair) != 2) {
           return $this->failmsg($msg, "'$request' not matched in '" .
-                                $t->PROCESSINBOX . "' item");
+                                $t->PROCESSINBOX . "' item, itemtime: $itemtime");
         }
         $itemargs = $inboxpair[1];
         if ($request == $t->SPENDACCEPT) {
@@ -1247,8 +1250,8 @@ class server {
         $inboxmsgs[] = array($otherid, $inboxtime,
                              $this->bankmsg($t->INBOX, $inboxtime, $reqmsg));
       } elseif ($request == $t->TOTAL) {
-        $totasset = $reqargs[$t->ASSET];
-        $amt = $reqargs[$t->AMOUNT];
+        $totasset = $args[$t->ASSET];
+        $amt = $args[$t->AMOUNT];
         if ($totals[$totasset]) {
           return $this->failmsg($msg, "Duplicate total asset: $assetid");
         }
@@ -1269,8 +1272,8 @@ class server {
           return $this->failmsg($msg, $t->BALANCEHASH . " appeared multiple times");
         }
         $balancehashreq = $req;
-        $balancehash = $reqargs[$t->HASH];
-        $balancehashcnt = $reqargs[$t->COUNT];
+        $balancehash = $args[$t->HASH];
+        $balancehashcnt = $args[$t->COUNT];
         $balancehashmsg = $parser->get_parsemsg($req);
       } else {
         return $this->failmsg($msg, "$request not valid for " . $t->PROCESSINBOX .
@@ -1415,6 +1418,7 @@ class server {
         $hash = $hasharray[$t->HASH];
         $hashcnt = $hasharray[$t->COUNT];
         if ($balancehash != $hash || $balancehashcnt != $hashcnt) {
+          echo "balancehash: $balancehash, hash: $hash, balancehashcnt: $balancehashcnt, hashcnt: $hashcnt\n";
           return $this->failmsg($msg, $t->BALANCEHASH . ' mismatch');
         }
       }
@@ -1622,7 +1626,7 @@ class server {
 
     // Check that we have exactly as many negative balances after the transaction
     // as we had before, plus one for the new asset
-    $oldneg[$asset] = 'main';
+    $oldneg[$asset] = $t->MAIN;
     if (count($oldneg) != count($newneg)) {
       return $this->failmsg($msg, "Negative balance count not conserved");
     }
