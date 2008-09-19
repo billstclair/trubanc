@@ -173,7 +173,6 @@ class utility {
 
     $newitemstr = $newitem;
     if (!is_string($newitem)) $newitemstr = implode('.', $newitem);
-    echo "dirhash(db, $key, unpacker, $newitemstr)\n";
 
     $contents = $db->contents($key);
     $items = array();

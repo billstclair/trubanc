@@ -144,7 +144,8 @@ if (!$server->pubkeydb->get($id)) {
 $trans = $db->get($server->accttimekey($id));
 
 // getinbox
-if (!$trans) {
+$inbox = $db->contents($server->inboxkey($id));
+if (count($inbox) > 0) {
   $req = getreq();
   if (!$req) echo "Couldn't get req\n";
   else {
@@ -173,7 +174,7 @@ if (count($inbox) == 2) {
     $msg = custmsg($t->PROCESSINBOX, $bankid, $time, "$in0|$in1");
     $acc0 = custmsg($t->SPENDACCEPT, $bankid, $time0, $bankid);
     $acc1 = custmsg($t->SPENDACCEPT, $bankid, $time1, $bankid);
-    $bal = custmsg($t->BALANCE, $bankid, $trans, $tokenid, 39);
+    $bal = custmsg($t->BALANCE, $bankid, $time, $tokenid, 39);
     $array = $u->dirhash($db, $server->acctbalancekey($id), $server, $bal);
     $hash = $array[$t->HASH];
     $count = $array[$t->COUNT];
