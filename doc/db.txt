@@ -405,10 +405,10 @@ Process Inbox
   (<bankid>,@balance,(<id>,balance,<bankid>,time11#>,assetid2>,<amount2>,acct:<acct2>)).
   ...
   (<bankid>,@balance,(<id>,balance,<bankid>,<time11#>,<assetidN>,<amount3>,acct:<acctN>)).
-  (<bankid>,@total,(<id>,total,<bankid>,<time11#>,<assetid>,<amount>.
-  (<bankid>,@total,(<id>,total,<bankid>,<time11#>,<assetid2>,<amount2>.
+  (<bankid>,@total,(<id>,total,<bankid>,<time11#>,<assetid>,<amount>)).
+  (<bankid>,@total,(<id>,total,<bankid>,<time11#>,<assetid2>,<amount2>)).
   ...
-  (<bankid>,@total,(<id>,total,<bankid>,<time11#>,<assetidN>,<amountN>.
+  (<bankid>,@total,(<id>,total,<bankid>,<time11#>,<assetidN>,<amountN>)).
   (<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time11#>,<outboxcount>,<outboxhash>)).
   (<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time11#>,<balancecount>,<balancehash>))
 
@@ -496,7 +496,12 @@ Create asset
   (<id>,balance,<bankid>,<time4#>,assetid2>,<amount2>acct:<acct2>).
   ...
   (<id>,balance,<bankid>,<time4#>,<assetidN>,<amountN>,acct:<acctN>).
-  
+  (<id>,total,<bankid>,<time4#>,<assetid>,<amount>).
+  (<id>,total,<bankid>,<time4#>,<assetid2>,<amount2>).
+  ...
+  (<id>,total,<bankid>,<time4#>,<assetidN>,<amountN>).
+  (<id>,balancehash,<bankid>,<time4#>,<balancecount>,<balancehash>)
+
   Note that the balance for the new asset is "-1". Like loom, the sum
   of all balances for an <assetid> add up to -1. A negative balance
   means that the owner is the issuer. I haven't worked out the process
@@ -504,10 +509,11 @@ Create asset
 
   If <assetid> is the hash of <id>,<scale>,<precision>,<assetname>,
   /asset/<assetid> does not exist, <time4#> is equal to
-  /account/<id>/time, and the customer has properly subtracted the
+  /account/<id>/time, the customer has properly subtracted the
   createasset fees from the balances in /account/<id>/balance/<acctN>
   (including 1 usage token for the /asset/<assetid file and 1 usage
-  token for the balance file for the new asset), then bank adds
+  token for the balance file for the new asset), the totals, if
+  necessary, match, and the balancehash matches, then bank adds
   <assetid>=(<id>,asset,<assetid>,<scale>,<precision>,<assetname>) to
   /asset/, sets /account/<id>/last to <time4#>, clears
   /account/<id>/time, and returns:
@@ -517,6 +523,11 @@ Create asset
   (<bankid>,@balance,(<id>,balance,<bankid>,<time4#>,assetid2>,<amount2>acct:<acct2>)).
   ...
   (<bankid>,@balance,(<id>,balance,<bankid>,<time4#>,assetidN>,<amountN>acct:<acctN>)).
+  (<bankid>,@total,(<id>,total,<bankid>,<time4#>,<assetid>,<amount>)).
+  (<bankid>,@total,(<id>,total,<bankid>,<time4#>,<assetid2>,<amount2>)).
+  ...
+  (<bankid>,@total,(<id>,total,<bankid>,<time4#>,<assetidN>,<amountN>)).
+  (<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time4#>,<balancecount>,<balancehash>))
 
   Otherwise, bank returns:
 

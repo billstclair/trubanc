@@ -156,9 +156,9 @@ if (count($inbox) > 0) {
 
 $arr = explode(',', $trans);
 $time = $arr[0];
-echo "trans: $trans, time: $time\n";
+echo "id1 trans: $trans, time: $time\n";
 
-// Accept the registration spend
+// Accept the id registration spend
 $key = $server->inboxkey($id);
 $inbox = $db->contents($key);
 if (count($inbox) == 2) {
@@ -180,6 +180,87 @@ if (count($inbox) == 2) {
     $count = $array[$t->COUNT];
     $balhash = custmsg($t->BALANCEHASH, $bankid, $time, $count, $hash);
     process("$msg.$acc0.$acc1.$bal.$balhash");
+  }
+}
+
+// Spend tokens from bank to $id2 to give him an account
+if (!$db->contents($server->inboxkey($id2)) &&
+    !$db->contents($server->balancekey($id2))) {
+  $tran = getbanktran();
+  $amt = 50;
+  $spend = bankmsg('spend',$bankid,$tran,$id2,$tokenid,$amt,"Welcome to Trubanc!");
+  $msg = $db->get($server->assetbalancekey($bankid, $tokenid));
+  $bal = $server->unpack_bankmsg($msg, $t->ATBALANCE, $t->BALANCE, $t->AMOUNT);
+  echo "bal: $bal\n";
+  $bal = bankmsg('balance',$bankid,$tran,$tokenid,$bal - $amt);
+  process("$spend.$bal");
+}
+
+// Register $id2, if not yet registered
+if (!$server->pubkeydb->get($id2)) {
+  // Get the bankid. This command does not require an acount
+  process(custmsg2('bankid',$pubkey));
+  process(custmsg2("register",$bankid,$pubkey2,"Jane Jetson"));
+  process(custmsg2('id',$bankid,$id2));
+}
+
+$trans = $db->get($server->accttimekey($id2));
+
+// getinbox
+$inbox = $db->contents($server->inboxkey($id2));
+if (count($inbox) > 0) {
+  $req = getreq();
+  if (!$req) echo "Couldn't get req\n";
+  else {
+    process(custmsg2('getinbox', $bankid, $req));
+    $trans = $db->get($server->accttimekey($id2));
+  }
+}
+
+$arr = explode(',', $trans);
+$time = $arr[0];
+echo "id2 trans: $trans, time: $time\n";
+
+// Accept the id2 registration spend
+$key = $server->inboxkey($id2);
+$inbox = $db->contents($key);
+if (count($inbox) == 2) {
+  $in0 = $inbox[0];
+  $in1 = $inbox[1];
+  $msg0 = $db->get("$key/" . $in0);
+  $msg1 = $db->get("$key/" . $in1);
+  $amt0 = $server->unpack_bankmsg($msg0, $t->INBOX, $t->SPEND, $t->AMOUNT);
+  $amt1 = $server->unpack_bankmsg($msg1, $t->INBOX, $t->SPEND, $t->AMOUNT);
+  if ($amt0 == 50 && $amt1 == -10) {
+    $time0 = $server->unpack_bankmsg($msg0, $t->INBOX, $t->SPEND, $t->TIME);
+    $time1 = $server->unpack_bankmsg($msg1, $t->INBOX, $t->SPEND, $t->TIME);
+    $msg = custmsg2($t->PROCESSINBOX, $bankid, $time, "$in0|$in1");
+    $acc0 = custmsg2($t->SPENDACCEPT, $bankid, $time0, $bankid);
+    $acc1 = custmsg2($t->SPENDACCEPT, $bankid, $time1, $bankid);
+    $bal = custmsg2($t->BALANCE, $bankid, $time, $tokenid, 39);
+    $array = $u->dirhash($db, $server->acctbalancekey($id2), $server, $bal);
+    $hash = $array[$t->HASH];
+    $count = $array[$t->COUNT];
+    $balhash = custmsg2($t->BALANCEHASH, $bankid, $time, $count, $hash);
+    process("$msg.$acc0.$acc1.$bal.$balhash");
+  }
+}
+
+// Create an asset
+$scale = 7;
+$precision = 3;
+$assetname = "George Fake Goldgrams";
+$assetid = $server->u->assetid($id, $scale, $precision, $assetname);
+if (!$server->is_asset($assetid)) {
+  $req = getreq();
+  if (!$req) echo "Couldn't get req for asset creation\n";
+  else {
+    process(custmsg('gettime', $bankid, $req));
+    $time = $db->get($server->accttimekey($id));
+    $process = custmsg('asset', $bankid, $assetid, $scale, $precision, $assetname);
+    $bal1 = custmsg('balance', $bankid, $time, $tokenid, 37);
+    $bal2 = custmsg('balance', $bankid, $time, $assetid, -1);
+    process("$process.$bal1.$bal2");
   }
 }
 
@@ -243,26 +324,6 @@ if (false) {
     $outboxhash = custmsg('outboxhash', $bankid, $time, $hash);
     $bal = custmsg('balance', $bankid, $time, $tokenid, 18);
     process("$process.$outboxhash.$bal");
-  }
-}
-
-// Create an asset
-if (false) {
-  $scale = 7;
-  $precision = 3;
-  $assetname = "Bill Fake Goldgrams";
-  $assetid = $server->u->assetid($id, $scale, $precision, $assetname);
-  $msg = process(custmsg('getreq', $bankid));
-  $args = $u->match_message($msg);
-  if (is_string($args)) echo "Failure parsing or matching: $args\n";
-  else {
-    $req = bcadd($args['req'], 1);
-    process(custmsg('gettime', $bankid, $req));
-    $time = $db->get($server->accttimekey($id));
-    $process = custmsg('asset', $bankid, $assetid, $scale, $precision, $assetname);
-    $bal1 = custmsg('balance', $bankid, $time, $tokenid, 18);
-    $bal2 = custmsg('balance', $bankid, $time, $assetid, -1);
-    process("$process.$bal1.$bal2");
   }
 }
 

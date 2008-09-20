@@ -1,4 +1,4 @@
-$newtotals for balancehash in spend and processinbox needs to be user messages, not just amounts.
+Wrap functions around code shared by do_spend, do_processinbox, and do_asset
 
 Finish two-phase commit for spend and inboxhash.
 

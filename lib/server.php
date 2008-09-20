@@ -1630,8 +1630,14 @@ class server {
 
     $bals = array($asset => -1);
     $acctbals = array();
+    $totals = array();
+    $accts = array();
     $oldneg = array();
     $newneg = array();
+
+    $newtotals = array();
+    $deltotals = array();
+    $newbals = array();
 
     $tokenid = $this->tokenid;
     $bals[$tokenid] = 0;
@@ -1639,8 +1645,11 @@ class server {
     $state = array('acctbals' => $acctbals,
                    'bals' => $bals,
                    'tokens' => $tokens,
+                   'accts' => $accts,
                    'oldneg' => $oldneg,
                    'newneg' => $newneg);
+
+    $balancehashreq = false;
 
     for ($i=1; $i<count($reqs); $i++) {
       $req = $reqs[$i];
@@ -1658,10 +1667,28 @@ class server {
         return $this->failmsg($msg, "Timestamp mismatch");
       }
       if ($reqid != $id) return $this->failmsg($msg, "ID mismatch");
-      if ($request == $t->BALANCE) {
+      if ($request == $t->TOTAL) {
+        $totasset = $args[$t->ASSET];
+        $amt = $args[$t->AMOUNT];
+        if ($totals[$totasset]) {
+          return $this->failmsg($msg, "Duplicate total asset: $assetid");
+        }
+        $totals[$totasset] = $amt;
+        $newtotals[] = $reqmsg;
+        $deltotals[] = $totasset;
+      } elseif ($request == $t->BALANCE) {
         $reqmsg = $parser->get_parsemsg($req);
         $errmsg = $this->handle_balance_msg($id, $reqmsg, $reqargs, $state, $asset);
         if ($errmsg) return $this->failmsg($msg, $errmsg);
+        $newbals[] = $reqmsg;
+      } elseif ($request == $t->BALANCEHASH) {
+        if ($balancehashreq) {
+          return $this->failmsg($msg, $t->BALANCEHASH . " appeared multiple times");
+        }
+        $balancehashreq = $req;
+        $balancehash = $args[$t->HASH];
+        $balancehashcnt = $args[$t->COUNT];
+        $balancehashmsg = $parser->get_parsemsg($req);
       } else {
         return $this->failmsg($msg, "$request not valid for asset creation. Only " .
                               $t->BALANCE);
@@ -1670,6 +1697,7 @@ class server {
 
     $acctbals = $state['acctbals'];
     $bals = $state['bals'];
+    $accts = $state['accts'];
     $tokens = $state['tokens'];
     $oldneg = $state['oldneg'];
     $newneg = $state['newneg'];
