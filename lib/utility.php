@@ -80,6 +80,7 @@ class utility {
       $patterns = array(// Customer messages
                         $t->BALANCE => array($t->BANKID,$t->TIME,
                                              $t->ASSET, $t->AMOUNT, $t->ACCT=>1),
+                        $t->TOTAL => array($t->BANKID, $t->TIME, $t->ASSET, $t->AMOUNT),
                         $t->OUTBOXHASH => array($t->BANKID, $t->TIME, $t->COUNT, $t->HASH),
                         $t->BALANCEHASH => array($t->BANKID, $t->TIME, $t->COUNT, $t->HASH),
                         $t->SPEND => array($t->BANKID,$t->TIME,$t->ID,
@@ -106,6 +107,7 @@ class utility {
                         $t->ATBALANCEHASH => array($t->MSG),
                         $t->ATGETINBOX => array($t->MSG),
                         $t->ATBALANCE => array($t->MSG),
+                        $t->ATTOTAL => array($t->MSG),
                         $t->ATSPEND => array($t->MSG),
                         $t->ATTRANFEE => array($t->MSG),
                         $t->ATASSET => array($t->MSG),
