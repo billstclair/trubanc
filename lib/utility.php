@@ -199,6 +199,16 @@ class utility {
     return array($t->HASH => $hash, $t->COUNT => count($items));
   }
 
+  // Take the values in the passed array and return an array with
+  // those values as its keys mapping to $value.
+  function array_to_keys($arr, $value=true) {
+    $res = array();
+    foreach($arr as $v) {
+      $res[$v] = $value;
+    }
+    return $res;
+  }
+
 }
 
 // Test code

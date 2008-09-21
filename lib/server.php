@@ -887,7 +887,7 @@ class server {
     }
 
     // Totals must be included if there is more than one $acct
-    $curaccts = $db->contents($this->balancekey($id));
+    $curaccts = $u->array_to_keys($db->contents($this->balancekey($id)));
     $allaccts = array_merge($curaccts, $accts);
     $newaccts = array_diff_key($accts, $curaccts);
     $needtotals = (count($allaccts) > 1) && ($id != $bankid) &&
@@ -1350,7 +1350,7 @@ class server {
     $newneg = $state['newneg'];
 
     // Totals must be included if there is more than one $acct
-    $curaccts = $db->contents($this->balancekey($id));
+    $curaccts = $u->array_to_keys($db->contents($this->balancekey($id)));
     $allaccts = array_merge($curaccts, $accts);
     $newaccts = array_diff_key($accts, $curaccts);
     $needtotals = (count($allaccts) > 1) && ($id != $bankid) &&
@@ -1667,11 +1667,11 @@ class server {
 
     for ($i=1; $i<count($reqs); $i++) {
       $req = $reqs[$i];
-      $reqargs = $u->match_pattern($req);
-      if (is_string($req_args)) return $this->failmsg($msg, $reqargs); // match error
-      $reqid = $reqargs[$t->CUSTOMER];
-      $request = $reqargs[$t->REQUEST];
-      $reqtime = $reqargs[$t->TIME];
+      $args = $u->match_pattern($req);
+      if (is_string($req_args)) return $this->failmsg($msg, $args); // match error
+      $reqid = $args[$t->CUSTOMER];
+      $request = $args[$t->REQUEST];
+      $reqtime = $args[$t->TIME];
       if ($i == 1) {
         // Burn the transaction
         $time = $reqtime;
@@ -1692,7 +1692,7 @@ class server {
         $deltotals[] = $totasset;
       } elseif ($request == $t->BALANCE) {
         $reqmsg = $parser->get_parsemsg($req);
-        $errmsg = $this->handle_balance_msg($id, $reqmsg, $reqargs, $state, $assetid);
+        $errmsg = $this->handle_balance_msg($id, $reqmsg, $args, $state, $assetid);
         if ($errmsg) return $this->failmsg($msg, $errmsg);
         $newbals[] = $reqmsg;
       } elseif ($request == $t->BALANCEHASH) {
@@ -1719,7 +1719,7 @@ class server {
     $amount = -1;
 
     // Totals must be included if there is more than one $acct
-    $curaccts = $db->contents($this->balancekey($id));
+    $curaccts = $u->array_to_keys($db->contents($this->balancekey($id)));
     $allaccts = array_merge($curaccts, $accts);
     $newaccts = array_diff_key($accts, $curaccts);
     $needtotals = (count($allaccts) > 1) && ($id != $bankid);
@@ -1735,14 +1735,14 @@ class server {
           if (!is_numeric($amt)) {
               return $this->failmsg($msg, "Bad balance found in account");
             }
-          $old_totals[$tokenid] = bcplus($old_totals[$tokenid], $amt);
+          $old_totals[$tokenid] = bcadd($old_totals[$tokenid], $amt);
         }
         if ($assetid != $tokenid) {
           $amt = $this->assetbalance($id, $assetid, $curacct);
           if (!is_numeric($amt)) {
             return $this->failmsg($msg, "Bad balance found in account");
           }
-          $old_totals[$assetid] = bcplus($old_totals[$assetid], $amt);
+          $old_totals[$assetid] = bcadd($old_totals[$assetid], $amt);
         }
       }
       $tokamt = $tokens;
@@ -1759,7 +1759,7 @@ class server {
           return $this->failmsg($msg, "Bad token total, was: $token_total, sb: " .
                                 bcsub($old_token_total,  $amount));
         }
-      } else $tokamt = bcplus($tokens, $amount);
+      } else $tokamt = bcadd($tokens, $amount);
       if (count($totals) != $totcnt) {
         return $this->failmsg($msg, "Wrong number of total items");
       }

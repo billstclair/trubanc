@@ -260,7 +260,12 @@ if (!$server->is_asset($assetid)) {
     $process = custmsg('asset', $bankid, $assetid, $scale, $precision, $assetname);
     $bal1 = custmsg('balance', $bankid, $time, $tokenid, 37);
     $bal2 = custmsg('balance', $bankid, $time, $assetid, -1);
-    process("$process.$bal1.$bal2");
+    $array = $u->dirhash($db, $server->acctbalancekey($id), $server,
+                         array($bal1, $bal2), array($tokenid, $assetid));
+    $hash = $array[$t->HASH];
+    $count = $array[$t->COUNT];
+    $balhash = custmsg($t->BALANCEHASH, $bankid, $time, $count, $hash);
+    process("$process.$bal1.$bal2.$balhash");
   }
 }
 
