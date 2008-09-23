@@ -52,8 +52,6 @@ $dbdir/
       last=<time#>  -- The last used value of /account/<id>/time
       req=<req#>    -- starts at 0. New requests must have a higher number
       balancehash=(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<count>,<hash>))
-      total/
-        <assetid>=(<bankid>,@total,(<id>,total,<bankid>,<time#>,<assetid>,<amount>))
       balance/
         <acct>/  -- "main" is the default acct name
           <assetid>=(<bankid>,@balance,(<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>))
@@ -240,18 +238,14 @@ Spend
   (<id>,balance,<bankid>,<time#>,<assetid2>,<amount2>,acct:<acct2>).
   ...
   (<id>,balance,<bankid>,<time#>,<assetidN>,<amountN>,acct:<acctN>).
-  (<id>,total,<bankid>,<time#>,<assetid>,<amount>).
-  (<id>,total,<bankid>,<time#>,<assetid2,<amount2>).
-  ...
-  (<id>,total,<bankid>,<time#>,<assetidN>,<amountN>).
   (<id>,outboxhash,<bankid>,<time#>,<outboxcount>,<outboxhash>).
   (<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>)
 
   Bank checks that the <time#> is equal to /account/<id>/time, that
   the balances match (after subtracting the spend amount fees), and
-  that the totals and hashes match what the customer sent. If they
-  match, bank computes the item list below, stores it in the database
-  in the file /account/<id>/transaction, and returns:
+  that the hashes match what the customer sent. If they match, bank
+  computes the item list below, stores it in the database in the file
+  /account/<id>/transaction, and returns:
 
 (<bankid>,@spend,(<id>,spend,<time#>,<id2>,<bankid>,<assetid>,<amount>,note:<note>,acct:<acct>)).
   (<bankid>,@tranfee,(<id>,tranfee,<bankid>,<time#>,<tokenid>,<amount2fee>)).
@@ -259,10 +253,6 @@ Spend
   (<bankid>,@balance,(<id>,balance,<time#>,<bankid>,assetid2>,<amount2>,acct:<acct2>)).
   ...
   (<bankid>,@balance,(<id>,balance,<time#>,<bankid>,<assetidN>,<amountN>,acct:<acctN>)).
-  (<bankid>,@total,(<id>,total,<bankid>,<time#>,<assetid>,<amount>)).
-  (<bankid>,@total,(<id>,total,<bankid>,<time#>,<assetid2>,<amount2>)).
-  ...
-  (<bankid>,@total,(<id>,total,<bankid>,<time#>,<assetidN>,<amountN>)).
   (<bankid,@outboxhash,(<id>,outboxhash,<bankid>,<time#>,<outboxcount>,<outboxhash>)).
   (<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>))
 
@@ -272,17 +262,19 @@ If they don't match, bank returns:
 
   This is the first phase of the two-phase commit for spends.
 
-  Note that there's a total for each <assetid>, an outbox hash, and a
-  balance hash. Each "total" is the total of the assets in that
-  <assetid> over all <acct>s. The outbox hash is the sha1 hash of the
-  customer "spend"."tranfee" items, alphabetically sorted by
-  timestamp, and tacked together with periods. The bankhash is the
-  sha1 hash of the customer "total" items , alphabetically sorted by
-  <assetid>, plus the customer outboxhash item, tacked together with
-  periods. The two hashes also contain a count, which is the number of
-  items that were tacked together. This isn't strictly necessary, but
-  it can help to identify problems if the client and server disagree
-  on something.
+  Note that there's an outbox hash and a balance hash. The outbox hash
+  is the sha1 hash of the customer "spend"."tranfee" items,
+  alphabetically sorted by timestamp, and tacked together with
+  periods. The hash for a particular <acct>, is the sha1 hash of the
+  customer "balance" items in that <acct>, alphabetically sorted by
+  <assetid>, and tacked together with periods. If there is only one
+  <acct>, the balancehash is that <acct>'s hash. If there is more than
+  one <acct>, then the balance hash is the sha1 hash of a string made
+  by tacking together the hash for each <acct>, sorted by <acct> and
+  separated by periods. The two hashes also contain a count, which is
+  the number of user items that participated in the hashing. This
+  isn't strictly necessary, but it can help to identify problems if
+  the client and server disagree on something.
 
   To commit the transaction, the customer countersigns the
   balancehash, and sends it back to the bank:
@@ -294,8 +286,6 @@ If they don't match, bank returns:
   stores the spend in /account/<id>/outbox/<time#> and
   /account/<id2>/inbox/<time#>, sets the
   /account/<id>/balance/<acct>/<assetid> to the balances from
-  /account/<id>/transaction, updates the
-  /account/<id>/total/<assetid> with the totals from
   /account/<id>/transaction, udpates /account/<id>/outboxhash, and
   /account/<id>/balancehash with the signed hashes, and sends:
 
@@ -332,11 +322,6 @@ If they don't match, bank returns:
   outbox items, and inbox items. spend|reject inbox items cancel out
   the fees in the corresponding outbox item. spend_accept inbox items
   do not.
-
-  /account/<id>/total is only used if the customer has more
-  than one <acct>. Otherwise, only that <acct> is updated, and no
-  "total" items are sent back and forth or stored. This quickly
-  answers the question of what your total holdings are of each asset.
 
 Query Inbox
 ------------
@@ -385,16 +370,12 @@ Process Inbox
   (<id>,balance,<bankid>,<time11#>,assetid2>,<amount2>,acct:<acct2>).
   ...
   (<id>,balance,<bankid>,<time11#>,<assetidN>,<amount3>,acct:<acctN>).
-  (<id>,total,<bankid>,<time11#>,<assetid>,<amount>).
-  (<id>,total,<bankid>,<time11#>,<assetid2>,<amount2>).
-  ...
-  (<id>,total,<bankid>,<time11#>,<assetidN>,<amountN>).
   (<id>,outboxhash,<bankid>,<time11#>,<outboxcount>,<outboxhash>).
   (<id>,balancehash,<bankid>,<time11#>,<balancecount>,<balancehash>)
 
   Bank compares <time11#> to /account/<id>/time. If it's the
   same. Bank processes the requested inbox transactions, and compares
-  the result to the balances, totals, and hashes sent by customer. If
+  the result to the balances and hashes sent by customer. If
   correct, bank computes the response below, stores it in
   /account/<id>/tranaction, and responds with:
 
@@ -405,10 +386,6 @@ Process Inbox
   (<bankid>,@balance,(<id>,balance,<bankid>,time11#>,assetid2>,<amount2>,acct:<acct2>)).
   ...
   (<bankid>,@balance,(<id>,balance,<bankid>,<time11#>,<assetidN>,<amount3>,acct:<acctN>)).
-  (<bankid>,@total,(<id>,total,<bankid>,<time11#>,<assetid>,<amount>)).
-  (<bankid>,@total,(<id>,total,<bankid>,<time11#>,<assetid2>,<amount2>)).
-  ...
-  (<bankid>,@total,(<id>,total,<bankid>,<time11#>,<assetidN>,<amountN>)).
   (<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time11#>,<outboxcount>,<outboxhash>)).
   (<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time11#>,<balancecount>,<balancehash>))
 
@@ -429,8 +406,6 @@ Process Inbox
   /account/<id>/outbox/, signs and adds spend|accept and spend|reject
   items to the other customers' inboxes, updates the
   /account/<id>/balance/<acctN>/<assetidN> with the balances from
-  /account/<id>/transaction, updates
-  /account/<id>/total/<assetid> with the totals from
   /account/<id>/transaction, updates /account/<id>/outboxhash, and
   /account/<id>/balancehash with the signed hashes, and sends back:
 
@@ -496,10 +471,6 @@ Create asset
   (<id>,balance,<bankid>,<time4#>,assetid2>,<amount2>acct:<acct2>).
   ...
   (<id>,balance,<bankid>,<time4#>,<assetidN>,<amountN>,acct:<acctN>).
-  (<id>,total,<bankid>,<time4#>,<assetid>,<amount>).
-  (<id>,total,<bankid>,<time4#>,<assetid2>,<amount2>).
-  ...
-  (<id>,total,<bankid>,<time4#>,<assetidN>,<amountN>).
   (<id>,balancehash,<bankid>,<time4#>,<balancecount>,<balancehash>)
 
   Note that the balance for the new asset is "-1". Like loom, the sum
@@ -512,8 +483,8 @@ Create asset
   /account/<id>/time, the customer has properly subtracted the
   createasset fees from the balances in /account/<id>/balance/<acctN>
   (including 1 usage token for the /asset/<assetid file and 1 usage
-  token for the balance file for the new asset), the totals, if
-  necessary, match, and the balancehash matches, then bank adds
+  token for the balance file for the new asset), and the balancehash
+  matches, then bank adds
   <assetid>=(<id>,asset,<assetid>,<scale>,<precision>,<assetname>) to
   /asset/, sets /account/<id>/last to <time4#>, clears
   /account/<id>/time, and returns:
@@ -523,10 +494,6 @@ Create asset
   (<bankid>,@balance,(<id>,balance,<bankid>,<time4#>,assetid2>,<amount2>acct:<acct2>)).
   ...
   (<bankid>,@balance,(<id>,balance,<bankid>,<time4#>,assetidN>,<amountN>acct:<acctN>)).
-  (<bankid>,@total,(<id>,total,<bankid>,<time4#>,<assetid>,<amount>)).
-  (<bankid>,@total,(<id>,total,<bankid>,<time4#>,<assetid2>,<amount2>)).
-  ...
-  (<bankid>,@total,(<id>,total,<bankid>,<time4#>,<assetidN>,<amountN>)).
   (<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time4#>,<balancecount>,<balancehash>))
 
   Otherwise, bank returns:
@@ -566,19 +533,14 @@ Get balance
   Bank compares <req#> to /account/<id>/req. If <req#> is greater,
   bank sets /account/<id>/req to <req#>.  Then bank returns
   information about the specified <acct>s and <assetid>s If acct is
-  not specified then information about all accounts is returned, plus
-  "total" items for the specified <assetid>. If assetid is not
-  specified, then information about all assetids is returned.  <acct>.
+  not specified then information about all accounts is returned. If
+  assetid is not specified, then information about all assetids is
+  returned.  <acct>.
 
 (<bankid>,@balance,(<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>)).
 (<bankid>,@balance,(<id>,balance,<bankid>,<time2#>,<assetid2>,<amount2>,acct:<acct2>)).
 ...
-(<bankid>,@balance,(<id>,balance,<bankid>,<timeN#>,<assetidN>,<amountN>,acct:<acctN>)).
-(<bankid>,@total,(<id>,total,<bankid>,<time#>,<assetid>,<amount>)).
-(<bankid>,@total,(<id>,total,<bankid>,<time2#>,<assetid2>,<amount2>)).
-...
-(<bankid>,@total,(<id>,total,<bankid>,<timeN#>,<assetidN>,<amountN>)).
-
+(<bankid>,@balance,(<id>,balance,<bankid>,<timeN#>,<assetidN>,<amountN>,acct:<acctN>))
 
   Otherwise, bank returns:
 
