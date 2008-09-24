@@ -129,6 +129,34 @@ function getbanktran() {
   return $args['time'];
 }
 
+function gettran() {
+  global $u;
+  global $bankid;
+  global $server;
+
+  $req = getreq();
+  if (!$req) return $false;
+  $msg = custmsg('gettime', $bankid, $req);
+  $msg = $server->process($msg);
+  $args = $u->match_message($msg);
+  if (is_string($args)) return false;
+  return $args['time'];
+}
+
+function gettran2() {
+  global $u;
+  global $bankid;
+  global $server;
+
+  $req = getreq2();
+  if (!$req) return $false;
+  $msg = custmsg2('gettime', $bankid, $req);
+  $msg = $server->process($msg);
+  $args = $u->match_message($msg);
+  if (is_string($args)) return false;
+  return $args['time'];
+}
+
 // Spend tokens from bank to $id to give him an account
 if (!$db->contents($server->inboxkey($id)) &&
     !$db->contents($server->balancekey($id))) {
@@ -241,8 +269,8 @@ if (count($inbox) == 2) {
   sort($inbox, SORT_NUMERIC);
   $in0 = $inbox[0];
   $in1 = $inbox[1];
-  $msg0 = $db->get("$key/" . $in0);
-  $msg1 = $db->get("$key/" . $in1);
+  $msg0 = $db->get("$key/$in0");
+  $msg1 = $db->get("$key/$in1");
   $amt0 = $server->unpack_bankmsg($msg0, $t->INBOX, $t->SPEND, $t->AMOUNT);
   $amt1 = $server->unpack_bankmsg($msg1, $t->INBOX, $t->SPEND, $t->AMOUNT);
   if ($amt0 == 50 && $amt1 == -10) {
@@ -285,66 +313,146 @@ if (!$server->is_asset($assetid)) {
   }
 }
 
-// spend
-if (false) {
-  $spend = custmsg('spend',$bankid,4,$id2,$server->tokenid,5,"Have some fish!");
-  $fee = custmsg('tranfee',$bankid,4,$server->tokenid,2);
-  $bal = custmsg('balance',$bankid,4,$server->tokenid,13);
-  $hash = $server->outboxhash($id, 4, $spend);
-  $hash = custmsg('outboxhash', $bankid, 4, $hash);
-  $db->put($server->accttimekey($id), 4);
-  process("$spend.$fee.$bal.$hash");
+// Regular spend
+if ($server->assetbalance($id, $assetid) == -1) {
+  $tran = gettran();
+  $amt = 1000;
+  $spend = custmsg('spend',$bankid,$tran,$id2,$assetid,$amt,"Here's a gram of my new gold currency");
+  $fee = custmsg('tranfee',$bankid,$tran,$tokenid,2);
+  $bal1 = custmsg('balance',$bankid,$tran,$assetid,-1 - $amt);
+  $bal2 = custmsg('balance',$bankid,$tran,$tokenid,35);
+  $array = $server->outboxhash($id, $spend);
+  $hash = $array[$t->HASH];
+  $hashcnt = $array[$t->COUNT];
+  $outboxhash = custmsg('outboxhash', $bankid, $tran, $hashcnt, $hash);
+  $acctbals = array($t->MAIN => array($tokenid => $bal1,
+                                      $assetid => $bal2));
+  $array = $u->balancehash($db, $id, $server, $acctbals);
+  $hash = $array[$t->HASH];
+  $count = $array[$t->COUNT];
+  $balhash = custmsg($t->BALANCEHASH, $bankid, $tran, $count, $hash);
+  process("$spend..$fee.$bal1.$bal2.$outboxhash.$balhash");
 }
 
 // spend|accept
-if (false) {
-  $db->put($server->accttimekey($id2), 7);
-  $process = custmsg2('processinbox', $bankid, 7, 6);
-  $accept = custmsg2('spend|accept', $bankid, 4, $id, "Thanks for all the fish");
-  $bal = custmsg2('balance', $bankid, 7, $tokenid, 25);
-  process("$process.$accept.$bal");
-}
-
-// Acknowledge spend|accept (tokens returned)
-if (false) {
-  $msg = process(custmsg('getreq', $bankid));
-  $args = $u->match_message($msg);
-  if (is_string($args)) echo "Failure parsing or matching: $args\n";
-  else {
-    $req = bcadd($args['req'], 1);
-    process(custmsg('gettime', $bankid, $req));
-    $time = $db->get($server->accttimekey($id));
-    $process = custmsg('processinbox', $bankid, $time, 6);
-    $hash = $server->outboxhash($id, $time, false, array(4));
-    $outboxhash = custmsg('outboxhash', $bankid, $time, $hash);
-    $bal = custmsg('balance', $bankid, $time, $tokenid, 15);
-    process("$process.$outboxhash.$bal");
+$key = $server->inboxkey($id2);
+$inbox = $db->contents($key);
+if (count($inbox) == 1) {
+  $in = $inbox[0];
+  $msg = $db->get("$key/$in");
+  $amt = $server->unpack_bankmsg($msg, $t->INBOX, $t->SPEND, $t->AMOUNT);
+  if ($amt == 1000) {
+    $time = $server->unpack_bankmsg($msg, $t->INBOX, $t->SPEND, $t->TIME);
+    $tran = gettran2();
+    $process = custmsg2('processinbox', $bankid, $tran, $in);
+    $accept = custmsg2('spend|accept', $bankid, $time, $id, "Thanks for all the fish");
+    $bal1 = custmsg2('balance', $bankid, $tran, $assetid, 1000);
+    $bal2 = custmsg2('balance', $bankid, $tran, $tokenid, 38);
+    $acctbals = array($t->MAIN => array($assetid => $bal1,
+                                        $tokenid => $bal2));
+    $array = $u->balancehash($db, $id2, $server, $acctbals);
+    $hash = $array[$t->HASH];
+    $count = $array[$t->COUNT];
+    $balhash = custmsg2($t->BALANCEHASH, $bankid, $tran, $count, $hash);
+    process("$process.$accept.$bal1.$bal2.$balhash");
   }
 }
 
-// spend|reject
-if (false) {
-  $db->put($server->accttimekey($id2), 7);
-  $process = custmsg2('processinbox', $bankid, 7, 6);
-  $accept = custmsg2('spend|reject', $bankid, 4, $id, "No thanks. I don't eat fish");
-  $bal = custmsg2('balance', $bankid, 7, $tokenid, 22);
-  process("$process.$accept.$bal");
+// Acknowledge spend|accept (tokens returned)
+$key = $server->outboxkey($id);
+$outbox = $db->contents($key);
+$key = $server->inboxkey($id);
+$inbox = $db->contents($key);
+if (count($inbox) == 1 && count($outbox) == 1) {
+  $out = $outbox[0];
+  $in = $inbox[0];
+  $msg = $db->get("$key/$in");
+  $args = $server->unpack_bankmsg($msg, $t->INBOX, $t->SPENDACCEPT);
+  if (is_array($args)) {
+    $tran = gettran();
+    $process = custmsg('processinbox', $bankid, $tran, $in);
+    $bal = custmsg('balance', $bankid, $tran, $tokenid, 37);
+    $array = $server->outboxhash($id, false, array($out));
+    $hash = $array[$t->HASH];
+    $hashcnt = $array[$t->COUNT];
+    $outboxhash = custmsg('outboxhash', $bankid, $tran, $hashcnt, $hash);
+    $acctbals = array($t->MAIN => array($tokenid => $bal));
+    $array = $u->balancehash($db, $id, $server, $acctbals);
+    $hash = $array[$t->HASH];
+    $count = $array[$t->COUNT];
+    $balhash = custmsg($t->BALANCEHASH, $bankid, $tran, $count, $hash);
+    process("$process.$bal.$outboxhash.$balhash");
+  }
 }
 
-// Acknowledge spend|reject (tokens given to $id2)
-if (false) {
-  $msg = process(custmsg('getreq', $bankid));
-  $args = $u->match_message($msg);
-  if (is_string($args)) echo "Failure parsing or matching: $args\n";
-  else {
-    $req = bcadd($args['req'], 1);
-    process(custmsg('gettime', $bankid, $req));
-    $time = $db->get($server->accttimekey($id));
-    $process = custmsg('processinbox', $bankid, $time, 6);
-    $hash = $server->outboxhash($id, $time, false, array(4));
-    $outboxhash = custmsg('outboxhash', $bankid, $time, $hash);
-    $bal = custmsg('balance', $bankid, $time, $tokenid, 18);
-    process("$process.$outboxhash.$bal");
+// Regular spend
+if ($server->assetbalance($id, $assetid) == -1001 &&
+    $server->assetbalance($id, $tokenid) == 37) {
+  $tran = gettran();
+  $amt = 500;
+  $spend = custmsg('spend',$bankid,$tran,$id2,$assetid,$amt,"Another half a gram");
+  $fee = custmsg('tranfee',$bankid,$tran,$tokenid,2);
+  $bal1 = custmsg('balance',$bankid,$tran,$assetid,-1001 - $amt);
+  $bal2 = custmsg('balance',$bankid,$tran,$tokenid,35);
+  $array = $server->outboxhash($id, $spend);
+  $hash = $array[$t->HASH];
+  $hashcnt = $array[$t->COUNT];
+  $outboxhash = custmsg('outboxhash', $bankid, $tran, $hashcnt, $hash);
+  $acctbals = array($t->MAIN => array($tokenid => $bal1,
+                                      $assetid => $bal2));
+  $array = $u->balancehash($db, $id, $server, $acctbals);
+  $hash = $array[$t->HASH];
+  $count = $array[$t->COUNT];
+  $balhash = custmsg($t->BALANCEHASH, $bankid, $tran, $count, $hash);
+  process("$spend..$fee.$bal1.$bal2.$outboxhash.$balhash");
+}
+
+// spend|reject
+$key = $server->inboxkey($id2);
+$inbox = $db->contents($key);
+if (count($inbox) == 1) {
+  $in = $inbox[0];
+  $msg = $db->get("$key/$in");
+  $amt = $server->unpack_bankmsg($msg, $t->INBOX, $t->SPEND, $t->AMOUNT);
+  if ($amt == 500) {
+    $time = $server->unpack_bankmsg($msg, $t->INBOX, $t->SPEND, $t->TIME);
+    $tran = gettran2();
+    $process = custmsg2('processinbox', $bankid, $tran, $in);
+    $reject = custmsg2('spend|reject', $bankid, $time, $id, "I don't want your money");
+    $bal = custmsg2('balance', $bankid, $tran, $tokenid, 40);
+    $acctbals = array($t->MAIN => array($tokenid => $bal));
+    $array = $u->balancehash($db, $id2, $server, $acctbals);
+    $hash = $array[$t->HASH];
+    $count = $array[$t->COUNT];
+    $balhash = custmsg2($t->BALANCEHASH, $bankid, $tran, $count, $hash);
+    process("$process.$reject.$bal.$balhash");
+  }
+}
+
+// Acknowledge spend|reject
+$key = $server->outboxkey($id);
+$outbox = $db->contents($key);
+$key = $server->inboxkey($id);
+$inbox = $db->contents($key);
+if (count($inbox) == 1 && count($outbox) == 1) {
+  $out = $outbox[0];
+  $in = $inbox[0];
+  $msg = $db->get("$key/$in");
+  $args = $server->unpack_bankmsg($msg, $t->INBOX, $t->SPENDREJECT);
+  if (is_array($args)) {
+    $tran = gettran();
+    $process = custmsg('processinbox', $bankid, $tran, $in);
+    $bal = custmsg('balance', $bankid, $tran, $assetid, -1001);
+    $array = $server->outboxhash($id, false, array($out));
+    $hash = $array[$t->HASH];
+    $hashcnt = $array[$t->COUNT];
+    $outboxhash = custmsg('outboxhash', $bankid, $tran, $hashcnt, $hash);
+    $acctbals = array($t->MAIN => array($assetid => $bal));
+    $array = $u->balancehash($db, $id, $server, $acctbals);
+    $hash = $array[$t->HASH];
+    $count = $array[$t->COUNT];
+    $balhash = custmsg($t->BALANCEHASH, $bankid, $tran, $count, $hash);
+    process("$process.$bal.$outboxhash.$balhash");
   }
 }
 

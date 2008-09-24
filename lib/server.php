@@ -489,7 +489,7 @@ class server {
   // spend or processinbox request.
   // $id: the customer id
   // $msg: the signed (<id>,balance,...) message, as a string
-  // $args: parser->parse(), then server->match_pattern() output on $balmsg
+  // $args: parser->parse(), then utility->match_pattern() output on $balmsg
   // &$state: an array of input and outputs:
   //   'acctbals' => array(<acct> => array(<asset> => $msg))
   //   'bals => array(<asset> => <amount>)
@@ -864,7 +864,7 @@ class server {
         $hasharray = $this->outboxhash($id, $spendmsg);
         $hash = $hasharray[$t->HASH];
         $hashcnt = $hasharray[$t->COUNT];
-        if ($outboxhash != $hash || $outboxcnt != $hashcnt) {
+        if ($outboxhash != $hash || $outboxhashcnt != $hashcnt) {
           return $this->failmsg($msg, $t->OUTBOXHASH . ' mismatch');
         }
       }
@@ -1336,7 +1336,7 @@ class server {
     if (!$reqs) return $parser->errmsg;
     $spendargs = $u->match_pattern($reqs[0]);
     $feeargs = false;
-    if (count($reqs) > 1) $feeargs = $this->match_pattern($reqs[1]);
+    if (count($reqs) > 1) $feeargs = $u->match_pattern($reqs[1]);
     if ($spendargs[$t->CUSTOMER] != $bankid ||
         $spendargs[$t->REQUEST] != $t->ATSPEND ||
         ($feeargs &&

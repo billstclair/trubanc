@@ -223,7 +223,7 @@ class utility {
           $newitems[] = $msg;
           $removed_names[] = $assetid;
         }
-        $hasharray = $this->dirhash($db, "$balancekey/$acct", $this,
+        $hasharray = $this->dirhash($db, "$balancekey/$acct", $unpacker,
                                     $newitems, $removed_names);
         if ($hash != '') $hash .= '.';
         $hash .= $hasharray[$t->HASH];
