@@ -55,7 +55,6 @@ class tokens {
   var $ATSPENDACCEPT = '@spend|accept';
   var $ATSPENDREJECT = '@spend|reject';
   var $ATGETOUTBOX = '@getoutbox';
-  var $ATTOTAL = '@total';
   var $ATBALANCEHASH = '@balancehash';
 
   // request parameter names
@@ -73,7 +72,6 @@ class tokens {
   var $HASH = 'hash';
   var $MSG = 'msg';
   var $ERRMSG = 'errmsg';
-  var $TOTAL = 'total';
   var $BALANCEHASH = 'balancehash';
   var $COUNT = 'count';
 

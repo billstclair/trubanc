@@ -103,19 +103,6 @@ class server {
     return $this->unpack_bankmsg($msg, $t->ATBALANCE, $t->BALANCE, $t->AMOUNT);
   }
 
-  function totalkey($id, $assetid=false) {
-    $res = $accountdir($id) . $this->t->TOTAL;
-    if ($assetid) $res .= "/$assetid";
-    return $res;
-  }
-
-  function totalamt($id, $assetid) {
-    $key = $this->totalkey($id, $assetid);
-    $msg = $db->get($key);
-    if (!$msg) return 0;
-    return $this->unpack_bankmsg($msg, $t->ATTOTAL, $t->TOTAL, $t->AMOUNT);
-  }
-
   function outboxkey($id) {
     return $this->accountdir($id) . $this->t->OUTBOX;
   }
@@ -154,30 +141,6 @@ class server {
 
   function balancehashkey($id) {
     return $this->accountdir($id) . $this->t->BALANCEHASH;
-  }
-
-  function balancehash($id, $newitem=false, $removed_items=false) {
-    $db = $this->db;
-    $u = $this->u;
-
-    $key = $this->balancekey($id);
-    $accts = $db->contents($key);
-    if (count($accts) > 1) $key = $this->totalkey($id);
-    else $key = "$key/" . $accts[0];
-    return $u->dirhash($db, $key, $this, $newitem, $removed_items);
-  }
-
-  function balancehashmsg($id) {
-    $t = $this->t;
-
-    $array = $this->balancehash($id);
-    $hash = $array[$t->HASH];
-    $count = $array[$t->COUNT];
-    return $this->bankmsg($this->t->BALANCEHASH,
-                          $this->bankid,
-                          $this->getacctlast($id),
-                          $count,
-                          $hash);
   }
 
   function is_asset($assetid) {
@@ -254,12 +217,6 @@ class server {
       $msg = $this->bankmsg($t->BALANCE, $bankid, 0, $tokenid, -1);
       $msg = $this->bankmsg($t->ATBALANCE, $msg);
       $db->put("$mainkey/$tokenid", $msg);
-      /*** No need for the hashes for the bank ***
-      $db->put($this->outboxhashkey($bankid),
-               $this->bankmsg($t->ATOUTBOXHASH, $this->outboxhashmsg($bankid)));
-      $db->put($this->balancehashkey($bankid),
-               $this->bankmsg($t->ATBALANCEHASH, $this->balancehashmsg($bankid)));
-      */
     } else {
       $privkey = $ssl->load_private_key($db->get($t->PRIVKEY), $passphrase);
       $this->privkey = $privkey;
@@ -789,14 +746,9 @@ class server {
       $bals[$assetid] = bcsub(0, $amount);
     }
     $acctbals = array();
-    $totals = array();
     $accts = array();
     $oldneg = array();
     $newneg = array();
-
-    $newtotals = array();
-    $deltotals = array();
-    $newbals = array();
 
     $state = array('acctbals' => $acctbals,
                    'bals' => $bals,
@@ -833,18 +785,6 @@ class server {
         $errmsg = $this->handle_balance_msg($id, $reqmsg, $reqargs, $state);
         if ($errmsg) return $this->failmsg($msg, $errmsg);
         $newbals[] = $reqmsg;
-      } elseif ($request == $t->TOTAL) {
-        $totasset = $reqargs[$t->ASSET];
-        $amt = $reqargs[$t->AMOUNT];
-        if ($totals[$totasset]) {
-          return $this->failmsg($msg, "Duplicate total asset: $assetid");
-        }
-        if ($time != $reqargs[$t->TIME]) {
-          return $this->failmsg($msg, "Time mismatch in total item for asset: $totasset");
-        }
-        $totals[$totasset] = $amt;
-        $newtotals[] = $reqmsg;
-        $deltotals[] = $totasset;
       } elseif ($request == $t->OUTBOXHASH) {
         if ($outboxhashreq) {
           return $this->failmsg($msg, $t->OUTBOXHASH . " appeared multiple times");
@@ -886,60 +826,6 @@ class server {
       return $this->failmsg($msg, $t->TRANFEE . " missing");
     }
 
-    // Totals must be included if there is more than one $acct
-    $curaccts = $u->array_to_keys($db->contents($this->balancekey($id)));
-    $allaccts = array_merge($curaccts, $accts);
-    $newaccts = array_diff_key($accts, $curaccts);
-    $needtotals = (count($allaccts) > 1) && ($id != $bankid) &&
-      (($id != $id2) || $tokens > 1);
-    if (!$needtotals && count($totals) > 0) {
-      return $this->failmsg($msg, $t->TOTAL . " included unnecessarily");
-    }
-    if ($needtotals) {
-      $old_totals = false;
-      if (count($curaccts) < 2) {
-        $old_totals = array();
-        foreach ($curaccts as $curacct) {
-          $amt = $db->get($this->acctbalancekey($id, $tokenid, $curacct));
-          if ($amt) $old_totals[$tokenid] += $amt;
-          if ($assetid != $tokenid) {
-            $amt = $db->get($this->acctbalancekey($id, $assetid, $curacct));
-            if ($amt) $old_totals[$assetid] += $amt;
-          }
-        }
-      }
-      $tokamt = $tokens;
-      $totcnt = 1;
-      if ($assetid != $tokenid) {
-        $totcnt = 2;
-        if (!isset($totals[$assetid])) {
-          return $this->failmsg($msg, "Missing total for spent asset");
-        }
-        $asset_total = $totals[$assetid];
-        $old_asset_total = $old_totals ? $old_totals[$assetid] :
-          $db->get($this->totalkey($id, $assetid));
-        if ($asset_total != ($old_asset_total - $amount)) {
-          return $this->failmsg($msg, "Bad token total, was: $token_total, sb: " .
-                                $old_token_total - $tokens);
-        }
-      } else $tokamt += $amount;
-      if (count($totals) != $totcnt) {
-        return $this->failmsg($msg, "Wrong number of total items");
-      }
-      if ($tokamt != 0) {
-        if (!isset($totals[$tokenid])) {
-          return $this->failmsg($msg, "Missing total for tokenid");
-        }
-        $token_total = $totals[$tokenid];
-        $old_token_total = $old_totals ? $old_totals[$tokenid] :
-          $db->get($this->totalkey($id, $tokenid));
-        if ($token_total != ($old_token_total - $tokamt)) {
-          return $this->failmsg($msg, "Bad token total, was: $token_total, sb: " .
-                                $old_token_total - $tokens);
-        }
-      }
-    }
-      
     // Check that we have exactly as many negative balances after the transaction
     // as we had before.
     if (count($oldneg) != count($newneg)) {
@@ -982,24 +868,14 @@ class server {
           return $this->failmsg($msg, $t->OUTBOXHASH . ' mismatch');
         }
       }
+    }
 
-      // balancehash must be included, except on self spends
+    // balancehash must be included, except on bank spends
+    if ($id != $bankid) {
       if (!$balancehashreq) {
         return $this->failmsg($msg, $t->BALANCEHASH . " missing");
       } else {
-        if ($needtotals) {
-          $key = $this->totalkey($id);
-        } else {
-          $newtotals = $newbals;
-          $key = $this->balancekey($id);
-          $accts = $db->contents($key);
-          if (count($accts) > 0) $key = "$key/" . $accts[0];
-          $deltotals = array();
-          foreach ($bals as $k => $v) {
-            $deltotals[] = $k;
-          }
-        }
-        $hasharray = $u->dirhash($db, $key, $this, $newtotals, $deltotals);
+        $hasharray = $u->balancehash($db, $id, $this, $acctbals);
         $hash = $hasharray[$t->HASH];
         $hashcnt = $hasharray[$t->COUNT];
         if ($balancehash != $hash || $balancehashcnt != $hashcnt) {
@@ -1037,28 +913,21 @@ class server {
       }
     }
 
-    // Update totals
-    if ($needtotals) {
-      foreach ($totals as $k => $v) {
-        $totalitem = $this->bankmsg($t->ATTOTAL, $v);
-        $res .= ".$totalitem";
-        $db->put($this->totalkey($id, $k), $totalitem);
-      }
-    }
-
     if ($id != $id2 && $id != $bankid) {
       // Update outboxhash
       $outboxhash_item = $this->bankmsg($t->ATOUTBOXHASH, $outboxhashmsg);
       $res .= ".$outboxhash_item";
       $db->put($this->outboxhashkey($id), $outboxhash_item);
 
+      // Append spend to outbox
+      $db->put($this->outboxdir($id) . "/$time", $outbox_item);
+    }
+
+    if ($id != $bankid) {
       // Update balancehash
       $balancehash_item = $this->bankmsg($t->ATBALANCEHASH, $balancehashmsg);
       $res .= ".$balancehash_item";
       $db->put($this->balancehashkey($id), $balancehash_item);
-
-      // Append spend to outbox
-      $db->put($this->outboxdir($id) . "/$time", $outbox_item);
     }
 
     // Append spend to recipient's inbox
@@ -1221,16 +1090,11 @@ class server {
 
     $inboxmsgs = array();
     $acctbals = array();
-    $totals = array();
     $accts = array();
     $res = $this->bankmsg($t->ATPROCESSINBOX, $parser->get_parsemsg($reqs[0]));
     $tokens = 0;
     $oldneg = array();
     $newneg = array();
-
-    $newtotals = array();
-    $deltotals = array();
-    $newbals = array();
 
     $state = array('acctbals' => $acctbals,
                    'bals' => $bals,
@@ -1293,18 +1157,6 @@ class server {
           $inboxmsg = $this->bankmsg($t->INBOX, $inboxtime, $reqmsg);
         }
         $inboxmsgs[] = array($otherid, $inboxtime, $inboxmsg);
-      } elseif ($request == $t->TOTAL) {
-        $totasset = $args[$t->ASSET];
-        $amt = $args[$t->AMOUNT];
-        if ($totals[$totasset]) {
-          return $this->failmsg($msg, "Duplicate total asset: $assetid");
-        }
-        if ($time != $args[$t->TIME]) {
-          return $this->failmsg($msg, "Time mismatch in total item for asset: $totasset");
-        }
-        $totals[$totasset] = $amt;
-        $newtotals[] = $reqmsg;
-        $deltotals[] = $totasset;
       } elseif ($request == $t->OUTBOXHASH) {
         if ($outboxhashreq) {
           return $this->failmsg($msg, $t->OUTBOXHASH . " appeared multiple times");
@@ -1337,7 +1189,7 @@ class server {
       } else {
         return $this->failmsg($msg, "$request not valid for " . $t->PROCESSINBOX .
                               ". Only " . $t->SPENDACCEPT . ", " . $t->SPENDREJECT .
-                              ", " . $t->TOTAL . ", " . $t->OUTBOXHASH . ", " .
+                              ", " . $t->OUTBOXHASH . ", " .
                               $t->BALANCE . ", &" . $t->BALANCEHASH);
       }
     }
@@ -1349,60 +1201,6 @@ class server {
     $oldneg = $state['oldneg'];
     $newneg = $state['newneg'];
 
-    // Totals must be included if there is more than one $acct
-    $curaccts = $u->array_to_keys($db->contents($this->balancekey($id)));
-    $allaccts = array_merge($curaccts, $accts);
-    $newaccts = array_diff_key($accts, $curaccts);
-    $needtotals = (count($allaccts) > 1) && ($id != $bankid) &&
-      (($id != $id2) || $tokens > 1);
-    if (!$needtotals && count($totals) > 0) {
-      return $this->failmsg($msg, $t->TOTAL . " included unnecessarily");
-    }
-    if ($needtotals) {
-      $old_totals = false;
-      if (count($curaccts) < 2) {
-        $old_totals = array();
-        foreach ($curaccts as $curacct) {
-          $amt = $db->get($this->acctbalancekey($id, $tokenid, $curacct));
-          if ($amt) $old_totals[$tokenid] += $amt;
-          if ($assetid != $tokenid) {
-            $amt = $db->get($this->acctbalancekey($id, $assetid, $curacct));
-            if ($amt) $old_totals[$assetid] += $amt;
-          }
-        }
-      }
-      $tokamt = $tokens;
-      $totcnt = 1;
-      if ($assetid != $tokenid) {
-        $totcnt = 2;
-        if (!isset($totals[$assetid])) {
-          return $this->failmsg($msg, "Missing total for spent asset");
-        }
-        $asset_total = $totals[$assetid];
-        $old_asset_total = $old_totals ? $old_totals[$assetid] :
-          $db->get($this->totalkey($id, $assetid));
-        if ($asset_total != ($old_asset_total - $amount)) {
-          return $this->failmsg($msg, "Bad token total, was: $token_total, sb: " .
-                                $old_token_total - $tokens);
-        }
-      } else $tokamt += $amount;
-      if (count($totals) != $totcnt) {
-        return $this->failmsg($msg, "Wrong number of total items");
-      }
-      if ($tokamt != 0) {
-        if (!isset($totals[$tokenid])) {
-          return $this->failmsg($msg, "Missing total for tokenid");
-        }
-        $token_total = $totals[$tokenid];
-        $old_token_total = $old_totals ? $old_totals[$tokenid] :
-          $db->get($this->totalkey($id, $tokenid));
-        if ($token_total != ($old_token_total - $tokamt)) {
-          return $this->failmsg($msg, "Bad token total, was: $token_total, sb: " .
-                                $old_token_total - $tokens);
-        }
-      }
-    }
-      
     // Check that we have exactly as many negative balances after the transaction
     // as we had before.
     if (count($oldneg) != count($newneg)) {
@@ -1456,19 +1254,7 @@ class server {
       if (!$balancehashreq) {
         return $this->failmsg($msg, $t->BALANCEHASH . " missing");
       } else {
-        if ($needtotals) {
-          $key = $this->totalkey($id);
-        } else {
-          $key = $this->balancekey($id);
-          $accts = $db->contents($key);
-          if (count($accts) > 0) $key = $accts[0];
-          $newtotals = $newbals;
-          $deltotals = array();
-          foreach ($bals as $k => $v) {
-            $deltotals[] = $k;
-          }
-        }
-        $hasharray = $u->dirhash($db, $key, $this, $newtotals, $deltotals);
+        $hasharray = $u->balancehash($db, $id, $this, $acctbals);
         $hash = $hasharray[$t->HASH];
         $hashcnt = $hasharray[$t->COUNT];
         if ($balancehash != $hash || $balancehashcnt != $hashcnt) {
@@ -1486,15 +1272,6 @@ class server {
         $balance = $this->bankmsg($t->ATBALANCE, $balance);
         $res .= ".$balance";
         $db->put("$acctkey/$balasset", $balance);
-      }
-    }
-
-    // Update totals
-    if ($needtotals) {
-      foreach ($totals as $k => $v) {
-        $totalitem = $this->bankmsg($t->ATTOTAL, $v);
-        $res .= ".$totalitem";
-        $db->put($this->totalkey($id, $k), $totalitem);
       }
     }
 
@@ -1644,14 +1421,9 @@ class server {
 
     $bals = array($assetid => -1);
     $acctbals = array();
-    $totals = array();
     $accts = array();
     $oldneg = array();
     $newneg = array();
-
-    $newtotals = array();
-    $deltotals = array();
-    $newbals = array();
 
     $tokenid = $this->tokenid;
     $bals[$tokenid] = 0;
@@ -1681,16 +1453,7 @@ class server {
         return $this->failmsg($msg, "Timestamp mismatch");
       }
       if ($reqid != $id) return $this->failmsg($msg, "ID mismatch");
-      if ($request == $t->TOTAL) {
-        $totasset = $args[$t->ASSET];
-        $amt = $args[$t->AMOUNT];
-        if ($totals[$totasset]) {
-          return $this->failmsg($msg, "Duplicate total asset: $assetid");
-        }
-        $totals[$totasset] = $amt;
-        $newtotals[] = $reqmsg;
-        $deltotals[] = $totasset;
-      } elseif ($request == $t->BALANCE) {
+      elseif ($request == $t->BALANCE) {
         $reqmsg = $parser->get_parsemsg($req);
         $errmsg = $this->handle_balance_msg($id, $reqmsg, $args, $state, $assetid);
         if ($errmsg) return $this->failmsg($msg, $errmsg);
@@ -1705,7 +1468,7 @@ class server {
         $balancehashmsg = $parser->get_parsemsg($req);
       } else {
         return $this->failmsg($msg, "$request not valid for asset creation. Only " .
-                              $t->BALANCE);
+                              $t->BALANCE . ' & ' . $t->BALANCEHASH);
       }
     }
 
@@ -1718,65 +1481,6 @@ class server {
 
     $amount = -1;
 
-    // Totals must be included if there is more than one $acct
-    $curaccts = $u->array_to_keys($db->contents($this->balancekey($id)));
-    $allaccts = array_merge($curaccts, $accts);
-    $newaccts = array_diff_key($accts, $curaccts);
-    $needtotals = (count($allaccts) > 1) && ($id != $bankid);
-    if (!$needtotals && count($totals) > 0) {
-      return $this->failmsg($msg, $t->TOTAL . " included unnecessarily");
-    }
-    if ($needtotals) {
-      $old_totals = false;
-      if (count($curaccts) < 2) {
-        $old_totals = array();
-        foreach ($curaccts as $curacct) {
-          $amt = $this->assetbalance($id, $tokenid, $curacct);
-          if (!is_numeric($amt)) {
-              return $this->failmsg($msg, "Bad balance found in account");
-            }
-          $old_totals[$tokenid] = bcadd($old_totals[$tokenid], $amt);
-        }
-        if ($assetid != $tokenid) {
-          $amt = $this->assetbalance($id, $assetid, $curacct);
-          if (!is_numeric($amt)) {
-            return $this->failmsg($msg, "Bad balance found in account");
-          }
-          $old_totals[$assetid] = bcadd($old_totals[$assetid], $amt);
-        }
-      }
-      $tokamt = $tokens;
-      $totcnt = 1;
-      if ($assetid != $tokenid) {
-        $totcnt = 2;
-        if (!isset($totals[$assetid])) {
-          return $this->failmsg($msg, "Missing total for new asset");
-        }
-        $asset_total = $totals[$assetid];
-        $old_asset_total = $old_totals ? $old_totals[$assetid] :
-          $this->totalamt($id, $assetid);
-        if ($asset_total != bcsub($old_asset_total,  $amount)) {
-          return $this->failmsg($msg, "Bad token total, was: $token_total, sb: " .
-                                bcsub($old_token_total,  $amount));
-        }
-      } else $tokamt = bcadd($tokens, $amount);
-      if (count($totals) != $totcnt) {
-        return $this->failmsg($msg, "Wrong number of total items");
-      }
-      if ($tokamt != 0) {
-        if (!isset($totals[$tokenid])) {
-          return $this->failmsg($msg, "Missing total for tokenid");
-        }
-        $token_total = $totals[$tokenid];
-        $old_token_total = $old_totals ? $old_totals[$tokenid] :
-          $this->totalamt($id, $tokenid);
-        if ($token_total != bcsub($old_token_total, $tokamt)) {
-          return $this->failmsg($msg, "Bad token total, was: $token_total, sb: " .
-                                bcsub($old_token_total, $tokamt));
-        }
-      }
-    }
-      
     // Check that we have exactly as many negative balances after the transaction
     // as we had before, plus one for the new asset
     $oldneg[$assetid] = $t->MAIN;
@@ -1811,19 +1515,7 @@ class server {
     if (!$balancehashreq) {
       return $this->failmsg($msg, $t->BALANCEHASH . " missing");
     } else {
-      if ($needtotals) {
-        $key = $this->totalkey($id);
-      } else {
-        $newtotals = $newbals;
-        $key = $this->balancekey($id);
-        $accts = $db->contents($key);
-        if (count($accts) > 0) $key = "$key/" . $accts[0];
-        $deltotals = array();
-        foreach ($bals as $k => $v) {
-          $deltotals[] = $k;
-        }
-      }
-      $hasharray = $u->dirhash($db, $key, $this, $newtotals, $deltotals);
+      $hasharray = $u->balancehash($db, $id, $this, $acctbals);
       $hash = $hasharray[$t->HASH];
       $hashcnt = $hasharray[$t->COUNT];
       if ($balancehash != $hash || $balancehashcnt != $hashcnt) {
@@ -1847,15 +1539,6 @@ class server {
         $balance = $this->bankmsg($t->ATBALANCE, $balance);
         $res .= ".$balance";
         $db->put("$acctkey/$balasset", $balance);
-      }
-    }
-
-    // Update totals
-    if ($needtotals) {
-      foreach ($totals as $k => $v) {
-        $totalitem = $this->bankmsg($t->ATTOTAL, $v);
-        $res .= ".$totalitem";
-        $db->put($this->totalkey($id, $k), $totalitem);
       }
     }
 

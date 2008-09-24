@@ -80,7 +80,6 @@ class utility {
       $patterns = array(// Customer messages
                         $t->BALANCE => array($t->BANKID,$t->TIME,
                                              $t->ASSET, $t->AMOUNT, $t->ACCT=>1),
-                        $t->TOTAL => array($t->BANKID, $t->TIME, $t->ASSET, $t->AMOUNT),
                         $t->OUTBOXHASH => array($t->BANKID, $t->TIME, $t->COUNT, $t->HASH),
                         $t->BALANCEHASH => array($t->BANKID, $t->TIME, $t->COUNT, $t->HASH),
                         $t->SPEND => array($t->BANKID,$t->TIME,$t->ID,
@@ -107,7 +106,6 @@ class utility {
                         $t->ATBALANCEHASH => array($t->MSG),
                         $t->ATGETINBOX => array($t->MSG),
                         $t->ATBALANCE => array($t->MSG),
-                        $t->ATTOTAL => array($t->MSG),
                         $t->ATSPEND => array($t->MSG),
                         $t->ATTRANFEE => array($t->MSG),
                         $t->ATASSET => array($t->MSG),
@@ -173,9 +171,6 @@ class utility {
     $parser = $this->parser;
     $t = $this->t;
 
-    $newitemstr = $newitem;
-    if (!is_string($newitem)) $newitemstr = implode('.', $newitem);
-
     $contents = $db->contents($key);
     $items = array();
     foreach ($contents as $name) {
@@ -197,6 +192,46 @@ class utility {
     sort($items);
     $hash = sha1(implode('.', array_map('trim', $items)));
     return array($t->HASH => $hash, $t->COUNT => count($items));
+  }
+
+  // Compute the balance hash as array($t->HASH => $hash, $t->COUNT => $hashcnt)
+  // $id is the ID of the account.
+  // $unpacker must have balancekey() and unpack_bankmsg() methods.
+  // $acctbals is array($acct => array($assetid => $msg))
+  function balancehash($db, $id, $unpacker, $acctbals) {
+    $t = $this->t;
+    $u = $this->u;
+
+    $hash = '';
+    $hashcnt = 0;
+    $balancekey = $unpacker->balancekey($id);
+    $accts = $db->contents($balancekey);
+    $needsort = false;
+    foreach ($acctbals as $acct => $bals) {
+      if (!in_array($acct, $accts)) {
+        $accts[] = $acct;
+        $needsort = true;
+      }
+    }
+    if ($needsort) sort($accts);
+    foreach ($accts as $acct) {
+      $newitems = array();
+      $removed_names = array();
+      $newacct = $acctbals[$acct];
+      if ($newacct) {
+        foreach ($newacct as $assetid => $msg) {
+          $newitems[] = $msg;
+          $removed_names[] = $assetid;
+        }
+        $hasharray = $this->dirhash($db, "$balancekey/$acct", $this,
+                                    $newitems, $removed_names);
+        if ($hash != '') $hash .= '.';
+        $hash .= $hasharray[$t->HASH];
+        $hashcnt += $hasharray[$t->COUNT];
+      }
+    }
+    if ($hashcnt > 1) $hash = sha1($hash);
+    return array($t->HASH => $hash, $t->COUNT => $hashcnt);
   }
 
   // Take the values in the passed array and return an array with

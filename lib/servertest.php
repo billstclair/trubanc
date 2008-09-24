@@ -93,6 +93,17 @@ function getreq() {
   return bcadd($args['req'], 1);
 }
 
+function getreq2() {
+  global $u;
+  global $bankid;
+  global $server;
+
+  $msg = $server->process(custmsg2('getreq', $bankid));
+  $args = $u->match_message($msg);
+  if (is_string($args)) return false;
+  return bcadd($args['req'], 1);
+}
+
 function getbankreq() {
   global $u;
   global $bankid;
@@ -162,6 +173,7 @@ echo "id1 trans: $trans, time: $time\n";
 $key = $server->inboxkey($id);
 $inbox = $db->contents($key);
 if (count($inbox) == 2) {
+  sort($inbox, SORT_NUMERIC);
   $in0 = $inbox[0];
   $in1 = $inbox[1];
   $msg0 = $db->get("$key/" . $in0);
@@ -175,7 +187,8 @@ if (count($inbox) == 2) {
     $acc0 = custmsg($t->SPENDACCEPT, $bankid, $time0, $bankid);
     $acc1 = custmsg($t->SPENDACCEPT, $bankid, $time1, $bankid);
     $bal = custmsg($t->BALANCE, $bankid, $time, $tokenid, 39);
-    $array = $u->dirhash($db, $server->acctbalancekey($id), $server, $bal);
+    $acctbals = array($t->MAIN => array($t->tokenid => $bal));
+    $array = $u->balancehash($db, $id, $server, $acctbals);
     $hash = $array[$t->HASH];
     $count = $array[$t->COUNT];
     $balhash = custmsg($t->BALANCEHASH, $bankid, $time, $count, $hash);
@@ -199,7 +212,7 @@ if (!$db->contents($server->inboxkey($id2)) &&
 // Register $id2, if not yet registered
 if (!$server->pubkeydb->get($id2)) {
   // Get the bankid. This command does not require an acount
-  process(custmsg2('bankid',$pubkey));
+  process(custmsg2('bankid',$pubkey2));
   process(custmsg2("register",$bankid,$pubkey2,"Jane Jetson"));
   process(custmsg2('id',$bankid,$id2));
 }
@@ -209,7 +222,7 @@ $trans = $db->get($server->accttimekey($id2));
 // getinbox
 $inbox = $db->contents($server->inboxkey($id2));
 if (count($inbox) > 0) {
-  $req = getreq();
+  $req = getreq2();
   if (!$req) echo "Couldn't get req\n";
   else {
     process(custmsg2('getinbox', $bankid, $req));
@@ -225,6 +238,7 @@ echo "id2 trans: $trans, time: $time\n";
 $key = $server->inboxkey($id2);
 $inbox = $db->contents($key);
 if (count($inbox) == 2) {
+  sort($inbox, SORT_NUMERIC);
   $in0 = $inbox[0];
   $in1 = $inbox[1];
   $msg0 = $db->get("$key/" . $in0);
@@ -238,7 +252,8 @@ if (count($inbox) == 2) {
     $acc0 = custmsg2($t->SPENDACCEPT, $bankid, $time0, $bankid);
     $acc1 = custmsg2($t->SPENDACCEPT, $bankid, $time1, $bankid);
     $bal = custmsg2($t->BALANCE, $bankid, $time, $tokenid, 39);
-    $array = $u->dirhash($db, $server->acctbalancekey($id2), $server, $bal);
+    $acctbals = array($t->MAIN => array($tokenid => $bal));
+    $array = $u->balancehash($db, $id2, $server, $acctbals);
     $hash = $array[$t->HASH];
     $count = $array[$t->COUNT];
     $balhash = custmsg2($t->BALANCEHASH, $bankid, $time, $count, $hash);
@@ -260,8 +275,9 @@ if (!$server->is_asset($assetid)) {
     $process = custmsg('asset', $bankid, $assetid, $scale, $precision, $assetname);
     $bal1 = custmsg('balance', $bankid, $time, $tokenid, 37);
     $bal2 = custmsg('balance', $bankid, $time, $assetid, -1);
-    $array = $u->dirhash($db, $server->acctbalancekey($id), $server,
-                         array($bal1, $bal2), array($tokenid, $assetid));
+    $acctbals = array($t->MAIN => array($tokenid => $bal1,
+                                        $assetid => $bal2));
+    $array = $u->balancehash($db, $id, $server, $acctbals);
     $hash = $array[$t->HASH];
     $count = $array[$t->COUNT];
     $balhash = custmsg($t->BALANCEHASH, $bankid, $time, $count, $hash);
