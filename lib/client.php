@@ -20,6 +20,7 @@ class client {
   // Initialized by login() and newuser()
   var $id;
   var $privkey;
+  var $pubkey;
 
   // initialized by setbank() and addbank()
   var $server;
@@ -74,6 +75,7 @@ class client {
 
     $this->id = $id;
     $this->privkey = $privkey;
+    $this->pubkey = $pubkey;
     return false;
   }
 
@@ -94,6 +96,7 @@ class client {
 
     $this->id = $id;
     $this->privkey = $privkey;
+    $this->pubkey = $pubkey;
     return false;
   }
 
@@ -160,15 +163,15 @@ class client {
     $u = $this->u;
     $id = $this->id;
     $privkey = $this->privkey;
+    $pubkey = $this->pubkey;
     $ssl = $this->ssl;
     $parser = $this->parser;
 
     $server = new serverproxy($url);
     $this->server = $server;
-    $pubkey = $ssl->privkey_to_pubkey($privkey);
     $msg = $this->sendmsg($t->BANKID, $pubkey);
     $args = $u->match_message($msg);
-    if (is_string($args)) return "Bank's bankid message wrong: $msg";
+    if (is_string($args)) return "Bank's bankid response error: $args";
     $bankid = $args[$t->CUSTOMER];
     if ($args[$t->REQUEST] != $t->REGISTER ||
         $args[$t->BANKID] != $bankid) {
@@ -200,6 +203,7 @@ class client {
   function setbank($bankid) {
     $db = $this->db;
     $t = $this->t;
+    $u = $this->u;
 
     if (!$this->loggedinp()) return "Not logged in";
 
@@ -213,6 +217,17 @@ class client {
     $req = $this->userbankprop($t->REQ);
     if (!$req) {
       $db->put($this->userreqkey(), -1);
+    }
+
+    $msg = $this->sendmsg($t->BANKID, $this->pubkey);
+    $args = $u->match_message($msg);
+    if (is_string($args)) return "Bank's bankid response error: $args";
+    if ($bankid != $args[$t->CUSTOMER]) {
+      return "bankid changed since we last contacted this bank";
+    }
+    if ($args[$t->REQUEST] != $t->REGISTER ||
+        $args[$t->BANKID] != $bankid) {
+      return "Bank's bankid message wrong: $msg";
     }
 
     return false;
@@ -1154,7 +1169,10 @@ class serverproxy {
 
   function process($msg) {
     $url = $this->url;
-    return file_get_contents("$url/?msg=" . urlencode($msg));
+    echo "processing: $msg\n";
+    $res = file_get_contents("$url/?msg=" . urlencode($msg));
+    echo "returned: $res\n";
+    return $res;
   }
 }
 
@@ -1164,6 +1182,8 @@ class pubkeydb {
 
   var $client;
   var $pubkeydb;
+
+  var $insidep = false;
 
   function pubkeydb($client, $pubkeydb) {
     $this->client = $client;
@@ -1177,7 +1197,11 @@ class pubkeydb {
     $res = $pubkeydb->get($id);
     if ($res) return $res;
 
-    return $client->get_pubkey_from_server($id);
+    if ($this->insidep) return "";
+    $this->insidep = true;
+    $res = $client->get_pubkey_from_server($id);
+    $this->insidep = false;
+    return $res;
   }
 }
 

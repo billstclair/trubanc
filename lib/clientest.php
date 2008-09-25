@@ -34,13 +34,13 @@ $err = $client->newuser($passphrase, 512);
 if ($err) echo "$err\n";
 
 $err = $client->login($passphrase);
-if ($err) echo "$err\n";
+if ($err) die("$err\n");
 
 $id = $client->id;
 echo "id: $id\n";
 
 $err = $client->addbank($url);
-if ($err) echo "$err\n";
+if ($err) die("$err\n");
 else {
   echo "bankid: " . $client->bankid . "\n";
   //echo "server:"; print_r($client->server);
