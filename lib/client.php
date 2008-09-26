@@ -394,7 +394,9 @@ class client {
     $db = $this->db;
 
     $bankid = $this->bankid;
-    $msg = $this->sendmsg($t->GETASSET, $bankid, $this->getreq(), $assetid);
+    $req = $this->getreq();
+    if (!$req) return "Couldn't get req for getasset";
+    $msg = $this->sendmsg($t->GETASSET, $bankid, $req, $assetid);
     $args = $this->match_bankmsg($msg, $t->ATASSET);
     if (is_string($args)) return "While downloading asset: $args";
     $args = $args[$t->MSG];
@@ -467,7 +469,9 @@ class client {
     $parser = $this->parser;
     $bankid = $this->bankid;
 
-    $msg = $this->sendmsg($t->GETFEES, $bankid, $this->getreq());
+    $req = $this->getreq();
+    if (!$req) return "Couldn't get req for getfees";
+    $msg = $this->sendmsg($t->GETFEES, $bankid, $req);
     $reqs = $parser->parse($msg);
     if (!$reqs) return "While parsing getfees return message: " . $parser->errmsg;
     $feeargs = false;
@@ -1014,24 +1018,6 @@ class client {
     $t = $this->t;
     $db = $this->db;
 
-    // This is rarely necessary.
-    // Might be better to only do it if a request fails, then retry.
-    // Easier for initial coding just to do it every time.
-    // Actually, if we're not in sync, we need to redownload
-    // the balances and outbox, and compare to make sure everything
-    // that's changed has a later key.
-    // That will be necessary when people have more than one client,
-    // e.g. one at home, one on laptop, one at work, one in iPhone.
-    if (!$this->syncedreq) {
-      $bankid = $this->bankid;
-      $msg = $this->sendmsg($t->GETREQ, $bankid);
-      $args = $this->match_bankmsg($msg, $t->REQ);
-      if (is_string($args)) return false;
-      $reqnum = $args[$t->REQ];
-      $db->put($key, $reqnum);
-      $this->syncedreq = true;
-    }
-
     $reqnum = bcadd($db->get($key), 1);
     $db->put($key, $reqnum);
     return $reqnum;
@@ -1042,12 +1028,52 @@ class client {
     $t = $this->t;
     $bankid = $this->bankid;
 
-    $msg = $this->sendmsg($t->GETTIME, $bankid, $this->getreq());
+    $req = $this->getreq();
+    if (!$req) return "Couldn't get req for gettime";
+    $msg = $this->sendmsg($t->GETTIME, $bankid, $req);
     $args = $this->match_bankmsg($msg, $t->TIME);
     if (is_string($args)) return false;
     $args = $args[$t->MSG];
     return $args[$t->TIME];
   }
+
+  // Check once per instance that the local idea of the reqnum matches
+  // that at the bank.
+  // If it doesn't, clear the account information, so that initbankaccts()
+  // will reinitialize.
+  // Eventually, we want to compare to see if we can catch a bank error.
+  function syncreq() {
+    $db = $this->db;
+    $t = $this->t;
+
+    $key = $this->userbankkey($t->REQ);
+    $reqnum = $db->get($key);
+    if ($reqnum == -1) $this->syncedreq = true;
+    if (!$this->syncedreq) {
+      $bankid = $this->bankid;
+      $msg = $this->sendmsg($t->GETREQ, $bankid);
+      $args = $this->match_bankmsg($msg, $t->REQ);
+      if (is_string($args)) return false;
+      $newreqnum = $args[$t->REQ];
+      if ($reqnum != $newreqnum) {
+        echo "getreq(), sb: $reqnum, was: $newreqnum\n";
+        $reqnum = -1;
+        $balkey = $this->userbalancekey();
+        $accts = $db->contents($balkey);
+        foreach ($accts as $acct) {
+          $acctkey = "$balkey/$acct";
+          $assetids = $db->contents($acctkey);
+          foreach ($assetids as $assetid) {
+            $key = "$acctkey/$assetid";
+            $db->put($key, '');
+          }
+        }
+      }
+      $this->syncedreq = true;
+    }
+    return $reqnum;
+  }
+
 
   // If we haven't yet downloaded accounts from the bank, do so now.
   // This is how a new client instance gets initialized from an existing
@@ -1060,7 +1086,9 @@ class client {
     $bankid = $this->bankid;
     $parser = $this->parser;
 
-    if ($this->userbankprop($t->REQ) == -1) {
+    $reqnum = $this->syncreq();
+
+    if ($reqnum == -1) {
 
       // Get $t->REQ
       $msg = $this->sendmsg($t->GETREQ, $bankid);

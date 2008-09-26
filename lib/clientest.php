@@ -115,7 +115,7 @@ else {
   echo "\n";
 }
 
-$asset = $client->getasset('7d4f9b262e46101c4c5dd9234c0bd95ecc878b3c');
+$asset = $client->getasset('7e35436da35cf1731480d0f35f0144b3013ccb35');
 if (is_string($asset)) echo "$asset\n";
 else print_r($asset);
 $asset = $client->getasset('aintnosuchasset');
