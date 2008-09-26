@@ -261,11 +261,11 @@ class client {
     // Resist the urge to change this to a call to
     // get_pubkey_from_server. Trust me.
     $msg = $this->sendmsg($t->ID, $bankid, $id);
-    $args = $this->match_bankmsg($msg, $t->ATREGISTER);
+    $args = $this->unpack_bankmsg($msg, $t->ATREGISTER);
     if (is_string($args)) {
       // Bank doesn't know us. Register with bank.
       $msg = $this->sendmsg($t->REGISTER, $bankid, $this->pubkey($id), $name);
-      $args = $this->match_bankmsg($msg, $t->ATREGISTER);
+      $args = $this->unpack_bankmsg($msg, $t->ATREGISTER);
     }
     if (is_string($args)) return "Registration failed: $args";
 
@@ -324,7 +324,7 @@ class client {
     }
 
     $msg = $this->sendmsg($t->ID, $bankid, $otherid);
-    $args = $this->match_bankmsg($msg, $t->ATREGISTER);
+    $args = $this->unpack_bankmsg($msg, $t->ATREGISTER);
     if (is_string($args)) return $args;
     $args = $args[$t->MSG];
     $pubkey = $args[$t->PUBKEY];
@@ -373,7 +373,7 @@ class client {
     $msg = $db->get($key);
     if ($msg) {
       $db->unlock($lock);
-      $args = $this->match_bankmsg($msg, $t->ATASSET);
+      $args = $this->unpack_bankmsg($msg, $t->ATASSET);
       if (is_string($args)) return "While matching asset: $args";
       $args = $args[$t->MSG];
     } else {
@@ -397,7 +397,7 @@ class client {
     $req = $this->getreq();
     if (!$req) return "Couldn't get req for getasset";
     $msg = $this->sendmsg($t->GETASSET, $bankid, $req, $assetid);
-    $args = $this->match_bankmsg($msg, $t->ATASSET);
+    $args = $this->unpack_bankmsg($msg, $t->ATASSET);
     if (is_string($args)) return "While downloading asset: $args";
     $args = $args[$t->MSG];
     if ($args[$t->REQUEST] != $t->ASSET ||
@@ -440,7 +440,7 @@ class client {
     $msg = $db->get($key);
     if ($msg) {
       $db->unlock($lock);
-      $args = $this->match_bankmsg($msg, $t->TRANFEE);
+      $args = $this->unpack_bankmsg($msg, $t->TRANFEE);
       if (is_string($args)) return "While matching tranfee: $args";
     } else {
       $args = $this->getfees_internal($key);
@@ -453,7 +453,7 @@ class client {
 
     $msg = $this->regfee();
     if (!$msg) return "Regfee not initialized";
-    $args = $this->match_bankmsg($msg, $t->REGFEE);
+    $args = $this->unpack_bankmsg($msg, $t->REGFEE);
     if (is_string($args)) return "While matching regfee: $args";
 
     $regfee = array($t->ASSET => $args[$t->ASSET],
@@ -540,7 +540,7 @@ class client {
       foreach ($assetids as $assetid) {
         $msg = $this->userbalance($acct, $assetid);
         if ($msg) {
-          $args = $this->match_bankmsg($msg, $t->ATBALANCE);
+          $args = $this->unpack_bankmsg($msg, $t->ATBALANCE);
           if (is_string($args)) return "While gathering balances: $args";
           $args = $args[$t->MSG];
           $assetid = $args[$t->ASSET];
@@ -608,25 +608,77 @@ class client {
       return "Insufficient balance";
     }
 
+    $tranfee = false;
+    if ($id != $bankid) {
+      $fees = $this->getfees();
+      if (is_string($fees)) return $fees;
+      $tranfee = $fees[$t->TRANFEE];
+      $tranfee_asset = $tranfee[$t->ASSET];
+      $tranfee_amt = $tranfee[$t->AMOUNT];
+      if ($tranfee_asset == $assetid && $t->MAIN == $acct) {
+        $newamount = bcsub($newamount, $tranfee_amt);
+        if (bccomp($oldamount, 0) >= 0 &&
+            bccomp($newamount, 0) < 0) {
+          return "Insufficient balance for transaction fee";
+        }
+        $tranfee = false;
+      } else {
+        $fee_balance = $this->balance($t->MAIN, $tranfee_asset);
+        $fee_balance = bcsub($fee_balance, $tranfee_amt);
+        if (bccomp($fee_balance, 0) < 0) {
+          return "Insufficient tokens for transaction fee";
+        }
+      }
+    }
+
     $time = $this->gettime();
     if (!$time) return "Unable to get timestamp for transaction from bank";
     if ($note) $spend = $this->custmsg($t->SPEND, $bankid, $time, $toid, $note);
     else $spend = $this->custmsg($t->SPEND, $bankid, $time, $toid);
-    /*** Need to get and compute fee and it's balance ***/
+    $feemsg = '';
+    if ($tranfee) {
+      $feemsg = $this->custmsg
+        ($t->TRANFEE, $bankid, $time, $tranfee_asset, $tranfee_amt);
+      $feemsg .= '.' . $this->custmsg
+        ($t->BALANCE, $bankid, $time, $tranfee_asset, $fee_balance);
+    }      
     $balance = $this->custmsg
       ($t->BALANCE, $bankid, $time, $assetid, $newamount, $acct);
-    $outboxhash = $this->outboxhashmsg($spend);
+    $outboxhash = $this->outboxhashmsg($time, $spend);
 
-    $msg = "$spend.$fee.$balance.$outboxhash";
+    // Compute balancehash
+    if ($tranfee) {
+      if ($t->MAIN == $acct) {
+        $acctbals = array($acct => array($assetid => $newamount,
+                                         $tranfee_asset => $fee_balance));
+      } else {
+        $acctbals = array($acct => array($assetid => $newamount),
+                          $t->MAIN => array($tranfee_asset => $fee_balance));
+      }
+    } else {
+      $acctbals = array($acct => array($assetid => $newamount));
+    }
+    $hasharray = $u->balancehash($db, $this->id, $this, $acctbals);
+    $hash = $hasharray[$t->HASH];
+    $hashcnt = $hasharray[$t->COUNT];
+    $balancehash = custmsg($t->BALANCEHASH, $bankid, $time, $hashcnt, $hash);
+
+    $msg = "$spend.$feemsg.$balance.$outboxhash.$balancehash";
     $msg = $server->process($msg);
     $reqs = $parser->parse($msg);
     if (!$reqs) return "Can't parse bank return from spend: $msg";
-    $spendargs = $this->match_bankmsg($reqs[0], $t->ATSPEND);
-    if (is_string($spendargs)) return "Error from spend: $spendargs";
+    $spendargs = $this->match_bankreq($reqs[0], $t->ATSPEND);
+    if (is_string($spendargs)) {
+      $args = $this->match_bankreq($reqs[0]);
+      if (is_string($args)) return "Error from spend request: $args";
+      $request = $args[$t->REQUEST];
+      if ($request = $t->FAILED) return "Spend request failed: " . $args[$t->ERRMSG];
+      return "Spend request returned unknown message type: " . $request;
+    }
 
     // Make sure spend wraps our $spend message.
     // Process the rest of the return
-    // Update balances, outbox, and outboxhash
+    // Update balances, balancehash, outbox, and outboxhash
     
   }
 
@@ -740,7 +792,8 @@ class client {
 
   // Unpack a bank message
   // Return a string if parse error or fail from bank
-  function match_bankmsg($msg, $request=false) {
+  // This is called via the $unpacker arg to utility->dirhash & balancehash
+  function unpack_bankmsg($msg, $request=false) {
     $parser = $this->parser;
 
     $reqs = $parser->parse($msg);
@@ -862,6 +915,12 @@ class client {
     return $this->userbankkey($t->REQ);
   }
 
+  // Called via $unpacker->balancekey() in utility->balancehash()
+  function balancekey($id) {
+    if ($id != $this->id) die("ID mismatch in client->balancekey()");
+    return $this->userbalancekey();
+  }
+
   function userbalancekey($acct=false, $assetid=false) {
     $t = $this->t;
 
@@ -903,6 +962,18 @@ class client {
     $db = $this->db;
 
     return $db->get($this->useroutboxhashkey());
+  }
+
+  function userbalancehashkey() {
+    $t = $this->t;
+
+    return $this->userbankkey($t->BALANCEHASH);
+  }
+
+  function userbalancehash() {
+    $db = $this->db;
+
+    return $db->get($this->userbalancehashkey());
   }
 
   function contactkey($otherid=false, $prop=false) {
@@ -988,7 +1059,7 @@ class client {
     }
 
     $msg = $this->sendmsg($t->ID, $bankid, $id);
-    $args = $this->match_bankmsg($msg, $t->ATREGISTER);
+    $args = $this->unpack_bankmsg($msg, $t->ATREGISTER);
     if (is_string($args)) return $wholemsg ? $args : '';
     $args = $args[$t->MSG];
     $pubkey = $args[$t->PUBKEY];
@@ -1031,7 +1102,7 @@ class client {
     $req = $this->getreq();
     if (!$req) return "Couldn't get req for gettime";
     $msg = $this->sendmsg($t->GETTIME, $bankid, $req);
-    $args = $this->match_bankmsg($msg, $t->TIME);
+    $args = $this->unpack_bankmsg($msg, $t->TIME);
     if (is_string($args)) return false;
     $args = $args[$t->MSG];
     return $args[$t->TIME];
@@ -1052,7 +1123,7 @@ class client {
     if (!$this->syncedreq) {
       $bankid = $this->bankid;
       $msg = $this->sendmsg($t->GETREQ, $bankid);
-      $args = $this->match_bankmsg($msg, $t->REQ);
+      $args = $this->unpack_bankmsg($msg, $t->REQ);
       if (is_string($args)) return false;
       $newreqnum = $args[$t->REQ];
       if ($reqnum != $newreqnum) {
@@ -1068,12 +1139,13 @@ class client {
             $db->put($key, '');
           }
         }
+        $db->put($this->userbalancehashkey(), '');
+        $db->put($this->useroutboxhashkey(), '');
       }
       $this->syncedreq = true;
     }
     return $reqnum;
   }
-
 
   // If we haven't yet downloaded accounts from the bank, do so now.
   // This is how a new client instance gets initialized from an existing
@@ -1092,7 +1164,7 @@ class client {
 
       // Get $t->REQ
       $msg = $this->sendmsg($t->GETREQ, $bankid);
-      $args = $this->match_bankmsg($msg, $t->REQ);
+      $args = $this->unpack_bankmsg($msg, $t->REQ);
       if (is_string($args)) return "While getting req to initialize accounts: $args";
       $reqnum = bcadd($args[$t->REQ], 1);
 
@@ -1101,6 +1173,7 @@ class client {
       $reqs = $parser->parse($msg);
       if (!$reqs) return "While parsing getbalance: " . $parser->errmsg;
       $balances = array();
+      $balancehash = false;
       foreach ($reqs as $req) {
         $args = $this->match_bankreq($req);
         if (is_string($args)) return "While matching getbalance: $args";
@@ -1118,6 +1191,8 @@ class client {
           $acct = $msgargs[$t->ACCT];
           if (!$acct) $acct = $t->MAIN;
           $balances[$acct][$assetid] = $parser->get_parsemsg($req);
+        } else if ($request == $t->ATBALANCEHASH) {
+          $balancehash = $parser->get_parsemsg($req);
         }
       }
 
@@ -1164,6 +1239,11 @@ class client {
           $db->put($this->userbalancekey($acct, $assetid), $msg);
         }
       }
+
+      if ($balancehash) {
+        $db->put($this->userbalancehashkey(), $balancehash);
+      }
+
       foreach ($outbox as $time => $msg) {
         $db->put($this->useroutboxkey($time), $msg);
       }
@@ -1173,15 +1253,18 @@ class client {
     return false;
   }
 
-  function outboxhashmsg($newitem=false, $removed_times=false) {
+  function outboxhashmsg($transtime, $newitem=false, $removed_times=false) {
     $db = $this->db;
     $u = $this->u;
 
-    $hash = $u->dirhash
-      ($db, $this->useroutboxkey(), $newitem, $removed_times);
+    $hasharray = $u->dirhash
+      ($db, $this->useroutboxkey(), $this, $newitem, $removed_times);
+    $hash = $hasharray($t->HASH);
+    $hashcnt = $hasharray($t->COUNT);
     return $this->custmsg($this->t->OUTBOXHASH,
                           $this->bankid,
                           $transtime,
+                          $hashcnt,
                           $hash);
   }
 

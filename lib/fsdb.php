@@ -40,15 +40,21 @@ class fsdb {
   }
 
   function put($key, $value) {
-    if (value === false) $value = '';
+    if ($value === false) $value = '';
     $blank = ($value === '');
     $filename = $this->filename($key);
     $fp = @fopen($filename, $blank ? 'r' : 'w');
     if (!$fp) {
       if ($blank) return '';
-      if (!$this->rmkdir(dirname($filename))) return false;
+      if (!$this->rmkdir(dirname($filename))) {
+        if ($blank) return '';
+        die("Can't write $filename\n");
+      }
       $fp = @fopen($filename, 'w');
-      if (!$fp) return $blank ? '' : false;
+      if (!$fp) {
+        if ($blank) return '';
+        die("Can't write $filename\n");
+      }
     }
     if (!$this->locks[$key]) flock($fp, LOCK_EX);
     if ($blank) {

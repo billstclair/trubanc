@@ -540,7 +540,8 @@ Get balance
 (<bankid>,@balance,(<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>)).
 (<bankid>,@balance,(<id>,balance,<bankid>,<time2#>,<assetid2>,<amount2>,acct:<acct2>)).
 ...
-(<bankid>,@balance,(<id>,balance,<bankid>,<timeN#>,<assetidN>,<amountN>,acct:<acctN>))
+(<bankid>,@balance,(<id>,balance,<bankid>,<timeN#>,<assetidN>,<amountN>,acct:<acctN>)).
+(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>))
 
   Otherwise, bank returns:
 

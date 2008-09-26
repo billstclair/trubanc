@@ -1598,6 +1598,12 @@ class server {
       }
     }
 
+    $balancehash = $db->get($this->balancehashkey($id));
+    if ($balancehash) {
+      if ($res) $res .= '.';
+      $res .= $balancehash;
+    }
+
     return $res;
   }
 
