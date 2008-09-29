@@ -598,7 +598,7 @@ class client {
     $amount = $this->unformat_amount($formattedamount, $assetid);
     if ($amount < 0) return "You may not spend a negative amount";
 
-    $bal = $this->balance($acct, $assetid);
+    $bal = $this->userbalance($acct, $assetid);
     if (!$bal) return "No balance for asset in acct: $acct";
 
     $oldamount = $bal[$t->AMOUNT];
@@ -623,7 +623,7 @@ class client {
         }
         $tranfee = false;
       } else {
-        $fee_balance = $this->balance($t->MAIN, $tranfee_asset);
+        $fee_balance = $this->userbalance($t->MAIN, $tranfee_asset);
         $fee_balance = bcsub($fee_balance, $tranfee_amt);
         if (bccomp($fee_balance, 0) < 0) {
           return "Insufficient tokens for transaction fee";
@@ -635,12 +635,13 @@ class client {
     if (!$time) return "Unable to get timestamp for transaction from bank";
     if ($note) $spend = $this->custmsg($t->SPEND, $bankid, $time, $toid, $note);
     else $spend = $this->custmsg($t->SPEND, $bankid, $time, $toid);
-    $feemsg = '';
+    $feeandbal = '';
     if ($tranfee) {
       $feemsg = $this->custmsg
         ($t->TRANFEE, $bankid, $time, $tranfee_asset, $tranfee_amt);
-      $feemsg .= '.' . $this->custmsg
+      $feebal .= $this->custmsg
         ($t->BALANCE, $bankid, $time, $tranfee_asset, $fee_balance);
+      $feeandbal = "$feemsg.$feebal";
     }      
     $balance = $this->custmsg
       ($t->BALANCE, $bankid, $time, $assetid, $newamount, $acct);
@@ -663,7 +664,7 @@ class client {
     $hashcnt = $hasharray[$t->COUNT];
     $balancehash = custmsg($t->BALANCEHASH, $bankid, $time, $hashcnt, $hash);
 
-    $msg = "$spend.$feemsg.$balance.$outboxhash.$balancehash";
+    $msg = "$spend.$feeandbal.$balance.$outboxhash.$balancehash";
     $msg = $server->process($msg);
     $reqs = $parser->parse($msg);
     if (!$reqs) return "Can't parse bank return from spend: $msg";
@@ -676,10 +677,43 @@ class client {
       return "Spend request returned unknown message type: " . $request;
     }
 
-    // Make sure spend wraps our $spend message.
-    // Process the rest of the return
-    // Update balances, balancehash, outbox, and outboxhash
-    
+    $msgs = array($spendmsg => true,
+                  $balance => true,
+                  $outboxhash => true,
+                  $balancehash => true);
+    if ($feeandbal) {
+      $msgs[$feemsg] = true;
+      $msgs[$feebal] = true;
+    }
+
+    foreach ($reqs as $req) {
+      $msg = $parser->get_parsemsg($req);
+      $args = $this->match_bankreq($req);
+      if (is_string($args)) return "Error in spend response: $args";
+      $m = $args[$t->MSG];
+      if (!$m) return "No wrapped message in spend return: $msg";
+      $m = $parser->get_parsemsg($m);
+      if (!$msgs[$m]) return "Returned message wasn't sent: $m";
+      if (is_string($msgs[$m])) return "Duplicate returned message: $m";
+      $msgs[$m] = $msg;
+    }
+
+    foreach ($msgs as $m => $msg) {
+      if ($msg === true) return "Message not returned from spend: $m";
+    }
+
+    // All is well. Commit this baby.
+    $db->put($this->userbalancekey($acct, $assetid), $msgs[$balance]);
+    $db->put($this->useroutboxhashkey(), $msgs[$outboxhash]);
+    $db->put($this->balancehashkey(), $msgs[$balancehash]);
+    $spend = $msgs[$spendmsg];
+    if ($feeandbal) {
+      $spend = "$spend." . $msgs[$feemsg];
+      $db->put($this->userbalancekey($t->MAIN, $tranfee_asset), $msgs[$feebal]);
+    }
+    $db->put($this->useroutboxkey($time), $spend);
+
+    return false;    
   }
 
   // Transfer from one sub-account to another
