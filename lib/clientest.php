@@ -28,16 +28,16 @@ echo $server->process("hello") . "\n";
 return;
 */
 
-$passphrase = "a really lousy passphrase";
+$passphrase3 = "a really lousy passphrase";
 
-$err = $client->newuser($passphrase, 512);
+$err = $client->newuser($passphrase3, 512);
 if ($err) echo "$err\n";
 
-$err = $client->login($passphrase);
+$err = $client->login($passphrase3);
 if ($err) die("$err\n");
 
-$id = $client->id;
-echo "id: $id\n";
+$id3 = $client->id;
+echo "id: $id3\n";
 
 $err = $client->addbank($url);
 if ($err) die("$err\n");
@@ -67,17 +67,17 @@ sGUCs01ytUnauQIgeZrNrRHVgeEM04K0KmPtFZhNZ2jwnFM8o4m1FmuLlJsCIQDc
 -----END RSA PRIVATE KEY-----
 ";
 
-$passphrase2 = "Yes another lousy passphrase";
+$passphrase = "Yes another lousy passphrase";
 
 $pk = $ssl->load_private_key($privkey);
-openssl_pkey_export($pk, $privkey, $passphrase2);
+openssl_pkey_export($pk, $privkey, $passphrase);
 openssl_free_key($pk);
 //echo $privkey;
 
-$err = $client->newuser($passphrase2, $privkey);
+$err = $client->newuser($passphrase, $privkey);
 if ($err) echo "$err\n";
 
-$err = $client->login($passphrase2);
+$err = $client->login($passphrase);
 if ($err) echo "$err\n";
 
 $id = $client->id;
@@ -97,6 +97,79 @@ if ($err) echo "$err\n";
 $err = $client->addcontact($id, "Me, myself, and I", "A little note to myself");
 if ($err) echo "$err\n";
 
+// Another account created by servertest.php
+$privkey2 = "-----BEGIN RSA PRIVATE KEY-----
+MIIBOwIBAAJBAK5kvoBZ9mw6xpt7M0M383q5/mhvzLTr1HUG9kr52aJyaV7OegEQ
+ndsN45klFNvzD4slOuh2blg4ca7DuuARuYUCAwEAAQJBAI+aabwrWF268HxrsMSz
+OA1hRvscxMZeQ66yMvF+WBYJIE873UDxUUMgvYJ0Dz6kg6u8BFBKcxWBCIP8e2Bi
+p2kCIQDaH2fPpAd477Xad+BXUiiSqOgWrEIzMiAkZsE2Q+XgYwIhAMytXoq6eZar
++id+XvcTilxSVagqkC+549Og2HtsDP73AiEAteKEVVBJbt4svY1CxG3dKVaxmd5w
+oXJF/TS2HsMFmFMCICZAYGLc5sxZ565p16WlaT5HxOpgygGhZAqxDMRENUmRAiAS
+H3CnJ8Ul3VWvyL5hVjFDHYnD6n18+xqsnjeSQ4bRnQ==
+-----END RSA PRIVATE KEY-----
+";
+$pubkey2 = $ssl->privkey_to_pubkey($privkey2);
+$id2 = $ssl->pubkey_id($pubkey2);
+
+$err = $client->newuser($passphrase2, $privkey2);
+if ($err) echo "$err\n";
+
+
+$users = array(1 => array('idx' => 1, 'id' => $id, 'name' => 'George Jetson',
+                          'passphrase' => $passphrase),
+               2 => array('idx' => 2, 'id' => $id2, 'name' => 'Jane Jetson',
+                          'passphrase' => $passphrase2),
+               3 => array('idx' => 3, 'id' => $id3, 'name' => 'John Doe',
+                          'passphrase' => $passphrase3));
+
+// Command loop
+while (true) {
+  $id = $client->current_user();
+  if ($id) {
+    foreach ($users as $user) {
+      if ($user['id'] == $id) {
+        echo "---\n";
+        $idx = $user['idx'];
+        $name = $user['name'];
+        echo "$idx: $name, $id\n";
+        break;
+      }
+    }
+  }
+  echo "Command (? for help): ";
+  $line = fgets(STDIN);
+  $tokens = explode(' ', $line);
+  foreach ($tokens as $k => $v) $tokens[$k] = trim($v);
+  $cmd = $tokens[0];
+  if ($cmd == '?') {
+    echo "?: help\n" .
+      "quit: exit from  the command loop\n" .
+      "users: show users\n" .
+      "login <user#>: login as <user#>\n" .
+      "setbank <bankurl>: set the current bank for the current user\n";
+      "assets: list asset types\n" .
+      "balance: show balances for current user\n" .
+      "spend <user#> <asset#> <amount> [<acct>]: Spend from current user  to <user#>\n" .
+      "register <user> <bankurl>: register a new account with the bank\n";
+  } elseif ($cmd == 'quit' || $cmd == 'q') {
+    exit(0);
+  } elseif ($cmd == 'users') {
+    foreach($users as $user) {
+      echo $user['idx'] . ': ' . $user['name'] . ', ' . $user['id'] . "\n";
+    }
+  } elseif ($cmd == 'login') {
+    if (count($tokens) != 2) {
+      echo "Usage is: login <user#>\n";
+    } else {
+      $idx = $tokens[1];
+      $user = $users[$idx];
+      if ($user) $client->login($user['passphrase']);
+      else echo "Unknown user#: $idx\n";
+    }
+  }
+}
+
+/**** Old code ***
 $contacts = $client->getcontacts();
 //print_r($contacts);
 
@@ -164,5 +237,6 @@ else {
     }
   }
 }
+*** End of old code ***/
 
 ?>

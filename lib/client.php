@@ -31,7 +31,8 @@ class client {
 
   var $unpack_reqs_key = 'unpack_reqs';
 
-  // $db is an object that does put(key, value), get(key), and dir(key)
+  // $db is an object that does put(key, value), get(key), contents(key),
+  // & subdir(subkey).
   // $ssl is an object that does the protocol of ssl.php
   function client($db, $ssl=false) {
     $this->db = $db;
@@ -116,9 +117,19 @@ class client {
   // All the API methods below require the user to be logged in.
   // $id and $privkey must be set.
 
-  // Return true if logged in
-  function loggedinp() {
-    return $this->id && $this->privkey;
+  // Return current user ID if logged in, otherwise false.
+  function current_user() {
+    return $this->privkey ? $this->id : false;
+  }
+
+  // Return pubkey of a user, default logged-in user
+  function user_pubkey($id=false) {
+    $db = $this->db;
+    $t = $this->t;
+
+    if (!$id) $id = $this->id;
+    if ($id) return $db->get($t->pubkey . "/$id");
+    return false;
   }
 
   // Return all the banks known by the current user:
@@ -131,7 +142,7 @@ class client {
     $db = $this->db;
     $id = $this->id;
 
-    if (!$this->loggedinp()) return "Not logged in";
+    if (!$this->current_user()) return "Not logged in";
 
     $banks = $db->contents($t->ACCOUNT . "/$id");
     $res = array();
@@ -152,7 +163,7 @@ class client {
     $db = $this->db;
     $t = $this->t;
 
-    if (!$this->loggedinp()) return "Not logged in";
+    if (!$this->current_user()) return "Not logged in";
 
     // Hash the URL to ensure its name will work as a file name
     $urlhash = sha1($url);
@@ -205,7 +216,7 @@ class client {
     $t = $this->t;
     $u = $this->u;
 
-    if (!$this->loggedinp()) return "Not logged in";
+    if (!$this->current_user()) return "Not logged in";
 
     $this->bankid = $bankid;
 
@@ -237,9 +248,11 @@ class client {
   // Do this by calling newuser() or login(), and addbank() or setbank().
   // $this->id, $this->privkey, $this->bankid, & $this->server must be set.
 
-  // Return true if the user is logged in and the bank is set
-  function banksetp() {
-    return $this->loggedinp() && $this->bankid && $this->server;
+  // Return current bank if the user is logged in and the bank is set,
+  // else false.
+  function current_bank() {
+    if ($this->current_user() && $this->server) return $this->bankid;
+    return false;
   }
 
   // Register at the current bank.
@@ -252,7 +265,7 @@ class client {
     $bankid = $this->bankid;
     $ssl = $this->ssl;
 
-    if (!$this->banksetp()) return "In register(): Bank not set";
+    if (!$this->current_bank()) return "In register(): Bank not set";
 
     // If already registered and we know it, nothing to do
     if ($this->userbankprop($t->PUBKEYSIG)) return false;
@@ -293,7 +306,7 @@ class client {
     $t = $this->t;
     $db = $this->db;
 
-    if (!$this->banksetp()) return "In getcontacts(): Bank not set";
+    if (!$this->current_bank()) return "In getcontacts(): Bank not set";
 
     $ids = $db->contents($this->contactkey());
     $res = array();
@@ -315,7 +328,7 @@ class client {
     $bankid = $this->bankid;
     $ssl = $this->ssl;
 
-    if (!$this->banksetp()) return "In addcontact(): Bank not set";
+    if (!$this->current_bank()) return "In addcontact(): Bank not set";
 
     if ($this->contactprop($otherid, $t->PUBKEYSIG)) {
       if ($nickname) $db->put($this->contactkey($otherid, $t->NICKNAME), $nickname);
@@ -345,7 +358,7 @@ class client {
   function getaccts() {
     $db = $this->db;
 
-    if (!$this->banksetp()) return "In getacct(): Bank not set";
+    if (!$this->current_bank()) return "In getacct(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
     
     return $db->contents($this->userbalancekey());
@@ -366,7 +379,7 @@ class client {
     $t = $this->t;
     $db = $this->db;
 
-    if (!$this->banksetp()) return "In getacct(): Bank not set";
+    if (!$this->current_bank()) return "In getacct(): Bank not set";
 
     $key = $this->assetkey($assetid);
     $lock = $db->lock($key, true);
@@ -433,7 +446,7 @@ class client {
     $t = $this->t;
     $db = $this->db;
 
-    if (!$this->banksetp()) return "In getfees(): Bank not set";
+    if (!$this->current_bank()) return "In getfees(): Bank not set";
 
     $key = $this->tranfeekey();
     $lock = $db->lock($key, true);
@@ -513,7 +526,7 @@ class client {
     $t = $this->t;
     $db = $this->db;
 
-    if (!$this->banksetp()) return "In getbalance(): Bank not set";
+    if (!$this->current_bank()) return "In getbalance(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
 
     $lock = $db->lock($this->userreqkey());
@@ -576,7 +589,7 @@ class client {
     $t = $this->t;
     $db = $this->db;
 
-    if (!$this->banksetp()) return "In spend(): Bank not set";
+    if (!$this->current_bank()) return "In spend(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
 
     $lock = $db->lock($this->userreqkey());
@@ -719,7 +732,7 @@ class client {
   // Transfer from one sub-account to another
   function transfer($assetid, $formattedamount, $fromacct, $toacct) {
 
-    if (!$this->banksetp()) return "In transfer(): Bank not set";
+    if (!$this->current_bank()) return "In transfer(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
 
   }
@@ -747,7 +760,7 @@ class client {
   // and $NOTE is the note that came from the sender.
   function getinbox() {
 
-    if (!$this->banksetp()) return "In getinbox(): Bank not set";
+    if (!$this->current_bank()) return "In getinbox(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
 
   }
@@ -765,7 +778,7 @@ class client {
   // and $note is the note to go with the accept or reject.
   function processinbox($directions) {
 
-    if (!$this->banksetp()) return "In processinbox(): Bank not set";
+    if (!$this->current_bank()) return "In processinbox(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
 
   }
@@ -782,7 +795,7 @@ class client {
   //         $t->NOTE => $note)
   function getoutbox() {
 
-    if (!$this->banksetp()) return "In getoutbox(): Bank not set";
+    if (!$this->current_bank()) return "In getoutbox(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
 
   }
@@ -1088,7 +1101,7 @@ class client {
     $db = $this->db;
     $bankid = $this->bankid;
 
-    if (!$this->banksetp()) {
+    if (!$this->current_bank()) {
       return $wholemsg ? 'In get_pubkey_from_server: Bank not set' : '';
     }
 
