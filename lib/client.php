@@ -244,16 +244,15 @@ class client {
     return false;
   }
 
-  // All the API methods below require the user to be logged and the bank to be set.
-  // Do this by calling newuser() or login(), and addbank() or setbank().
-  // $this->id, $this->privkey, $this->bankid, & $this->server must be set.
-
-  // Return current bank if the user is logged in and the bank is set,
-  // else false.
+  // Return current bank if the user is logged in and the bank is set, else false.
   function current_bank() {
     if ($this->current_user() && $this->server) return $this->bankid;
     return false;
   }
+
+  // All the API methods below require the user to be logged and the bank to be set.
+  // Do this by calling newuser() or login(), and addbank() or setbank().
+  // $this->id, $this->privkey, $this->bankid, & $this->server must be set.
 
   // Register at the current bank.
   // No error if already registered
@@ -362,6 +361,25 @@ class client {
     if ($err = $this->initbankaccts()) return $err;
     
     return $db->contents($this->userbalancekey());
+  }
+
+  // Return the assets known to the current bank.
+  // array(<getassset() result>)
+  function getassets() {
+    $db = $this->db;
+    $t = $this->t;
+
+    $res = array();
+    $bankid = $this->bankid;
+
+    if ($bankid) {
+      $assets = $db->contents($this->assetkey());
+      foreach ($assets as $assetid) {
+        $res[] = $this->getasset($assetid);
+      }
+    }
+
+    return $res;
   }
 
   // Look up an asset.
@@ -551,26 +569,20 @@ class client {
       if ($inassetid) $assetids = array($inassetid);
       else $assetids = $db->contents($this->userbalancekey($acct));
       foreach ($assetids as $assetid) {
-        $msg = $this->userbalance($acct, $assetid);
-        if ($msg) {
-          $args = $this->unpack_bankmsg($msg, $t->ATBALANCE);
-          if (is_string($args)) return "While gathering balances: $args";
-          $args = $args[$t->MSG];
-          $assetid = $args[$t->ASSET];
-          $amount = $args[$t->AMOUNT];
-          $asset = $this->getasset($assetid);
-          if (is_string($asset)) {
-            $formattedamount = $amount;
-            $assetname = "Unknown asset";
-          } else {
-            $formattedamount = $this->format_asset_value($amount, $asset);
-            $assetname = $asset[$t->ASSETNAME];
-          }
-          $res[$acct][] = array($t->ASSET => $assetid,
-                                $t->ASSETNAME => $assetname,
-                                $t->AMOUNT => $amount,
-                                $t->FORMATTEDAMOUNT => $formattedamount);
+        $amount = $this->userbalance($acct, $assetid);
+        if (!is_numeric($amount)) return "While gathering balances: $args";
+        $asset = $this->getasset($assetid);
+        if (is_string($asset)) {
+          $formattedamount = $amount;
+          $assetname = "Unknown asset";
+        } else {
+          $formattedamount = $this->format_asset_value($amount, $asset);
+          $assetname = $asset[$t->ASSETNAME];
         }
+        $res[$acct][] = array($t->ASSET => $assetid,
+                              $t->ASSETNAME => $assetname,
+                              $t->AMOUNT => $amount,
+                              $t->FORMATTEDAMOUNT => $formattedamount);
       }
     }
     if (is_string($inacct) && $inassetid) {
@@ -585,7 +597,7 @@ class client {
   // $assetid is the id of the asset to spend
   // $formattedamount is the formatted amount to spend
   // $acct is the source sub-account, default $t->MAIN
-  function spend($toid, $assetid, $formattedamount, $acct=false, $note) {
+  function spend($toid, $assetid, $formattedamount, $acct=false, $note=false) {
     $t = $this->t;
     $db = $this->db;
 
@@ -602,23 +614,26 @@ class client {
   function spend_internal($toid, $assetid, $formattedamount, $acct) {
     $t = $this->t;
     $db = $this->db;
+    $u = $this->u;
+
     $bankid = $this->bankid;
     $server = $this->server;
     $parser = $this->parser;
 
     if (!$acct) $acct = $t->MAIN;
 
-    $amount = $this->unformat_amount($formattedamount, $assetid);
+    $amount = $this->unformat_asset_value($formattedamount, $assetid);
     if ($amount < 0) return "You may not spend a negative amount";
 
-    $bal = $this->userbalance($acct, $assetid);
-    if (!$bal) return "No balance for asset in acct: $acct";
+    $oldamount = $this->userbalance($acct, $assetid);
+    if (!is_numeric($oldamount)) {
+      return "error getting balance for asset in acct $acct: $oldamount";
+    }
 
-    $oldamount = $bal[$t->AMOUNT];
     $newamount = bcsub($oldamount, $amount);
     if (bccomp($oldamount, 0) >= 0 &&
         bccomp($newamount,  0) < 0) {
-      return "Insufficient balance";
+      return "Insufficient balance, old: $oldamount, new: $newamount";
     }
 
     $tranfee = false;
@@ -646,8 +661,9 @@ class client {
 
     $time = $this->gettime();
     if (!$time) return "Unable to get timestamp for transaction from bank";
-    if ($note) $spend = $this->custmsg($t->SPEND, $bankid, $time, $toid, $note);
-    else $spend = $this->custmsg($t->SPEND, $bankid, $time, $toid);
+    if ($note) $spend = $this->custmsg($t->SPEND, $bankid, $time, $toid,
+                                       $assetid, $amount, $note);
+    else $spend = $this->custmsg($t->SPEND, $bankid, $time, $toid, $assetid, $amount);
     $feeandbal = '';
     if ($tranfee) {
       $feemsg = $this->custmsg
@@ -675,7 +691,7 @@ class client {
     $hasharray = $u->balancehash($db, $this->id, $this, $acctbals);
     $hash = $hasharray[$t->HASH];
     $hashcnt = $hasharray[$t->COUNT];
-    $balancehash = custmsg($t->BALANCEHASH, $bankid, $time, $hashcnt, $hash);
+    $balancehash = $this->custmsg($t->BALANCEHASH, $bankid, $time, $hashcnt, $hash);
 
     $msg = "$spend.$feeandbal.$balance.$outboxhash.$balancehash";
     $msg = $server->process($msg);
@@ -981,14 +997,22 @@ class client {
 
   function userbalance($acct, $assetid) {
     $db = $this->db;
+    $t = $this->t;
 
-    return $db->get($this->userbalancekey($acct, $assetid));
+    $msg = $db->get($this->userbalancekey($acct, $assetid));
+    if ($msg) {
+      $args = $this->unpack_bankmsg($msg, $t->ATBALANCE);
+      if (is_string($args)) return $args;
+      $args = $args[$t->MSG];
+      return $args[$t->AMOUNT];
+    }
+    return 0;
   }
 
   function useroutboxkey($time=false) {
     $t = $this->t;
 
-    $key = $this-userbankkey($t->OUTBOX);
+    $key = $this->userbankkey($t->OUTBOX);
     if ($time) $key .= "/$time";
     return $key;
   }
@@ -1151,7 +1175,6 @@ class client {
     $msg = $this->sendmsg($t->GETTIME, $bankid, $req);
     $args = $this->unpack_bankmsg($msg, $t->TIME);
     if (is_string($args)) return false;
-    $args = $args[$t->MSG];
     return $args[$t->TIME];
   }
 
@@ -1174,7 +1197,7 @@ class client {
       if (is_string($args)) return false;
       $newreqnum = $args[$t->REQ];
       if ($reqnum != $newreqnum) {
-        echo "getreq(), sb: $reqnum, was: $newreqnum\n";
+        //echo "getreq(), sb: $reqnum, was: $newreqnum\n";
         $reqnum = -1;
         $balkey = $this->userbalancekey();
         $accts = $db->contents($balkey);
@@ -1306,8 +1329,8 @@ class client {
 
     $hasharray = $u->dirhash
       ($db, $this->useroutboxkey(), $this, $newitem, $removed_times);
-    $hash = $hasharray($t->HASH);
-    $hashcnt = $hasharray($t->COUNT);
+    $hash = $hasharray[$t->HASH];
+    $hashcnt = $hasharray[$t->COUNT];
     return $this->custmsg($this->t->OUTBOXHASH,
                           $this->bankid,
                           $transtime,

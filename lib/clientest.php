@@ -122,6 +122,12 @@ $users = array(1 => array('idx' => 1, 'id' => $id, 'name' => 'George Jetson',
                3 => array('idx' => 3, 'id' => $id3, 'name' => 'John Doe',
                           'passphrase' => $passphrase3));
 
+$user = $users[1];
+$client->login($user['passphrase']);
+$banks = $client->getbanks();
+$bank = $banks[0];
+if ($bank) $client->setbank($bank[$t->BANKID]);
+
 // Command loop
 while (true) {
   $id = $client->current_user();
@@ -135,6 +141,19 @@ while (true) {
         break;
       }
     }
+    $bankid = $client->current_bank();
+    $banks = $client->getbanks();
+    if ($bankid) {
+      foreach ($banks as $bank) {
+        if ($bank[$t->BANKID] == $bankid) {
+          $bname = $bank[$t->NAME];
+          $burl = $bank[$t->URL];
+          $bid = $bank[$t->BANKID];
+          echo "$bname: $burl $bid\n";
+          break;
+        }
+      }
+    }
   }
   echo "Command (? for help): ";
   $line = fgets(STDIN);
@@ -143,13 +162,14 @@ while (true) {
   $cmd = $tokens[0];
   if ($cmd == '?') {
     echo "?: help\n" .
-      "quit: exit from  the command loop\n" .
+      "q/quit: exit from  the command loop\n" .
       "users: show users\n" .
       "login <user#>: login as <user#>\n" .
-      "setbank <bankurl>: set the current bank for the current user\n";
+      "banks: display all banks known to current user\n" .
+      "setbank <bank#>: set the current bank for the current user\n";
       "assets: list asset types\n" .
       "balance: show balances for current user\n" .
-      "spend <user#> <asset#> <amount> [<acct>]: Spend from current user  to <user#>\n" .
+      "spend <user#> <asset#> <amount> [<acct>]: Spend from current user to <user#>\n" .
       "register <user> <bankurl>: register a new account with the bank\n";
   } elseif ($cmd == 'quit' || $cmd == 'q') {
     exit(0);
@@ -163,8 +183,77 @@ while (true) {
     } else {
       $idx = $tokens[1];
       $user = $users[$idx];
-      if ($user) $client->login($user['passphrase']);
+      if ($user) {
+        $client->login($user['passphrase']);
+        $banks = $client->getbanks();
+        $bank = $banks[0];
+        if ($bank) $client->setbank($bank[$t->BANKID]);
+      }
       else echo "Unknown user#: $idx\n";
+    }
+  } elseif ($cmd == 'banks') {
+    $i = 1;
+    foreach ($banks as $bank) {
+      $bname = $bank[$t->NAME];
+      $burl = $bank[$t->URL];
+      $bid = $bank[$t->BANKID];
+      echo "$i: $bname $burl $bid\n";
+      $i++;
+    }
+  } elseif ($cmd == 'setbank') {
+    if (count($tokens) != 2) {
+      echo "Usage is: setbank <bank#>\n";
+    } else {
+      $idx = $tokens[1];
+      $bank = $banks[$idx-1];
+      if ($bank) $client->setbank($bank[$t->BANKID]);
+      else echo "No such bank index: $idx\n";
+    }
+  } elseif ($cmd == 'assets') {
+    $assets = $client->getassets();
+    $i = 1;
+    foreach ($assets as $asset) {
+      $name = $asset[$t->ASSETNAME];
+      $assetid = $asset[$t->ASSET];
+      $scale = $asset[$t->SCALE];
+      $precision = $asset[$t->PRECISION];
+      echo "$i: $name $scale/$precision $assetid\n";
+      $i++;
+    }
+  } elseif ($cmd == 'balance') {
+    $accts = $client->getbalance();
+    foreach ($accts as $acct => $balances) {
+      echo "$acct\n";
+      foreach ($balances as $balance) {
+        $assetname = $balance[$t->ASSETNAME];
+        $amt = $balance[$t->FORMATTEDAMOUNT];
+        echo "  $assetname: $amt\n";
+      }
+    }
+  } elseif ($cmd == 'spend') {
+    $cnt = count($tokens);
+    if ($cnt < 4 || $cnt > 5) {
+      echo "Usage is: spend <user#> <asset#> <amount> [<acct>]";
+    } else {
+      $useridx = $tokens[1];
+      $assetidx = $tokens[2];
+      $amt = $tokens[3];
+      $acct = false;
+      if ($cnt == 5) $acct = $tokens[4];
+      $user = $users[$useridx];
+      if (!$user) echo "No such user: $useridx\n";
+      else {
+        $assets = $client->getassets();
+        $asset = $assets[$assetidx-1];
+        if (!$asset) echo "No such asset: $assetidx\n";
+        else {
+          $userid = $user['id'];
+          $assetid = $asset[$t->ASSET];
+          $note = "Spending $amt";
+          $err = $client->spend($userid, $assetid, $amt, $acct, $note);
+          if ($err) echo "$err\n";
+        }
+      }
     }
   }
 }
