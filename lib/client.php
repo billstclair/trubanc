@@ -490,8 +490,8 @@ class client {
     $regfee = array($t->ASSET => $args[$t->ASSET],
                     $t->AMOUNT => $args[$t->AMOUNT]);
 
-    return array($t->TRANFEE => array($tranfee),
-                 $t->REGFEE => array($regfee));
+    return array($t->TRANFEE => $tranfee,
+                 $t->REGFEE => $regfee);
   }
 
   function getfees_internal($key) {
@@ -679,15 +679,16 @@ class client {
     // Compute balancehash
     if ($tranfee) {
       if ($t->MAIN == $acct) {
-        $acctbals = array($acct => array($assetid => $newamount,
-                                         $tranfee_asset => $fee_balance));
+        $acctbals = array($acct => array($assetid => $balance,
+                                         $tranfee_asset => $feebal));
       } else {
-        $acctbals = array($acct => array($assetid => $newamount),
-                          $t->MAIN => array($tranfee_asset => $fee_balance));
+        $acctbals = array($acct => array($assetid => $balance),
+                          $t->MAIN => array($tranfee_asset => $feebal));
       }
     } else {
-      $acctbals = array($acct => array($assetid => $newamount));
+      $acctbals = array($acct => array($assetid => $balance));
     }
+    print_r($acctbals);
     $hasharray = $u->balancehash($db, $this->id, $this, $acctbals);
     $hash = $hasharray[$t->HASH];
     $hashcnt = $hasharray[$t->COUNT];
@@ -715,6 +716,7 @@ class client {
       $msgs[$feebal] = true;
     }
 
+    print_r($msgs);
     foreach ($reqs as $req) {
       $msg = $parser->get_parsemsg($req);
       $args = $this->match_bankreq($req);
@@ -722,8 +724,8 @@ class client {
       $m = $args[$t->MSG];
       if (!$m) return "No wrapped message in spend return: $msg";
       $m = $parser->get_parsemsg($m);
-      if (!$msgs[$m]) return "Returned message wasn't sent: $m";
-      if (is_string($msgs[$m])) return "Duplicate returned message: $m";
+      if (!$msgs[$m]) return "Returned message wasn't sent: '$m'";
+      if (is_string($msgs[$m])) return "Duplicate returned message: '$m'";
       $msgs[$m] = $msg;
     }
 
@@ -1326,6 +1328,7 @@ class client {
   function outboxhashmsg($transtime, $newitem=false, $removed_times=false) {
     $db = $this->db;
     $u = $this->u;
+    $t = $this->t;
 
     $hasharray = $u->dirhash
       ($db, $this->useroutboxkey(), $this, $newitem, $removed_times);

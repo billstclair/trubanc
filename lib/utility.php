@@ -190,7 +190,8 @@ class utility {
       else $items = array_merge($items, $newitem);
     }
     sort($items);
-    $hash = sha1(implode('.', array_map('trim', $items)));
+    $str = implode('.', array_map('trim', $items));
+    $hash = sha1($str);
     return array($t->HASH => $hash, $t->COUNT => count($items));
   }
 

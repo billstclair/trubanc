@@ -166,8 +166,9 @@ while (true) {
       "users: show users\n" .
       "login <user#>: login as <user#>\n" .
       "banks: display all banks known to current user\n" .
-      "setbank <bank#>: set the current bank for the current user\n";
+      "setbank <bank#>: set the current bank for the current user\n" .
       "assets: list asset types\n" .
+      "fees: get transaction and registration fees\n" .
       "balance: show balances for current user\n" .
       "spend <user#> <asset#> <amount> [<acct>]: Spend from current user to <user#>\n" .
       "register <user> <bankurl>: register a new account with the bank\n";
@@ -219,6 +220,14 @@ while (true) {
       $precision = $asset[$t->PRECISION];
       echo "$i: $name $scale/$precision $assetid\n";
       $i++;
+    }
+  } elseif ($cmd == 'fees') {
+    $fees = $client->getfees();
+    foreach ($fees as $feetype => $fee) {
+      echo "$feetype\n";
+      foreach ($fee as $k => $v) {
+        echo "  $k: $v\n";
+      }
     }
   } elseif ($cmd == 'balance') {
     $accts = $client->getbalance();

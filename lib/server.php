@@ -879,7 +879,7 @@ class server {
         $hash = $hasharray[$t->HASH];
         $hashcnt = $hasharray[$t->COUNT];
         if ($balancehash != $hash || $balancehashcnt != $hashcnt) {
-          return $this->failmsg($msg, $t->BALANCEHASH . ' mismatch');
+          return $this->failmsg($msg, $t->BALANCEHASH . " mismatch, hash sb: $hash, was: $balancehash, count sb: $hashcnt, was: $balancehashcnt");
         }
       }
     }
