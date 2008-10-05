@@ -231,12 +231,15 @@ while (true) {
     }
   } elseif ($cmd == 'balance') {
     $accts = $client->getbalance();
-    foreach ($accts as $acct => $balances) {
-      echo "$acct\n";
-      foreach ($balances as $balance) {
-        $assetname = $balance[$t->ASSETNAME];
-        $amt = $balance[$t->FORMATTEDAMOUNT];
-        echo "  $assetname: $amt\n";
+    if (is_string($accts)) echo "Error: $accts\n";
+    else {
+      foreach ($accts as $acct => $balances) {
+        echo "$acct\n";
+        foreach ($balances as $balance) {
+          $assetname = $balance[$t->ASSETNAME];
+          $amt = $balance[$t->FORMATTEDAMOUNT];
+          echo "  $assetname: $amt\n";
+        }
       }
     }
   } elseif ($cmd == 'spend') {

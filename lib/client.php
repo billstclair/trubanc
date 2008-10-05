@@ -688,14 +688,15 @@ class client {
     } else {
       $acctbals = array($acct => array($assetid => $balance));
     }
-    print_r($acctbals);
     $hasharray = $u->balancehash($db, $this->id, $this, $acctbals);
     $hash = $hasharray[$t->HASH];
     $hashcnt = $hasharray[$t->COUNT];
     $balancehash = $this->custmsg($t->BALANCEHASH, $bankid, $time, $hashcnt, $hash);
 
+    // Send request to server, and get response
     $msg = "$spend.$feeandbal.$balance.$outboxhash.$balancehash";
     $msg = $server->process($msg);
+
     $reqs = $parser->parse($msg);
     if (!$reqs) return "Can't parse bank return from spend: $msg";
     $spendargs = $this->match_bankreq($reqs[0], $t->ATSPEND);
@@ -707,7 +708,7 @@ class client {
       return "Spend request returned unknown message type: " . $request;
     }
 
-    $msgs = array($spendmsg => true,
+    $msgs = array($spend => true,
                   $balance => true,
                   $outboxhash => true,
                   $balancehash => true);
@@ -716,14 +717,13 @@ class client {
       $msgs[$feebal] = true;
     }
 
-    print_r($msgs);
     foreach ($reqs as $req) {
       $msg = $parser->get_parsemsg($req);
       $args = $this->match_bankreq($req);
       if (is_string($args)) return "Error in spend response: $args";
       $m = $args[$t->MSG];
       if (!$m) return "No wrapped message in spend return: $msg";
-      $m = $parser->get_parsemsg($m);
+      $m = trim($parser->get_parsemsg($m));
       if (!$msgs[$m]) return "Returned message wasn't sent: '$m'";
       if (is_string($msgs[$m])) return "Duplicate returned message: '$m'";
       $msgs[$m] = $msg;
@@ -736,7 +736,7 @@ class client {
     // All is well. Commit this baby.
     $db->put($this->userbalancekey($acct, $assetid), $msgs[$balance]);
     $db->put($this->useroutboxhashkey(), $msgs[$outboxhash]);
-    $db->put($this->balancehashkey(), $msgs[$balancehash]);
+    $db->put($this->userbalancehashkey(), $msgs[$balancehash]);
     $spend = $msgs[$spendmsg];
     if ($feeandbal) {
       $spend = "$spend." . $msgs[$feemsg];
@@ -841,7 +841,7 @@ class client {
     $args = array_merge(array($id), $args);
     $msg = $u->makemsg($args);
     $sig = $ssl->sign($msg, $privkey);
-    return "$msg:\n$sig";
+    return trim("$msg:\n$sig");
   }
 
   // Send a customer message to the server.
@@ -1289,6 +1289,15 @@ class client {
           }
           $time = $msgargs[$t->TIME];
           $outbox[$time] = $parser->get_parsemsg($req);
+        } elseif ($request == $t->ATTRANFEE) {
+          if ($msgargs[$t->REQUEST] != $t->TRANFEE) {
+            return "Bank wrapped a non-tranfee request with @tranfee";
+          }
+          $time = $msgargs[$t->TIME];
+          $msg = $outbox[$time];
+          if (!$msg) return "No spend message for time: $time";
+          $msg = "$msg." . $parser->get_parsemsg($req);
+          $outbox[$time] = $msg;
         } elseif ($request == $t->ATOUTBOXHASH) {
           if ($msgargs[$t->REQUEST] != $t->OUTBOXHASH) {
             return "Bank wrapped a non-outbox request with @outboxhash";
