@@ -83,6 +83,7 @@ class tokens {
 
   // Other client tokens
   var $FORMATTEDAMOUNT = 'formattedamount';
+  var $MSGTIME = 'msgtime';
 }
 
 // Copyright 2008 Bill St. Clair

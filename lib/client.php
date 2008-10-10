@@ -31,6 +31,9 @@ class client {
 
   var $unpack_reqs_key = 'unpack_reqs';
 
+  // True to make process() print the messages it sends and receives
+  var $showprocess = false;
+
   // $db is an object that does put(key, value), get(key), contents(key),
   // & subdir(subkey).
   // $ssl is an object that does the protocol of ssl.php
@@ -762,6 +765,7 @@ class client {
   //   array($t->REQUEST => $request
   //         $t->ID => $fromid,
   //         $t->TIME => $time,
+  //         $t->MSGTIME => $msgtime,
   //         $t->ASSET => $assetid,
   //         $t->ASSETNAME => $assetname,
   //         $t->AMOUNT => $amount,
@@ -771,6 +775,7 @@ class client {
   // Where $request is $t->SPEND, $t->SPENDACCEPT, or $t->SPENDREJECT,
   // $fromid is the ID of the sender of the inbox entry,
   // $time is the timestamp from the bank on the inbox entry,
+  // $msgtime is the timestamp in the sender's message,
   // $assetid & $assetname describe the asset being transferred,
   // $amount is the amount of the asset being transferred, as an integer,
   // $formattedamount is the amount as a decimal number with the scale
@@ -781,6 +786,28 @@ class client {
     if (!$this->current_bank()) return "In getinbox(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
 
+    $lock = $db->lock($this->userreqkey());
+    $res = $this->getinbox_internal();
+    $db->unlock($lock);
+
+    return $res;
+  }
+
+  function getinbox_internal() {
+    $t = $this->t;
+    $db = $this->db;
+
+    $key = $this->userinboxkey();
+    $inbox = $db->contents($key);
+    foreach ($inbox as $time) {
+      $msg = $db->get("$key/$time");
+      $args = $this->unpack_bankmsg($msg, $t->INBOX);
+      if ($args[$t->TIME] != $time) {
+        return "Inbox message timestamp mismatch";
+      }
+      $args = $args[$t->MSG];
+      $request = $args[$t->REQUEST];
+    }
   }
 
   // Process the inbox contents.
@@ -851,7 +878,6 @@ class client {
 
     $req = func_get_args();
     $msg = call_user_func_array(array($this, 'custmsg'), $req);
-    //echo "Sending: $msg\n";
     return $server->process($msg);
   }
 
@@ -1049,6 +1075,12 @@ class client {
     return $db->get($this->userbalancehashkey());
   }
 
+  function userinboxkey() {
+    $db = $this->db;
+
+    return $this->userbankkey($t->INBOX);
+  }
+
   function contactkey($otherid=false, $prop=false) {
     $t = $this->t;
     $id = $this->id;
@@ -1199,7 +1231,6 @@ class client {
       if (is_string($args)) return false;
       $newreqnum = $args[$t->REQ];
       if ($reqnum != $newreqnum) {
-        //echo "getreq(), sb: $reqnum, was: $newreqnum\n";
         $reqnum = -1;
         $balkey = $this->userbalancekey();
         $accts = $db->contents($balkey);
@@ -1362,9 +1393,9 @@ class serverproxy {
 
   function process($msg) {
     $url = $this->url;
-    echo "processing: $msg\n";
+    if ($this->showprocess) echo "processing: $msg\n";
     $res = file_get_contents("$url/?msg=" . urlencode($msg));
-    echo "returned: $res\n";
+    if ($this->showprocess) echo "returned: $res\n";
     return $res;
   }
 }

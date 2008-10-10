@@ -155,6 +155,7 @@ while (true) {
       }
     }
   }
+  if ($server->showprocess) echo "Showing process messages\n";
   echo "Command (? for help): ";
   $line = fgets(STDIN);
   $tokens = explode(' ', $line);
@@ -163,6 +164,7 @@ while (true) {
   if ($cmd == '?') {
     echo "?: help\n" .
       "q/quit: exit from  the command loop\n" .
+      "show: toggle show process messages\n" .
       "users: show users\n" .
       "login <user#>: login as <user#>\n" .
       "banks: display all banks known to current user\n" .
@@ -174,6 +176,8 @@ while (true) {
       "register <user> <bankurl>: register a new account with the bank\n";
   } elseif ($cmd == 'quit' || $cmd == 'q') {
     exit(0);
+  } elseif ($cmd == 'show') {
+    $server->showprocess = !$server->showprocess;
   } elseif ($cmd == 'users') {
     foreach($users as $user) {
       echo $user['idx'] . ': ' . $user['name'] . ', ' . $user['id'] . "\n";
