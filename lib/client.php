@@ -782,6 +782,7 @@ class client {
   // and precision applied,
   // and $NOTE is the note that came from the sender.
   function getinbox() {
+    $db = $this->db;
 
     if (!$this->current_bank()) return "In getinbox(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
@@ -797,17 +798,95 @@ class client {
     $t = $this->t;
     $db = $this->db;
 
+    $this->sync_inbox();
+
+    $res = array();
     $key = $this->userinboxkey();
+    echo "key: $key\n";
     $inbox = $db->contents($key);
+    echo "inbox: "; print_r($inbox);
     foreach ($inbox as $time) {
       $msg = $db->get("$key/$time");
+      echo "$time: $msg\n";
       $args = $this->unpack_bankmsg($msg, $t->INBOX);
       if ($args[$t->TIME] != $time) {
         return "Inbox message timestamp mismatch";
       }
       $args = $args[$t->MSG];
       $request = $args[$t->REQUEST];
+      $item = array();
+      $item[$t->REQUEST] = $request;
+      $item[$t->ID] = $args[$t->CUSTOMER];
+      $item[$t->TIME] = $time;
+      $item[$t->MSGTIME] = $args[$t->TIME];
+      $item[$t->NOTE] = $args[$t->NOTE];
+      if ($request == $t->SPEND) {
+        $assetid = $args[$t->ASSET];
+        $amount = $args[$t->AMOUNT];
+        $asset = $this->getasset($assetid);
+        $item[$t->ASSET] = $assetid;
+        $item[$t->AMOUNT] = $amount;
+        if ($is_string($asset)) {
+        } else {
+          $item[$t->ASSETNAME] = $asset[$t->ASSETNAME];
+          $item[$t->FORMATTEDAMOUNT] = $this->format_asset_value($amount, $asset);
+        }
+      } elseif ($request == $t->SPENDACCEPT || $request == $t->SPENDREJECT) {
+        // Pull in data from outbox to get amounts
+      } else {
+        return "Bad request in inbox: $request";
+      }
+      $res[] = $item;
     }
+    return $res;
+  }
+
+  // Synchronize the current customer inbox with the current bank.
+  // Return a string on error or false on success.
+  // Assumes that there IS a current user and bank.
+  // Does no database locking.
+  function sync_inbox() {
+    $t = $this->t;
+    $db = $this->db;
+
+    $bankid = $this->bankid;
+    $parser = $this->parser;
+    $server = $this->server;
+
+    $req = $this->getreq();
+    if (!$req) return "Couldn't get req for getinbox";
+    $msg = $this->custmsg($t->GETINBOX, $bankid, $req);
+    $bankmsg = $server->process($msg);
+    
+    $reqs = $parser->parse($bankmsg);
+    if (!$reqs) return "While parsing getinbox return message: " . $parser->errmsg;
+    $inbox = array();
+    $times = array();
+    $last_time = false;
+    foreach ($reqs as $req) {
+      $args = $this->match_bankreq($req);
+      if (is_string($args)) return "While matching getinbox return: $args";
+      $bankmsg = $parser->get_parsemsg($req);
+      $request = $args[$t->REQUEST];
+      if ($request == $t->ATGETINBOX) {
+        if (trim($args[$t->MSG]) != trim($msg)) return "getinbox return doesn't wrap message sent";
+        $last_time = false;
+      } elseif ($request == $t->INBOX) {
+        $time = $args[$t->TIME];
+        if ($inbox[$time]) return "getinbox return included multiple entried for time: $time";
+        $inbox[$time] = $bankmsg;
+        $last_time = $time;
+      } elseif ($request == $t->ATTRANFEE) {
+        if (!$last_time) return "In getinbox return: @tranfee not after inbox";
+        $inbox[$last_time] .= ".$bankmsg";
+      } elseif ($request == $t->TIME) {
+        $times[] = $bankmsg;
+      } else {
+        return "Unknown request in getinbox return: $request";
+      }
+    }
+
+    // Continue here.
   }
 
   // Process the inbox contents.
@@ -1077,6 +1156,7 @@ class client {
 
   function userinboxkey() {
     $db = $this->db;
+    $t = $this->t;
 
     return $this->userbankkey($t->INBOX);
   }

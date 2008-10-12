@@ -168,11 +168,13 @@ while (true) {
       "users: show users\n" .
       "login <user#>: login as <user#>\n" .
       "banks: display all banks known to current user\n" .
+      "addbank url: Add a bank to the current user\n" .
       "setbank <bank#>: set the current bank for the current user\n" .
       "assets: list asset types\n" .
       "fees: get transaction and registration fees\n" .
       "balance: show balances for current user\n" .
       "spend <user#> <asset#> <amount> [<acct>]: Spend from current user to <user#>\n" .
+      "inbox [<time>...]: Show inbox, or process <time> items\n" .
       "register <user> <bankurl>: register a new account with the bank\n";
   } elseif ($cmd == 'quit' || $cmd == 'q') {
     exit(0);
@@ -204,6 +206,13 @@ while (true) {
       $bid = $bank[$t->BANKID];
       echo "$i: $bname $burl $bid\n";
       $i++;
+    }
+  } elseif ($cmd == 'addbank') {
+    if (count($tokens) != 2) {
+      echo "Usage is: addbank <url>\n";
+    } else {
+      $url = $tokens[1];
+      $client->addbank($url);
     }
   } elseif ($cmd == 'setbank') {
     if (count($tokens) != 2) {
@@ -271,6 +280,11 @@ while (true) {
         }
       }
     }
+  } elseif ($cmd == 'inbox') {
+    $inbox = $client->getinbox();
+    print_r($inbox);
+  } else {
+    echo "Unknown command: $cmd\n";
   }
 }
 
