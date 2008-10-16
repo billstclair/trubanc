@@ -1656,11 +1656,11 @@ class server {
                      $t->GETTIME => array($t->BANKID,$t->REQ),
                      $t->GETFEES => array($t->BANKID,$t->REQ,$t->OPERATION=>1),
                      $t->SPEND => $patterns[$t->SPEND],
-                     $t->GETINBOX => array($t->BANKID,$t->REQ),
+                     $t->GETINBOX => $patterns[$t->GETINBOX],
                      $t->PROCESSINBOX => array($t->BANKID,$t->TIME,$t->TIMELIST),
                      $t->GETASSET => array($t->BANKID,$t->REQ,$t->ASSET),
                      $t->ASSET => array($t->BANKID,$t->ASSET,$t->SCALE,$t->PRECISION,$t->ASSETNAME),
-                     $t->GETOUTBOX => array($t->BANKID,$t->REQ),
+                     $t->GETOUTBOX => $patterns[$t->GETOUTBOX],
                      $t->GETBALANCE => array($t->BANKID,$t->REQ,$t->ACCT=>1,$t->ASSET=>1));
       $commands = array();
       foreach($names as $name => $pattern) {

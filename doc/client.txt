@@ -36,7 +36,7 @@ $dbdir/
   account/
     <id>/
       <bankid>/
-        time=<time#>
+        time=<time#>[,<time#>]
         req=<req#>
         pubkeysig=(<bankid>,@register,(<id>,register,<bankid>,<pubkey>,name=<name>))
         contact/
@@ -46,8 +46,6 @@ $dbdir/
             name=<name>
             pubkeysig=<pubkeysig>
         balancehash=(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<count>,<hash>))
-        total/
-          <assetid>=(<bankid>,@total,(<id>,total,<bankid>,<time#>,<assetid>,<amount>))
         balance/
           <acct>/  -- "main" is the default acct name
             <assetid>=(<bankid>,@balance,(<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>))

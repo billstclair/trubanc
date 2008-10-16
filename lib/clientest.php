@@ -155,7 +155,7 @@ while (true) {
       }
     }
   }
-  if ($server->showprocess) echo "Showing process messages\n";
+  if ($client->showprocess) echo "Showing process messages\n";
   echo "Command (? for help): ";
   $line = fgets(STDIN);
   $tokens = explode(' ', $line);
@@ -179,7 +179,7 @@ while (true) {
   } elseif ($cmd == 'quit' || $cmd == 'q') {
     exit(0);
   } elseif ($cmd == 'show') {
-    $server->showprocess = !$server->showprocess;
+    $client->showprocess = !$client->showprocess;
   } elseif ($cmd == 'users') {
     foreach($users as $user) {
       echo $user['idx'] . ': ' . $user['name'] . ', ' . $user['id'] . "\n";

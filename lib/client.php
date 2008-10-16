@@ -181,7 +181,7 @@ class client {
     $ssl = $this->ssl;
     $parser = $this->parser;
 
-    $server = new serverproxy($url);
+    $server = new serverproxy($url, $this);
     $this->server = $server;
     $msg = $this->sendmsg($t->BANKID, $pubkey);
     $args = $u->match_message($msg);
@@ -225,7 +225,7 @@ class client {
 
     $url = $this->bankprop($t->URL);
     if (!$url) return "Bank not known: $bankid";
-    $server = new serverproxy($url);
+    $server = new serverproxy($url, $this);
     $this->server = $server;
 
     $req = $this->userbankprop($t->REQ);
@@ -798,16 +798,17 @@ class client {
     $t = $this->t;
     $db = $this->db;
 
-    $this->sync_inbox();
+    $err = $this->sync_inbox();
+    if ($err) return $err;
 
     $res = array();
     $key = $this->userinboxkey();
-    echo "key: $key\n";
+    //echo "key: $key\n";
     $inbox = $db->contents($key);
-    echo "inbox: "; print_r($inbox);
+    //echo "inbox: "; print_r($inbox);
     foreach ($inbox as $time) {
       $msg = $db->get("$key/$time");
-      echo "$time: $msg\n";
+      //echo "$time: $msg\n";
       $args = $this->unpack_bankmsg($msg, $t->INBOX);
       if ($args[$t->TIME] != $time) {
         return "Inbox message timestamp mismatch";
@@ -826,7 +827,7 @@ class client {
         $asset = $this->getasset($assetid);
         $item[$t->ASSET] = $assetid;
         $item[$t->AMOUNT] = $amount;
-        if ($is_string($asset)) {
+        if (is_string($asset)) {
         } else {
           $item[$t->ASSETNAME] = $asset[$t->ASSETNAME];
           $item[$t->FORMATTEDAMOUNT] = $this->format_asset_value($amount, $asset);
@@ -869,7 +870,8 @@ class client {
       $bankmsg = $parser->get_parsemsg($req);
       $request = $args[$t->REQUEST];
       if ($request == $t->ATGETINBOX) {
-        if (trim($args[$t->MSG]) != trim($msg)) return "getinbox return doesn't wrap message sent";
+        $retmsg = $parser->get_parsemsg($args[$t->MSG]);
+        if (trim($retmsg) != trim($msg)) return "getinbox return doesn't wrap message sent";
         $last_time = false;
       } elseif ($request == $t->INBOX) {
         $time = $args[$t->TIME];
@@ -880,13 +882,30 @@ class client {
         if (!$last_time) return "In getinbox return: @tranfee not after inbox";
         $inbox[$last_time] .= ".$bankmsg";
       } elseif ($request == $t->TIME) {
-        $times[] = $bankmsg;
+        $times[] = $args[$t->TIME];
       } else {
         return "Unknown request in getinbox return: $request";
       }
     }
 
-    // Continue here.
+    $key = $this->userinboxkey();
+    $keys = $db->contents($key);
+    foreach ($keys as $time) {
+      $inmsg = $inbox[$time];
+      if ($inmsg) {
+        $msg = $db->get("$key/$time");
+        if ($msg != $inmsg) return "Inbox mismatch at time: $time";
+        unset($inbox[$time]);
+      } else {
+        $db->put("$key/$time", '');
+      }
+    }
+    foreach ($inbox as $time => $msg) {
+      $db->put("$key/$time", $msg);
+    }
+    if (count($times) > 0) {
+      $db->put($this->usertimekey(), implode(',', $times));
+    }
   }
 
   // Process the inbox contents.
@@ -1085,6 +1104,12 @@ class client {
     return $this->userbankkey($t->REQ);
   }
 
+  function usertimekey() {
+    $t = $this->t;
+
+    return $this->userbankkey($t->TIME);
+  }
+
   // Called via $unpacker->balancekey() in utility->balancehash()
   function balancekey($id) {
     if ($id != $this->id) die("ID mismatch in client->balancekey()");
@@ -1280,9 +1305,22 @@ class client {
   }
 
   // Get a timestamp from the server
-  function gettime() {
+  function gettime($forcenew=false) {
     $t = $this->t;
+    $db = $this->db;
     $bankid = $this->bankid;
+
+    $key = $this->usertimekey();
+    if ($forcenew) $db->put($key, '');
+    else {
+      $times = $db->get($key);
+      if ($times) {
+        $times = explode(',', $times);
+        $time = $times[0];
+        $db->put($key, $times[1]);
+        return $time;
+      }
+    }
 
     $req = $this->getreq();
     if (!$req) return "Couldn't get req for gettime";
@@ -1465,17 +1503,21 @@ class client {
 
 class serverproxy {
   var $url;
+  var $client;
 
-  function serverproxy($url) {
+  function serverproxy($url, $client=false) {
     if (substr($url,-1) == '/') $url = substr($url, 0, -1);
     $this->url = $url;
+    $this->client = $client;
   }
 
   function process($msg) {
     $url = $this->url;
-    if ($this->showprocess) echo "processing: $msg\n";
+    $client = $this->client;
+
+    if ($client->showprocess) echo "processing: $msg\n";
     $res = file_get_contents("$url/?msg=" . urlencode($msg));
-    if ($this->showprocess) echo "returned: $res\n";
+    if ($client->showprocess) echo "returned: $res\n";
     return $res;
   }
 }

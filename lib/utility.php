@@ -91,6 +91,7 @@ class utility {
                         $t->SPENDACCEPT => array($t->BANKID,$t->TIME,$t->ID,$t->NOTE=>1),
                         $t->SPENDREJECT => array($t->BANKID,$t->TIME,$t->ID,$t->NOTE=>1),
                         $t->GETOUTBOX =>array($t->BANKID, $t->REQ),
+                        $t->GETINBOX => array($t->BANKID, $t->REQ),
                         $t->GETTIME => array($t->BANKID, $t->TIME),
 
                         // Bank signed messages
