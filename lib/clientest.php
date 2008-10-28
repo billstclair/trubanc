@@ -122,7 +122,7 @@ $users = array(1 => array('idx' => 1, 'id' => $id, 'name' => 'George Jetson',
                3 => array('idx' => 3, 'id' => $id3, 'name' => 'John Doe',
                           'passphrase' => $passphrase3));
 
-$user = $users[1];
+$user = $users[2];
 $client->login($user['passphrase']);
 $banks = $client->getbanks();
 $bank = $banks[0];
@@ -174,6 +174,7 @@ while (true) {
       "fees: get transaction and registration fees\n" .
       "balance: show balances for current user\n" .
       "spend <user#> <asset#> <amount> [<acct>]: Spend from current user to <user#>\n" .
+      "outbox: Show outbox\n" .
       "inbox [<time>...]: Show inbox, or process <time> items\n" .
       "register <user> <bankurl>: register a new account with the bank\n";
   } elseif ($cmd == 'quit' || $cmd == 'q') {
@@ -277,6 +278,30 @@ while (true) {
           $note = "Spending $amt";
           $err = $client->spend($userid, $assetid, $amt, $acct, $note);
           if ($err) echo "$err\n";
+        }
+      }
+    }
+  } elseif ($cmd == 'outbox') {
+    $outbox = $client->getoutbox();
+    if (is_string($outbox)) echo "$outbox\n";
+    elseif (count($outbox) == 0) {
+      echo "Outbox is empty\n";
+    } else {
+      foreach ($outbox as $time => $items) {
+        foreach ($items as $item) {
+          $request = $item[$t->REQUEST];
+          $formattedamount = $item[$t->FORMATTEDAMOUNT];
+          $assetname = $item[$t->ASSETNAME];
+          if ($request == $t->SPEND) {
+            $id = $item[$t->ID];
+            echo "$time: spend $formattedamount $assetname to $id\n";
+            $note = $item[$t->NOTE];
+            if ($note) echo "  note: $note\n";
+          } elseif ($request == $t->TRANFEE) {
+            echo "  tranfee: $formattedamount $assetname\n";  
+          } else {
+            echo "Unknown request: \"$request\"\n";
+          }
         }
       }
     }

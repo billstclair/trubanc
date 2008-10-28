@@ -810,6 +810,7 @@ class client {
       $msg = $db->get("$key/$time");
       //echo "$time: $msg\n";
       $args = $this->unpack_bankmsg($msg, $t->INBOX);
+      if (is_string($args)) return "Inbox unpack error: $args";
       if ($args[$t->TIME] != $time) {
         return "Inbox message timestamp mismatch";
       }
@@ -827,8 +828,7 @@ class client {
         $asset = $this->getasset($assetid);
         $item[$t->ASSET] = $assetid;
         $item[$t->AMOUNT] = $amount;
-        if (is_string($asset)) {
-        } else {
+        if (!is_string($asset)) {
           $item[$t->ASSETNAME] = $asset[$t->ASSETNAME];
           $item[$t->FORMATTEDAMOUNT] = $this->format_asset_value($amount, $asset);
         }
@@ -913,34 +913,115 @@ class client {
   //
   //  array($t->TIME => $time,
   //        $t->REQUEST => $request,
-  //        $t->NOTE => $note)
+  //        $t->NOTE => $note,
+  //        $t->ACCOUNT => $acct)
   //
   // where $time is a timestamp in the inbox,
   // $request is $t->SPENDACCEPT or $t->SPENDREJECT, or omitted for
   // processing an accept or reject from a former spend recipient,
-  // and $note is the note to go with the accept or reject.
+  // $note is the note to go with the accept or reject, and
+  // $acct is the account into which to transfer the funds (default: main).
+
   function processinbox($directions) {
 
     if (!$this->current_bank()) return "In processinbox(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
 
+    $lock = $db->lock($this->userreqkey());
+    $res = $this->processinbox_internal($directions);
+    $db->unlock($lock);
+
+    return $res;
+  }
+
+  function processinbox_internal($directions) {
+    $t = $this->t;
+    $db = $this->db;
+
   }
 
   // Get the outbox contents.
   // Returns an error string or the outbox contents as an array of
-  // items of the form:
+  // of the form:
   //
-  //   array($t->ID => $recipientid,
-  //         $t->ASSET => $assetid,
-  //         $t->ASSETNAME => $assetname,
-  //         $t->AMOUNT => $amount,
-  //         $t->FORMATTEDAMOUNT => formattedamount,
-  //         $t->NOTE => $note)
+  //   array($time => array(array($t->REQUEST => $request,
+  //                              $t->TIME => $time,
+  //                              $t->ID => $recipientid,
+  //                              $t->NOTE => $note,
+  //                              $t->ASSET => $assetid,
+  //                              $t->ASSETNAME => $assetname,
+  //                              $t->AMOUNT => $amount,
+  //                              $t->FORMATTEDAMOUNT => formattedamount),
+  //                        ...),
+  //         ...)
+  //
+  // $time is the timestamp of the outbox entry
+  // $request is $t->SPEND or $t->TRANFEE
+  // $recipientid is the recipient for spend, or omitted for tranfee
+  // $assetid is the ID of the asset transferred
+  // $assetname is the name of $assetid
+  // $amount is the amount transferred
+  // $formattedamount is $amount formatted for output
+  // $note is the transfer note, omitted for tranfee
   function getoutbox() {
+    $db = $this->db;
 
     if (!$this->current_bank()) return "In getoutbox(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
 
+    $lock = $db->lock($this->userreqkey());
+    $res = $this->getoutbox_internal();
+    $db->unlock($lock);
+
+    return $res;
+  }
+
+  function getoutbox_internal() {
+    $t = $this->t;
+    $db = $this->db;
+    $parser = $this->parser;
+
+    $res = array();
+    $key = $this->useroutboxkey();
+    $outbox = $db->contents($key);
+    foreach ($outbox as $time) {
+      $msg = $db->get("$key/$time");
+      $reqs = $parser->parse($msg);
+      $items = array();
+      if (!$reqs) return "Parse error: " . $parser->errmsg;
+      foreach ($reqs as $req) {
+        $args = $this->match_bankreq($req);
+        if (is_string($args)) return $args;
+        $args = $args[$t->MSG];
+        if ($args[$t->TIME] != $time) {
+          return "Outbox message timestamp mismatch";
+        }
+        $request = $args[$t->REQUEST];
+        $item = array();
+        $item[$t->REQUEST] = $request;
+        $item[$t->TIME] = $time;
+        if ($request == $t->SPEND) {
+          $item[$t->ID] = $args[$t->ID];
+          $item[$t->NOTE] = $args[$t->NOTE];
+        } elseif ($request == $t->TRANFEE) {
+          // Nothing special to do here
+        } else {
+          return "Bad request in outbox: $request";
+        }
+        $assetid = $args[$t->ASSET];
+        $amount = $args[$t->AMOUNT];
+        $asset = $this->getasset($assetid);
+        $item[$t->ASSET] = $assetid;
+        $item[$t->AMOUNT] = $amount;
+        if (!is_string($asset)) {
+          $item[$t->ASSETNAME] = $asset[$t->ASSETNAME];
+          $item[$t->FORMATTEDAMOUNT] = $this->format_asset_value($amount, $asset);
+        }
+        $items[] = $item;
+      }
+      $res[$time] = $items;
+    }
+    return $res;
   }
 
   // End of API methods
@@ -989,7 +1070,7 @@ class client {
     if (!$reqs) return "Parse error: " . $parser->errmsg;
 
     $req = $reqs[0];
-    $args = ($this->match_bankreq($req, $request));
+    $args = $this->match_bankreq($req, $request);
     if (!is_string($args)) {
       $args[$this->unpack_reqs_key] = $reqs; // save parse results
     }
