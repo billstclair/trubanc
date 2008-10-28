@@ -1,0 +1,3 @@
+#!/bin/bash
+
+php lib/clientest.php
