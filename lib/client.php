@@ -313,10 +313,8 @@ class client {
     $ids = $db->contents($this->contactkey());
     $res = array();
     foreach ($ids as $otherid) {
-      $res[] = array($t->ID => $otherid,
-                     $t->NAME => $this->contactprop($otherid, $t->NAME),
-                     $t->NICKNAME => $this->contactprop($otherid, $t->NICKNAME),
-                     $t->NOTE => $this->contactprop($otherid, $t->NOTE));
+      $contact = $this->getcontact($otherid);
+      if ($contact) $res[] = $contact;
     }
     return $res;
   }

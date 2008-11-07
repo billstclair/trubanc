@@ -172,6 +172,7 @@ while (true) {
       "setbank <bank#>: set the current bank for the current user\n" .
       "assets: list asset types\n" .
       "fees: get transaction and registration fees\n" .
+      "contacts: list contacts known to the current user\n" .
       "balance: show balances for current user\n" .
       "spend <user#> <asset#> <amount> [<acct>]: Spend from current user to <user#>\n" .
       "outbox: Show outbox\n" .
@@ -241,6 +242,20 @@ while (true) {
       echo "$feetype\n";
       foreach ($fee as $k => $v) {
         echo "  $k: $v\n";
+      }
+    }
+  } elseif ($cmd == 'contacts') {
+    $contacts = $client->getcontacts();
+    if (is_string($contacts)) {
+      echo "$contacts\n";
+    } elseif (count($contacts) == 0) {
+      echo "No contacts\n";
+    }else {
+      foreach ($contacts as $contact) {
+        echo $contact[$t->NAME] . "\n";
+        foreach ($contact as $k => $v) {
+          if ($k != $t->NAME) echo "  $k: $v\n";
+        }
       }
     }
   } elseif ($cmd == 'balance') {
@@ -313,7 +328,26 @@ while (true) {
     }
   } elseif ($cmd == 'inbox') {
     $inbox = $client->getinbox();
-    print_r($inbox);
+    foreach ($inbox as $entry) {
+      $request = $entry[$t->REQUEST];
+      $fromid = $entry[$t->ID];
+      $time = $entry[$t->TIME];
+      $msgtime = $entry[$t->MSGTIME];
+      $assetname = $entry[$t->ASSETNAME];
+      $formattedamount = $entry[$t->FORMATTEDAMOUNT];
+      $note = $entry[$t->NOTE];
+
+      $contact = $client->getcontact($fromid);
+      $name = $fromid;
+      if ($contact) $name = $contact[$t->NICKNAME];
+      if ($request == $t->SPEND) {
+        echo "$time: $formattedamount $assetname from $name\n";
+        if ($note) echo "  note: $note\n";
+      } else {
+        // Need to look up outbox entries here
+        echo "$time: $request from $name\n";
+      }
+    }
   } else {
     echo "Unknown command: $cmd\n";
   }
