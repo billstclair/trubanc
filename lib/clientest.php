@@ -294,7 +294,13 @@ while (true) {
           $assetname = $item[$t->ASSETNAME];
           if ($request == $t->SPEND) {
             $id = $item[$t->ID];
-            echo "$time: spend $formattedamount $assetname to $id\n";
+            $contact = $client->getcontact($id);
+            if ($contact) {
+              $name = $contact[$t->NICKNAME];
+            } else {
+              $name = $id;
+            }
+            echo "$time: spend $formattedamount $assetname to $name\n";
             $note = $item[$t->NOTE];
             if ($note) echo "  note: $note\n";
           } elseif ($request == $t->TRANFEE) {

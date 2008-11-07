@@ -300,10 +300,10 @@ class client {
   // Get contacts for the current bank.
   // Returns an error string or an array of items of the form:
   //
-  //   array($t->ID, $id,
-  //         $t->NAME, $name,
-  //         $t->NICKNAME, $nickname,
-  //         $t->NOTE, $note)
+  //   array($t->ID => $id,
+  //         $t->NAME => $name,
+  //         $t->NICKNAME => $nickname,
+  //         $t->NOTE => $note)
   function getcontacts() {
     $t = $this->t;
     $db = $this->db;
@@ -321,6 +321,32 @@ class client {
     return $res;
   }
 
+  // Get a contact, by ID.
+  // Return:
+  //   array($t->ID => $id,
+  //         $t->NAME => $name,
+  //         $t->NICKNAME => $nickname,
+  //         $t->NOTE => $note)
+  // or false, if can't find that contact.
+  function getcontact($otherid) {
+    $t = $this->t;
+    $db = $this->db;
+    
+    if (!$this->current_bank()) return false;
+
+    $pubkeysig = $this->contactprop($otherid, $t->PUBKEYSIG);
+    if (!$pubkeysig) {
+      $this->addcontact($otherid);
+      $pubkeysig = $this->contactprop($otherid, $t->PUBKEYSIG);
+    }
+    if (!$pubkeysig) return false;
+    $res = array($t->ID => $otherid,
+                 $t->NAME => $this->contactprop($otherid, $t->NAME),
+                 $t->NICKNAME => $this->contactprop($otherid, $t->NICKNAME),
+                 $t->NOTE => $this->contactprop($otherid, $t->NOTE));
+    return $res;
+  }
+  
   // Add a contact to the current bank.
   // If it's already there, change its nickname and note, if included
   function addcontact($otherid, $nickname=false, $note=false) {
