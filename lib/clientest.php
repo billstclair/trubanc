@@ -186,7 +186,7 @@ while (true) {
     foreach($users as $user) {
       echo $user['idx'] . ': ' . $user['name'] . ', ' . $user['id'] . "\n";
     }
-  } elseif ($cmd == 'login') {
+  } elseif ($cmd == 'login' || $cmd == 'user') {
     if (count($tokens) != 2) {
       echo "Usage is: login <user#>\n";
     } else {
@@ -328,10 +328,9 @@ while (true) {
     }
   } elseif ($cmd == 'inbox') {
     $inbox = $client->getinbox();
-    foreach ($inbox as $entry) {
+    foreach ($inbox as $time => $entry) {
       $request = $entry[$t->REQUEST];
       $fromid = $entry[$t->ID];
-      $time = $entry[$t->TIME];
       $msgtime = $entry[$t->MSGTIME];
       $assetname = $entry[$t->ASSETNAME];
       $formattedamount = $entry[$t->FORMATTEDAMOUNT];

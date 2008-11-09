@@ -310,10 +310,21 @@ class client {
 
     if (!$this->current_bank()) return "In getcontacts(): Bank not set";
 
+    $lock = $db->lock($this->userreqkey());
+    $res = $this->getcontacts_internal();
+    $db->unlock($lock);
+
+    return $res;
+  }
+
+  function getcontacts_internal() {
+    $t = $this->t;
+    $db = $this->db;
+    
     $ids = $db->contents($this->contactkey());
     $res = array();
     foreach ($ids as $otherid) {
-      $contact = $this->getcontact($otherid);
+      $contact = $this->getcontact_internal($otherid);
       if ($contact) $res[] = $contact;
     }
     return $res;
@@ -332,9 +343,20 @@ class client {
     
     if (!$this->current_bank()) return false;
 
+    $lock = $db->lock($this->userreqkey());
+    $res = $this->getcontact_internal($otherid);
+    $db->unlock($lock);
+
+    return $res;
+  }
+
+  function getcontact_internal($otherid) {
+    $t = $this->t;
+    $db = $this->db;
+    
     $pubkeysig = $this->contactprop($otherid, $t->PUBKEYSIG);
     if (!$pubkeysig) {
-      $this->addcontact($otherid);
+      $this->addcontact_internal($otherid);
       $pubkeysig = $this->contactprop($otherid, $t->PUBKEYSIG);
     }
     if (!$pubkeysig) return false;
@@ -350,6 +372,18 @@ class client {
   function addcontact($otherid, $nickname=false, $note=false) {
     $t = $this->t;
     $db = $this->db;
+
+    $lock = $db->lock($this->userreqkey());
+    $res = $this->addcontact_internal($otherid, $nickname, $note);
+    $db->unlock($lock);
+
+    return $res;
+  }
+
+  function addcontact_internal($otherid, $nickname=false, $note=false) {
+    $t = $this->t;
+    $db = $this->db;
+
     $pubkeydb = $this->pubkeydb;
     $bankid = $this->bankid;
     $ssl = $this->ssl;
@@ -783,18 +817,19 @@ class client {
   }
 
   // Get the inbox contents.
-  // Returns an error string, or an array of inbox entries, each of which is
-  // of one of the form:
+  // Returns an error string, or an array of inbox entries, indexed by
+  // their timestamps:
   //
-  //   array($t->REQUEST => $request
-  //         $t->ID => $fromid,
-  //         $t->TIME => $time,
-  //         $t->MSGTIME => $msgtime,
-  //         $t->ASSET => $assetid,
-  //         $t->ASSETNAME => $assetname,
-  //         $t->AMOUNT => $amount,
-  //         $t->FORMATTEDAMOUNT => $formattedamount,
-  //         $t->NOTE => $note)
+  //   array($time => array($t->REQUEST => $request
+  //                        $t->ID => $fromid,
+  //                        $t->TIME => $time,
+  //                        $t->MSGTIME => $msgtime,
+  //                        $t->ASSET => $assetid,
+  //                        $t->ASSETNAME => $assetname,
+  //                        $t->AMOUNT => $amount,
+  //                        $t->FORMATTEDAMOUNT => $formattedamount,
+  //                        $t->NOTE => $note),
+  //          ...)
   //
   // Where $request is $t->SPEND, $t->SPENDACCEPT, or $t->SPENDREJECT,
   // $fromid is the ID of the sender of the inbox entry,
@@ -861,7 +896,7 @@ class client {
       } else {
         return "Bad request in inbox: $request";
       }
-      $res[] = $item;
+      $res[$time] = $item;
     }
     return $res;
   }
