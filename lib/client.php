@@ -820,15 +820,16 @@ class client {
   // Returns an error string, or an array of inbox entries, indexed by
   // their timestamps:
   //
-  //   array($time => array($t->REQUEST => $request
-  //                        $t->ID => $fromid,
-  //                        $t->TIME => $time,
-  //                        $t->MSGTIME => $msgtime,
-  //                        $t->ASSET => $assetid,
-  //                        $t->ASSETNAME => $assetname,
-  //                        $t->AMOUNT => $amount,
-  //                        $t->FORMATTEDAMOUNT => $formattedamount,
-  //                        $t->NOTE => $note),
+  //   array($time => array(array($t->REQUEST => $request
+  //                              $t->ID => $fromid,
+  //                              $t->TIME => $time,
+  //                              $t->MSGTIME => $msgtime,
+  //                              $t->ASSET => $assetid,
+  //                              $t->ASSETNAME => $assetname,
+  //                              $t->AMOUNT => $amount,
+  //                              $t->FORMATTEDAMOUNT => $formattedamount,
+  //                              $t->NOTE => $note),j
+  //                        ...)
   //          ...)
   //
   // Where $request is $t->SPEND, $t->SPENDACCEPT, or $t->SPENDREJECT,
@@ -840,6 +841,9 @@ class client {
   // $formattedamount is the amount as a decimal number with the scale
   // and precision applied,
   // and $NOTE is the note that came from the sender.
+  // There will usually be two entries for a SPEND inbox entry, the SPEND
+  // and the corresponding TRANFEE.
+  // SPENDACCEPT and SPENDREJECT entries will be by themselves.
   function getinbox() {
     $db = $this->db;
 
@@ -856,47 +860,51 @@ class client {
   function getinbox_internal() {
     $t = $this->t;
     $db = $this->db;
+    $parser = $this->parser;
 
     $err = $this->sync_inbox();
     if ($err) return $err;
 
     $res = array();
     $key = $this->userinboxkey();
-    //echo "key: $key\n";
     $inbox = $db->contents($key);
-    //echo "inbox: "; print_r($inbox);
     foreach ($inbox as $time) {
       $msg = $db->get("$key/$time");
-      //echo "$time: $msg\n";
-      $args = $this->unpack_bankmsg($msg, $t->INBOX);
-      if (is_string($args)) return "Inbox unpack error: $args";
-      if ($args[$t->TIME] != $time) {
-        return "Inbox message timestamp mismatch";
-      }
-      $args = $args[$t->MSG];
-      $request = $args[$t->REQUEST];
-      $item = array();
-      $item[$t->REQUEST] = $request;
-      $item[$t->ID] = $args[$t->CUSTOMER];
-      $item[$t->TIME] = $time;
-      $item[$t->MSGTIME] = $args[$t->TIME];
-      $item[$t->NOTE] = $args[$t->NOTE];
-      if ($request == $t->SPEND) {
-        $assetid = $args[$t->ASSET];
-        $amount = $args[$t->AMOUNT];
-        $asset = $this->getasset($assetid);
-        $item[$t->ASSET] = $assetid;
-        $item[$t->AMOUNT] = $amount;
-        if (!is_string($asset)) {
-          $item[$t->ASSETNAME] = $asset[$t->ASSETNAME];
-          $item[$t->FORMATTEDAMOUNT] = $this->format_asset_value($amount, $asset);
+      $reqs = $parser->parse($msg);
+      if (!$reqs) return "Inbox parsing error: $reqs";
+      $items = array();
+      foreach ($reqs as $req) {
+        $args = $this->match_bankreq($req);
+        if (is_string($args)) return "Inbox unpack error: $args";
+        if ($args[$t->TIME] != $time && $args[$t->TIME]) {
+          return "Inbox message timestamp mismatch";
         }
-      } elseif ($request == $t->SPENDACCEPT || $request == $t->SPENDREJECT) {
-        // Pull in data from outbox to get amounts
-      } else {
-        return "Bad request in inbox: $request";
+        $args = $args[$t->MSG];
+        $request = $args[$t->REQUEST];
+        $item = array();
+        $item[$t->REQUEST] = $request;
+        $item[$t->ID] = $args[$t->CUSTOMER];
+        $item[$t->TIME] = $time;
+        $item[$t->MSGTIME] = $args[$t->TIME];
+        $item[$t->NOTE] = $args[$t->NOTE];
+        if ($request == $t->SPEND || $request = $t->TRANFEE) {
+          $assetid = $args[$t->ASSET];
+          $amount = $args[$t->AMOUNT];
+          $asset = $this->getasset($assetid);
+          $item[$t->ASSET] = $assetid;
+          $item[$t->AMOUNT] = $amount;
+          if (!is_string($asset)) {
+            $item[$t->ASSETNAME] = $asset[$t->ASSETNAME];
+            $item[$t->FORMATTEDAMOUNT] = $this->format_asset_value($amount, $asset);
+          }
+        } elseif ($request == $t->SPENDACCEPT || $request == $t->SPENDREJECT) {
+          // Pull in data from outbox to get amounts
+        } else {
+          return "Bad request in inbox: $request";
+        }
+        $items[] = $item;
       }
-      $res[$time] = $item;
+      $res[$time] = $items;
     }
     return $res;
   }
@@ -997,6 +1005,31 @@ class client {
     $t = $this->t;
     $db = $this->db;
 
+    $inbox = $this->getinbox_internal();
+    $outbox = $this->getoutbox_internal();
+    $balance = $this->getbalance_internal(true, false);
+
+    // array($acct => array($asset => $delta, ...), ...)
+    $deltas = array();
+
+    foreach ($directions as $dir) {
+      $time = $dir[$t->TIME];
+      $request = $dir[$t->REQUEST];
+      $note = $dir[$t->NOTE];
+      $acct = $dir[$t->ACCT];
+      if (!$acct) $acct = $t->MAIN;
+
+      $in = $inbox[$time];
+      if (!$in) return "No inbox entry for time: $time";
+
+      $inreq = $in[$t->REQUEST];
+      if ($inreq == $t->SPEND) {
+        
+      } elseif ($inreq == $t->SPENDACCEPT || $inreq == $t->SPENDREJECT) {
+      } else {
+        return "Unrecognized inbox request: $inreq";
+      }
+    }
   }
 
   // Get the outbox contents.

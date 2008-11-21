@@ -328,23 +328,29 @@ while (true) {
     }
   } elseif ($cmd == 'inbox') {
     $inbox = $client->getinbox();
-    foreach ($inbox as $time => $entry) {
-      $request = $entry[$t->REQUEST];
-      $fromid = $entry[$t->ID];
-      $msgtime = $entry[$t->MSGTIME];
-      $assetname = $entry[$t->ASSETNAME];
-      $formattedamount = $entry[$t->FORMATTEDAMOUNT];
-      $note = $entry[$t->NOTE];
+    foreach ($inbox as $time => $items) {
+      echo "$time: ";
+      $first = true;
+      foreach ($items as $entry) {
+        $request = $entry[$t->REQUEST];
+        $fromid = $entry[$t->ID];
+        $msgtime = $entry[$t->MSGTIME];
+        $assetname = $entry[$t->ASSETNAME];
+        $formattedamount = $entry[$t->FORMATTEDAMOUNT];
+        $note = $entry[$t->NOTE];
 
-      $contact = $client->getcontact($fromid);
-      $name = $fromid;
-      if ($contact) $name = $contact[$t->NICKNAME];
-      if ($request == $t->SPEND) {
-        echo "$time: $formattedamount $assetname from $name\n";
-        if ($note) echo "  note: $note\n";
-      } else {
-        // Need to look up outbox entries here
-        echo "$time: $request from $name\n";
+        $contact = $client->getcontact($fromid);
+        $name = $fromid;
+        if ($contact) $name = $contact[$t->NICKNAME];
+        if ($first) $first = false;
+        else echo "  ";
+        if ($request == $t->SPEND || $request == $t->TRANFEE) {
+          echo "$formattedamount $assetname from $name\n";
+        if ($note) echo "     note: $note\n";
+        } else {
+          // Need to look up outbox entries here
+          echo "$request from $name\n";
+        }
       }
     }
   } else {
