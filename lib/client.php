@@ -1005,12 +1005,17 @@ class client {
     $t = $this->t;
     $db = $this->db;
 
+    $bankid = $this->bankid;
+
     $inbox = $this->getinbox_internal();
     $outbox = $this->getoutbox_internal();
     $balance = $this->getbalance_internal(true, false);
 
-    // array($acct => array($asset => $delta, ...), ...)
-    $deltas = array();
+    $timelist = '';
+    $deltas = array(); // array($acct => array($asset => $delta, ...), ...)
+    $outbox_deletions = array(); // array($timestamp, ...)
+
+    $msg = '';
 
     foreach ($directions as $dir) {
       $time = $dir[$t->TIME];
@@ -1019,17 +1024,61 @@ class client {
       $acct = $dir[$t->ACCT];
       if (!$acct) $acct = $t->MAIN;
 
-      $in = $inbox[$time];
-      if (!$in) return "No inbox entry for time: $time";
+      if (!$timelist) $timelist .= '|';
+      $timelist .= $time;
+
+      $ins = $inbox[$time];
+      if (!$ins) return "No inbox entry for time: $time";
+
+      $in = $ins[0];
+      $fee = $ins[1];        // will need generalization when I add multiple fees
+
+      $trans = $this->gettime();
 
       $inreq = $in[$t->REQUEST];
       if ($inreq == $t->SPEND) {
-        
+        $id = $inreq[$t->CUSTOMER];
+        if ($msg != '') $msg .= '.';
+        if ($request == $t->SPENDACCEPT) {
+          $deltas[$acct][$in[$t->ASSET]] += $in[$t->AMOUNT];
+          $msg .= $this->custmsg($t->SPENDACCEPT, $bankid, $trans, $id, $note);
+        } elseif ($request == $t->SPENDREJECT) {
+          if ($fee) {
+            $deltas[$acct][$fee[$t->ASSET]] += $fee[$t->AMOUNT];
+          }
+          $msg .= $this->custmsg($t->SPENDREJECT, $bankid, $trans, $id, $note);
+        } else {
+          return "Illegal request for spend: $request";
+        }
       } elseif ($inreq == $t->SPENDACCEPT || $inreq == $t->SPENDREJECT) {
+        $outtime = $inreq[$t->TIME];
+        $out = $outbox[$outtime];
+        if (!$out) return "Can't find outbox for $inreq at time $outtime";
+        $outbox_deletions[] = $outtime;
+        $outspend = $out[0];
+        $outfee = $out[1];      // change when we have more than one fee
+        if ($inreq == $t->SPENDREJECT) {
+          // For rejected spends, we get our money back
+          $deltas[$acct][$out[$t->ASSET]] += $out[$t->AMOUNT];
+        } elseif ($outfee) {
+          // For accepted spends, we get our tranfee back
+          $deltas[$acct][$outfee[$t->ASSET]] += $outfee[$t->AMOUNT];
+        }
       } else {
         return "Unrecognized inbox request: $inreq";
       }
     }
+
+    $msg = $this->custmsg($t->PROCESSINBOX, $bankid, $trans, $timelist) . ".$msg";
+
+    // Create balance, outboxhash, and balancehash messages
+    // CONTINUE HERE
+
+    // Send request to server
+
+    // Process return from server
+
+    // Commit to database
   }
 
   // Get the outbox contents.
