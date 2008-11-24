@@ -328,30 +328,72 @@ while (true) {
     }
   } elseif ($cmd == 'inbox') {
     $inbox = $client->getinbox();
-    foreach ($inbox as $time => $items) {
-      echo "$time: ";
-      $first = true;
-      foreach ($items as $entry) {
-        $request = $entry[$t->REQUEST];
-        $fromid = $entry[$t->ID];
-        $msgtime = $entry[$t->MSGTIME];
-        $assetname = $entry[$t->ASSETNAME];
-        $formattedamount = $entry[$t->FORMATTEDAMOUNT];
-        $note = $entry[$t->NOTE];
+    if (count($tokens) == 1) {
+      foreach ($inbox as $time => $items) {
+        echo "$time: ";
+        $first = true;
+        foreach ($items as $entry) {
+          $request = $entry[$t->REQUEST];
+          $fromid = $entry[$t->ID];
+          $msgtime = $entry[$t->MSGTIME];
+          $assetname = $entry[$t->ASSETNAME];
+          $formattedamount = $entry[$t->FORMATTEDAMOUNT];
+          $note = $entry[$t->NOTE];
 
-        $contact = $client->getcontact($fromid);
-        $name = $fromid;
-        if ($contact) $name = $contact[$t->NICKNAME];
-        if ($first) $first = false;
-        else echo "  ";
-        if ($request == $t->SPEND || $request == $t->TRANFEE) {
-          echo "$formattedamount $assetname from $name\n";
-        if ($note) echo "     note: $note\n";
-        } else {
-          // Need to look up outbox entries here
-          echo "$request from $name\n";
+          $contact = $client->getcontact($fromid);
+          $name = $fromid;
+          if ($contact) $name = $contact[$t->NICKNAME];
+          if ($first) $first = false;
+          else echo "  ";
+          if ($request == $t->SPEND || $request == $t->TRANFEE) {
+            echo "$formattedamount $assetname from $name\n";
+            if ($request == $t->SPEND) {
+              echo "  msgtime: $msgtime\n";
+              if ($note) echo "     note: $note\n";
+            }
+          } else {
+            // Need to look up outbox entries here
+            echo "$request from $name\n";
+          }
         }
       }
+    } else {
+      // processinbox
+      // Rest of line is times
+      $directions = array();
+      for ($i=1; $i<count($tokens); $i++) {
+        $time = $tokens[$i];
+        $in = $inbox[$time];
+        if (!$in) {
+          echo "Not a timestamp in the inbox: $time\n";
+          $directions = false;
+          break;
+        }
+        $dir = array();
+        $dir[$t->TIME] = $time;
+        $in = $in[0];
+        if ($in[$t->REQUEST] == $t->SPEND) {
+          echo "$time: Accept or Reject? ";
+          $line = trim(fgets(STDIN));
+          if ($line == 'a') {
+            $dir[$t->REQUEST] = $t->SPENDACCEPT;
+            echo "Account (main): ";
+            $acct = trim(fgets(STDIN));
+            if (!$acct) $acct = $t->MAIN;
+            $dir[$t->ACCT] = $acct;
+          }
+          elseif ($line == 'r') $dir[$t->REQUEST] = $t->SPENDREJECT;
+          else {
+            echo "Must enter 'a' or 'r'\n";
+            $directions = false;
+            break;
+          }
+        }
+        $directions[] = $dir;
+      }
+      $res = $client->processinbox($directions);
+      if ($res) echo "Error: $res\n";
+      else echo "Inbox processeed successfully.\n";
     }
   } else {
     echo "Unknown command: $cmd\n";

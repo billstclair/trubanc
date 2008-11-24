@@ -749,10 +749,7 @@ class client {
     } else {
       $acctbals = array($acct => array($assetid => $balance));
     }
-    $hasharray = $u->balancehash($db, $this->id, $this, $acctbals);
-    $hash = $hasharray[$t->HASH];
-    $hashcnt = $hasharray[$t->COUNT];
-    $balancehash = $this->custmsg($t->BALANCEHASH, $bankid, $time, $hashcnt, $hash);
+    $balancehash = $this->balancehashmsg($time, $acctbals);
 
     // Send request to server, and get response
     $msg = "$spend.$feeandbal.$balance.$outboxhash.$balancehash";
@@ -990,6 +987,7 @@ class client {
   // $acct is the account into which to transfer the funds (default: main).
 
   function processinbox($directions) {
+    $db = $this->db;
 
     if (!$this->current_bank()) return "In processinbox(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
@@ -1006,6 +1004,8 @@ class client {
     $db = $this->db;
 
     $bankid = $this->bankid;
+    $server = $this->server;
+    $parser = $this->parser;
 
     $inbox = $this->getinbox_internal();
     $outbox = $this->getoutbox_internal();
@@ -1024,7 +1024,7 @@ class client {
       $acct = $dir[$t->ACCT];
       if (!$acct) $acct = $t->MAIN;
 
-      if (!$timelist) $timelist .= '|';
+      if ($timelist) $timelist .= '|';
       $timelist .= $time;
 
       $ins = $inbox[$time];
@@ -1037,16 +1037,19 @@ class client {
 
       $inreq = $in[$t->REQUEST];
       if ($inreq == $t->SPEND) {
-        $id = $inreq[$t->CUSTOMER];
+        $id = $in[$t->CUSTOMER];
+        $msgtime = $in[$t->MSGTIME];
         if ($msg != '') $msg .= '.';
         if ($request == $t->SPENDACCEPT) {
-          $deltas[$acct][$in[$t->ASSET]] += $in[$t->AMOUNT];
-          $msg .= $this->custmsg($t->SPENDACCEPT, $bankid, $trans, $id, $note);
+          $deltas[$acct][$in[$t->ASSET]] =
+            bcadd($deltas[$acct][$in[$t->ASSET]], $in[$t->AMOUNT]);
+          $msg .= $this->custmsg($t->SPENDACCEPT, $bankid, $msgtime, $id, $note);
         } elseif ($request == $t->SPENDREJECT) {
           if ($fee) {
-            $deltas[$acct][$fee[$t->ASSET]] += $fee[$t->AMOUNT];
+            $deltas[$acct][$fee[$t->ASSET]] =
+              bcadd($deltas[$acct][$fee[$t->ASSET]], $fee[$t->AMOUNT]);
           }
-          $msg .= $this->custmsg($t->SPENDREJECT, $bankid, $trans, $id, $note);
+          $msg .= $this->custmsg($t->SPENDREJECT, $bankid, $msgtime, $id, $note);
         } else {
           return "Illegal request for spend: $request";
         }
@@ -1059,10 +1062,12 @@ class client {
         $outfee = $out[1];      // change when we have more than one fee
         if ($inreq == $t->SPENDREJECT) {
           // For rejected spends, we get our money back
-          $deltas[$acct][$out[$t->ASSET]] += $out[$t->AMOUNT];
+          $deltas[$acct][$out[$t->ASSET]] =
+            bcadd($deltas[$acct][$out[$t->ASSET]], $out[$t->AMOUNT]);
         } elseif ($outfee) {
           // For accepted spends, we get our tranfee back
-          $deltas[$acct][$outfee[$t->ASSET]] += $outfee[$t->AMOUNT];
+          $deltas[$t->MAIN][$outfee[$t->ASSET]] =
+            bcadd($deltas[$t->MAIN][$outfee[$t->ASSET]], $outfee[$t->AMOUNT]);
         }
       } else {
         return "Unrecognized inbox request: $inreq";
@@ -1071,14 +1076,81 @@ class client {
 
     $msg = $this->custmsg($t->PROCESSINBOX, $bankid, $trans, $timelist) . ".$msg";
 
+    $msgs = array();
+    $acctbals = array();
+
     // Create balance, outboxhash, and balancehash messages
-    // CONTINUE HERE
+    foreach ($deltas as $acct => $amounts) {
+      foreach ($amounts as $asset => $amount) {
+        $oldamount = $balance[$acct][$asset];
+        $amount = bcadd($oldamount, $amount);
+        $balmsg = $this->custmsg($t->BALANCE, $bankid, $trans, $asset, $amount, $acct);
+        $msgs[$balmsg] = true;
+        $acctbals[$acct][$asset] = $balmsg;
+        $msg = $msg . ".$balmsg";
+      }
+    }
+
+    if (count($outbox_deletions) > 0) {
+      $outboxhash = $this->outboxhashmsg($trans, false, $outbox_deletions);
+      $msgs[$outboxhash] = true;
+      $msg = $msg . ".$outboxhash";
+    } else $outboxhash = false;
+
+    $balancehash = $this->balancehashmsg($trans, $acctbals);
+    $msgs[$balancehashmsg] = true;
+    $msg = $msg . ".$balancehash";
 
     // Send request to server
+    $msg = $server->process($msg);
 
-    // Process return from server
+    // Validate return from server
+    $reqs = $parser->parse($msg);
+    if (!$reqs) return "Can't parse bank return from spend: $msg";
+    $args = $this->match_bankreq($reqs[0], $t->ATPROCESSINBOX);
+    if (is_string($args)) {
+      $args = $this->match_bankreq($reqs[0]);
+      if (is_string($args)) return "Error from processinbox request: $args";
+      $request = $args[$t->REQUEST];
+      if ($request = $t->FAILED) {
+        return "Processinbox request failed: " . $args[$t->ERRMSG];
+      }
+      return "Processinbox request returned unknown message type: " . $request;
+    }
+
+    foreach ($reqs as $req) {
+      $msg = $parser->get_parsemsg($req);
+      $args = $this->match_bankreq($req);
+      if (is_string($args)) return "Error in processinbox response: $args";
+      $m = $args[$t->MSG];
+      if (!$m) return "No wrapped message in processinbox return: $msg";
+      $m = trim($parser->get_parsemsg($m));
+      if (!$msgs[$m]) return "Returned message wasn't sent: '$m'";
+      if (is_string($msgs[$m])) return "Duplicate returned message: '$m'";
+      $msgs[$m] = $msg;
+    }
+
+    foreach ($msgs as $m => $msg) {
+      if ($msg === true) return "Message not returned from processinbox: $m";
+    }
 
     // Commit to database
+    foreach ($acctbals as $acct => $bals) {
+      foreach ($bals as $asset => $balmsg) {
+        $db->put($this->userbalancekey($acct, $asset), $balmsg);
+      }
+    }
+
+    if ($outboxhash) {
+      foreach($outbox_deletions as $outbox_time) {
+        $db->put($this->useroutboxkey($outbox_time), '');
+      }
+      $db->put($this->useroutboxhashkey(), $outboxhash);
+    }
+
+    $db->put($this->userbalancehashkey(), $balancehash);
+
+    return false;
   }
 
   // Get the outbox contents.
@@ -1704,6 +1776,21 @@ class client {
     }
     return false;
   }
+
+  function balancehashmsg($time, $acctbals) {
+    $u = $this->u;
+    $t = $this->t;
+    $db = $this->db;
+    $bankid = $this->bankid;
+
+    $hasharray = $u->balancehash($db, $this->id, $this, $acctbals);
+    $hash = $hasharray[$t->HASH];
+    $hashcnt = $hasharray[$t->COUNT];
+    $balancehash = $this->custmsg($t->BALANCEHASH, $bankid, $time, $hashcnt, $hash);
+
+    return $balancehash;
+  }
+
 
   function outboxhashmsg($transtime, $newitem=false, $removed_times=false) {
     $db = $this->db;
