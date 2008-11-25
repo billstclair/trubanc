@@ -585,10 +585,13 @@ class client {
   // Get user balances for all sub-accounts or just one.
   // Returns an error string or an array of items of the form:
   //
-  //    array($acct => array($t->ASSET => $assetid,
-  //                         $t->ASSETNAME => $assetname,
-  //                         $t->AMOUNT => $amount,
-  //                         $t->FORMATTEDAMOUNT => $formattedamount))
+  //    array($acct => array($t->ASSET =>
+  //                         array($t->ASSET => $assetid,
+  //                               $t->ASSETNAME => $assetname,
+  //                               $t->AMOUNT => $amount,
+  //                               $t->FORMATTEDAMOUNT => $formattedamount),
+  //                         ...),
+  //          ...)
   //
   // where $assetid & $assetname describe the asset, $amount is the
   // amount, as an integer, $formattedamount is the amount as a
@@ -631,7 +634,7 @@ class client {
       else $assetids = $db->contents($this->userbalancekey($acct));
       foreach ($assetids as $assetid) {
         $amount = $this->userbalance($acct, $assetid);
-        if (!is_numeric($amount)) return "While gathering balances: $args";
+        if (!is_numeric($amount)) return "While gathering balances: $amount";
         $asset = $this->getasset($assetid);
         if (is_string($asset)) {
           $formattedamount = $amount;
@@ -640,10 +643,10 @@ class client {
           $formattedamount = $this->format_asset_value($amount, $asset);
           $assetname = $asset[$t->ASSETNAME];
         }
-        $res[$acct][] = array($t->ASSET => $assetid,
-                              $t->ASSETNAME => $assetname,
-                              $t->AMOUNT => $amount,
-                              $t->FORMATTEDAMOUNT => $formattedamount);
+        $res[$acct][$assetid] = array($t->ASSET => $assetid,
+                                      $t->ASSETNAME => $assetname,
+                                      $t->AMOUNT => $amount,
+                                      $t->FORMATTEDAMOUNT => $formattedamount);
       }
     }
     if (is_string($inacct) && $inassetid) {
@@ -672,7 +675,7 @@ class client {
     return $res;
   }
 
-  function spend_internal($toid, $assetid, $formattedamount, $acct) {
+  function spend_internal($toid, $assetid, $formattedamount, $acct, $note) {
     $t = $this->t;
     $db = $this->db;
     $u = $this->u;
@@ -698,6 +701,7 @@ class client {
     }
 
     $tranfee = false;
+    $fee_balance = false;
     if ($id != $bankid) {
       $fees = $this->getfees();
       if (is_string($fees)) return $fees;
@@ -710,7 +714,6 @@ class client {
             bccomp($newamount, 0) < 0) {
           return "Insufficient balance for transaction fee";
         }
-        $tranfee = false;
       } else {
         $fee_balance = $this->userbalance($t->MAIN, $tranfee_asset);
         $fee_balance = bcsub($fee_balance, $tranfee_amt);
@@ -729,16 +732,20 @@ class client {
     if ($tranfee) {
       $feemsg = $this->custmsg
         ($t->TRANFEE, $bankid, $time, $tranfee_asset, $tranfee_amt);
-      $feebal .= $this->custmsg
-        ($t->BALANCE, $bankid, $time, $tranfee_asset, $fee_balance);
-      $feeandbal = "$feemsg.$feebal";
+      $feeandbal = $feemsg;
+      $feebal = false;
+      if ($fee_balance) {
+        $feebal .= $this->custmsg
+          ($t->BALANCE, $bankid, $time, $tranfee_asset, $fee_balance);
+        $feeandbal .= ".$feebal";
+      }
     }      
     $balance = $this->custmsg
       ($t->BALANCE, $bankid, $time, $assetid, $newamount, $acct);
     $outboxhash = $this->outboxhashmsg($time, $spend);
 
     // Compute balancehash
-    if ($tranfee) {
+    if ($feebal) {
       if ($t->MAIN == $acct) {
         $acctbals = array($acct => array($assetid => $balance,
                                          $tranfee_asset => $feebal));
@@ -772,7 +779,7 @@ class client {
                   $balancehash => true);
     if ($feeandbal) {
       $msgs[$feemsg] = true;
-      $msgs[$feebal] = true;
+      if ($feebal) $msgs[$feebal] = true;
     }
 
     foreach ($reqs as $req) {
@@ -795,10 +802,12 @@ class client {
     $db->put($this->userbalancekey($acct, $assetid), $msgs[$balance]);
     $db->put($this->useroutboxhashkey(), $msgs[$outboxhash]);
     $db->put($this->userbalancehashkey(), $msgs[$balancehash]);
-    $spend = $msgs[$spendmsg];
+    $spend = $msgs[$spend];
     if ($feeandbal) {
       $spend = "$spend." . $msgs[$feemsg];
-      $db->put($this->userbalancekey($t->MAIN, $tranfee_asset), $msgs[$feebal]);
+      if ($feebal) {
+        $db->put($this->userbalancekey($t->MAIN, $tranfee_asset), $msgs[$feebal]);
+      }
     }
     $db->put($this->useroutboxkey($time), $spend);
 
@@ -993,13 +1002,13 @@ class client {
     if ($err = $this->initbankaccts()) return $err;
 
     $lock = $db->lock($this->userreqkey());
-    $res = $this->processinbox_internal($directions);
+    $res = $this->processinbox_internal($directions, false);
     $db->unlock($lock);
 
     return $res;
   }
 
-  function processinbox_internal($directions) {
+  function processinbox_internal($directions, $recursive) {
     $t = $this->t;
     $db = $this->db;
 
@@ -1016,6 +1025,7 @@ class client {
     $outbox_deletions = array(); // array($timestamp, ...)
 
     $msg = '';
+    $msgs = array();
 
     foreach ($directions as $dir) {
       $time = $dir[$t->TIME];
@@ -1037,33 +1047,37 @@ class client {
 
       $inreq = $in[$t->REQUEST];
       if ($inreq == $t->SPEND) {
-        $id = $in[$t->CUSTOMER];
+        $id = $in[$t->ID];
         $msgtime = $in[$t->MSGTIME];
         if ($msg != '') $msg .= '.';
         if ($request == $t->SPENDACCEPT) {
           $deltas[$acct][$in[$t->ASSET]] =
             bcadd($deltas[$acct][$in[$t->ASSET]], $in[$t->AMOUNT]);
-          $msg .= $this->custmsg($t->SPENDACCEPT, $bankid, $msgtime, $id, $note);
+          $smsg = $this->custmsg($t->SPENDACCEPT, $bankid, $msgtime, $id, $note);
+          $msgs[$smsg] = true;
+          $msg .= $smsg;
         } elseif ($request == $t->SPENDREJECT) {
           if ($fee) {
             $deltas[$acct][$fee[$t->ASSET]] =
               bcadd($deltas[$acct][$fee[$t->ASSET]], $fee[$t->AMOUNT]);
           }
-          $msg .= $this->custmsg($t->SPENDREJECT, $bankid, $msgtime, $id, $note);
+          $smsg = $this->custmsg($t->SPENDREJECT, $bankid, $msgtime, $id, $note);
+          $msgs[$smsg] = true;
+          $msg .= $smsg;
         } else {
           return "Illegal request for spend: $request";
         }
       } elseif ($inreq == $t->SPENDACCEPT || $inreq == $t->SPENDREJECT) {
-        $outtime = $inreq[$t->TIME];
-        $out = $outbox[$outtime];
-        if (!$out) return "Can't find outbox for $inreq at time $outtime";
-        $outbox_deletions[] = $outtime;
+        $msgtime = $in[$t->MSGTIME];
+        $out = $outbox[$msgtime];
+        if (!$out) return "Can't find outbox for $inreq at time $msgtime";
+        $outbox_deletions[] = $msgtime;
         $outspend = $out[0];
         $outfee = $out[1];      // change when we have more than one fee
         if ($inreq == $t->SPENDREJECT) {
           // For rejected spends, we get our money back
-          $deltas[$acct][$out[$t->ASSET]] =
-            bcadd($deltas[$acct][$out[$t->ASSET]], $out[$t->AMOUNT]);
+          $deltas[$acct][$outspend[$t->ASSET]] =
+            bcadd($deltas[$acct][$outspend[$t->ASSET]], $outspend[$t->AMOUNT]);
         } elseif ($outfee) {
           // For accepted spends, we get our tranfee back
           $deltas[$t->MAIN][$outfee[$t->ASSET]] =
@@ -1074,15 +1088,18 @@ class client {
       }
     }
 
-    $msg = $this->custmsg($t->PROCESSINBOX, $bankid, $trans, $timelist) . ".$msg";
+    $pmsg = $this->custmsg($t->PROCESSINBOX, $bankid, $trans, $timelist);
+    $msgs[$pmsg] = true;
 
-    $msgs = array();
+    if ($msg) $msg = "$pmsg.$msg";
+    else $msg = $pmsg;
+
     $acctbals = array();
 
     // Create balance, outboxhash, and balancehash messages
     foreach ($deltas as $acct => $amounts) {
       foreach ($amounts as $asset => $amount) {
-        $oldamount = $balance[$acct][$asset];
+        $oldamount = $balance[$acct][$asset][$t->AMOUNT];
         $amount = bcadd($oldamount, $amount);
         $balmsg = $this->custmsg($t->BALANCE, $bankid, $trans, $asset, $amount, $acct);
         $msgs[$balmsg] = true;
@@ -1098,7 +1115,7 @@ class client {
     } else $outboxhash = false;
 
     $balancehash = $this->balancehashmsg($trans, $acctbals);
-    $msgs[$balancehashmsg] = true;
+    $msgs[$balancehash] = true;
     $msg = $msg . ".$balancehash";
 
     // Send request to server
@@ -1110,10 +1127,13 @@ class client {
     $args = $this->match_bankreq($reqs[0], $t->ATPROCESSINBOX);
     if (is_string($args)) {
       $args = $this->match_bankreq($reqs[0]);
-      if (is_string($args)) return "Error from processinbox request: $args";
-      $request = $args[$t->REQUEST];
-      if ($request = $t->FAILED) {
-        return "Processinbox request failed: " . $args[$t->ERRMSG];
+      if (is_string($args)) {
+        if (!$recursive) {
+          // Force reload of balances and outbox
+          if ($err = $this->forceinit()) return $err;
+          return $this->processinbox_internal($directions, true);
+        }
+        return "Error from processinbox request: $args";
       }
       return "Processinbox request returned unknown message type: " . $request;
     }
@@ -1137,7 +1157,7 @@ class client {
     // Commit to database
     foreach ($acctbals as $acct => $bals) {
       foreach ($bals as $asset => $balmsg) {
-        $db->put($this->userbalancekey($acct, $asset), $balmsg);
+        $db->put($this->userbalancekey($acct, $asset), $msgs[$balmsg]);
       }
     }
 
@@ -1145,10 +1165,10 @@ class client {
       foreach($outbox_deletions as $outbox_time) {
         $db->put($this->useroutboxkey($outbox_time), '');
       }
-      $db->put($this->useroutboxhashkey(), $outboxhash);
+      $db->put($this->useroutboxhashkey(), $msgs[$outboxhash]);
     }
 
-    $db->put($this->userbalancehashkey(), $balancehash);
+    $db->put($this->userbalancehashkey(), $msgs[$balancehash]);
 
     return false;
   }
@@ -1654,12 +1674,27 @@ class client {
             $db->put($key, '');
           }
         }
+        $outboxkey = $this->useroutboxkey();
+        $outtimes = $db->contents($outboxkey);
+        foreach ($outtimes as $outtime) {
+          $key = "$outboxkey/$outtime";
+          $db->put($key, '');
+        }
         $db->put($this->userbalancehashkey(), '');
         $db->put($this->useroutboxhashkey(), '');
       }
       $this->syncedreq = true;
     }
     return $reqnum;
+  }
+
+  // Force a reinit of the client database for the current user
+  function forceinit() {
+    $db = $this->db;
+
+    $db->put($this->userreqkey(), 0);
+    $this->syncedreq = false;
+    return $this->initbankaccts();
   }
 
   // If we haven't yet downloaded accounts from the bank, do so now.

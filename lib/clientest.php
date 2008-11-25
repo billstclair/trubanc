@@ -274,7 +274,7 @@ while (true) {
   } elseif ($cmd == 'spend') {
     $cnt = count($tokens);
     if ($cnt < 4 || $cnt > 5) {
-      echo "Usage is: spend <user#> <asset#> <amount> [<acct>]";
+      echo "Usage is: spend <user#> <asset#> <amount> [<acct>]\n";
     } else {
       $useridx = $tokens[1];
       $assetidx = $tokens[2];
@@ -349,14 +349,15 @@ while (true) {
             echo "$formattedamount $assetname from $name\n";
             if ($request == $t->SPEND) {
               echo "  msgtime: $msgtime\n";
-              if ($note) echo "     note: $note\n";
             }
           } else {
             // Need to look up outbox entries here
             echo "$request from $name\n";
           }
+          if ($note) echo "  note: $note\n";
         }
       }
+      if (count($inbox) == 0) echo "Inbox is empty\n";
     } else {
       // processinbox
       // Rest of line is times
@@ -388,12 +389,17 @@ while (true) {
             $directions = false;
             break;
           }
+          echo "Note: ";
+          $note = trim(fgets(STDIN));
+          if ($note) $dir[$t->NOTE] = $note;
         }
         $directions[] = $dir;
       }
-      $res = $client->processinbox($directions);
-      if ($res) echo "Error: $res\n";
-      else echo "Inbox processeed successfully.\n";
+      if ($directions) {
+        $res = $client->processinbox($directions);
+        if ($res) echo "Error: $res\n";
+        else echo "Inbox processeed successfully.\n";
+      }
     }
   } else {
     echo "Unknown command: $cmd\n";

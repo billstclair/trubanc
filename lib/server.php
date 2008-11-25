@@ -1657,7 +1657,7 @@ class server {
                      $t->GETFEES => array($t->BANKID,$t->REQ,$t->OPERATION=>1),
                      $t->SPEND => $patterns[$t->SPEND],
                      $t->GETINBOX => $patterns[$t->GETINBOX],
-                     $t->PROCESSINBOX => array($t->BANKID,$t->TIME,$t->TIMELIST),
+                     $t->PROCESSINBOX => $patterns[$t->PROCESSINBOX],
                      $t->GETASSET => array($t->BANKID,$t->REQ,$t->ASSET),
                      $t->ASSET => array($t->BANKID,$t->ASSET,$t->SCALE,$t->PRECISION,$t->ASSETNAME),
                      $t->GETOUTBOX => $patterns[$t->GETOUTBOX],
