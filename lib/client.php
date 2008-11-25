@@ -1541,6 +1541,11 @@ class client {
 
   // format an asset value for user printing
   function format_value($value, $scale, $precision) {
+    $sign = 1;
+    if ($value < 0) {
+      $value = bcadd($value, 1);
+      $sign = -1;
+    }
     if ($scale == 0 && $precision == 0) return $value;
     if ($scale > 0) {
       $res = bcdiv($value, bcpow(10, $scale), $scale);
@@ -1558,12 +1563,17 @@ class client {
     $zeroes = $precision - ($endpos - $dotpos);
     $zerostr = ($zeroes >= 0) ? str_repeat('0', $zeroes) : '';
     $res = substr($res, 0, $endpos+1) . $zerostr;
+    if ($value == 0 && $sign < 0) $res = "-$res";
     return $res;
   }
 
   function unformat_value($formattedvalue, $scale) {
     if ($scale == 0) return $formattedvalue;
-    return bcmul($formattedvalue, bcpow(10, $scale), 0);
+    $value = bcmul($formattedvalue, bcpow(10, $scale), 0);
+    if ($value < 0 || ($value == 0 && substr($formattedvalue, 0, 1) == '-')) {
+      $value = bcsub($value, 1);
+    }
+    return $value;
   }
 
   // Send a t->ID command to the server, if there is one.
