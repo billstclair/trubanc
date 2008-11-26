@@ -1,40 +1,37 @@
 <?php
 
-  // index.php
-  // Trubanc main page
+  // client.php
+  // A Trubanc web client
 
-// Define $dbdir, $bank_name, & $index_file
-require_once "settings.php";
+// Define $dbdir, $default_server
+require_once "client-settings.php";
 
 function mq($x) {
   if (get_magic_quotes_gpc()) return stripslashes($x);
   else return $x;
 }
 
-$msg = mq($_REQUEST['msg']);
-$debug = mq($_REQUEST['debug']);
+$cmd = mq($_POST['cmd']);
 
-if ($msg) {
+if (!$cmd) draw_login();
+elseif ($cmd == 'login') do_login();
+else {
 
   require_once "lib/fsdb.php";
   require_once "lib/ssl.php";
-  require_once "lib/server.php";
+  require_once "lib/client.php";
 
   $db = new fsdb($dbdir);
   $ssl = new ssl();
-  $server = new server($db, $ssl, false, $bank_name);
-  if ($debug) {
-    echo "msg: <pre>$msg</pre>\n";
-    echo "response: <pre>";
-  }
-  echo $server->process($msg);
-  if ($debug) {
-    echo "</pre>\n";
-  }
+  $client = new client($db, $ssl);
 
-} else {
-  echo file_get_contents($index_file);
+  if ($cmd == 'balance') draw_balance();
 }
+
+function draw_login() {
+  global $client;
+}
+
 
 // Copyright 2008 Bill St. Clair
 //
