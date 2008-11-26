@@ -11,6 +11,8 @@ function mq($x) {
   else return $x;
 }
 
+$cmd = mq($_POST['cmd']);
+
 $title = "Trubanc Web Client";
 
 if (!$cmd) draw_login();

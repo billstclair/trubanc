@@ -22,5 +22,8 @@ lib/servertest.php|Test code for the server
 lib/client.php|The client API
 lib/clientest.php|Test code for the client API
 
+client/index.php|The web client
+client/settings.php|Settings for the web client
+
 viewtext.php|The file that generated this listing
 viewtext.txt|The list of files viewtext.php will show you
