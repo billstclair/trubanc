@@ -1,10 +1,10 @@
 <?php
 
-  // client.php
+  // client/index.php
   // A Trubanc web client
 
 // Define $dbdir, $default_server
-require_once "client-settings.php";
+require_once "settings.php";
 
 function mq($x) {
   if (get_magic_quotes_gpc()) return stripslashes($x);
@@ -17,9 +17,9 @@ if (!$cmd) draw_login();
 elseif ($cmd == 'login') do_login();
 else {
 
-  require_once "lib/fsdb.php";
-  require_once "lib/ssl.php";
-  require_once "lib/client.php";
+  require_once "../lib/fsdb.php";
+  require_once "../lib/ssl.php";
+  require_once "../lib/client.php";
 
   $db = new fsdb($dbdir);
   $ssl = new ssl();
@@ -29,7 +29,16 @@ else {
 }
 
 function draw_login() {
-  global $client;
+?>
+<html>
+<head>
+<title>Trubanc Web Client</title>
+</head>
+<body>
+Future home of a <a href="http://trubanc.com/">Trubanc</a> web client.
+</body>
+</html>
+<?
 }
 
 

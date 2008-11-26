@@ -1,9 +1,9 @@
 <?PHP
 
-  // client-settings.php
-  // web server configuration settings
+  // client/settings.php
+  // Trubanc web client configuration settings
 
-$dbdir = '../protected/clientdb '; // The client database directory
+$dbdir = '../../protected/clientdb '; // The client database directory
 $default_server = 'http://trubanc.com/';
 
 // Copyright 2008 Bill St. Clair
