@@ -29,16 +29,37 @@ else {
 }
 
 function draw_login() {
-?>
-<html>
-<head>
-<title>Trubanc Web Client</title>
-</head>
-<body>
-Future home of a <a href="http://trubanc.com/">Trubanc</a> web client.
-</body>
-</html>
-<?
+  global $title, $body, $onload;
+
+  $title = "Trubanc Web Client";
+  $onload = "document.forms[0].passphrase.focus()";
+  $body = <<<EOT
+<form method="post" action="" autocomplete="off">
+<input type="hidden" name="cmd" value="login"/>
+<table>
+<tr>
+<td>Passphrase:</td>
+<td><input type="text" name="passphrase" size="50"/>
+<input type="submit" name="login" value="Login"/></td>
+</tr><tr>
+<td>Key size:</td>
+<td><input type="text" name="keysize" size="4" value="3072"/>
+<input type="submit" name="newaccount" value="Create account"/></td>
+</tr><tr>
+<td></td>
+<td><table>
+<tr><td style="width: 32em;">To use an existing private key, paste the encrypted private
+key below, enter its passphrase above, and click the "Create account" button.
+To generate a new private key, leave the area below blank, enter a passphrase
+and a key size (512, 1024, 2048, 3072, or 4096), and click "Create account".</td>
+</tr>
+</table></td>
+</tr><tr>
+<td></td>
+<td><textarea name="privkey" cols="64" rows="40"></textarea></td>
+</table>
+EOT;
+  include "template.php";
 }
 
 
