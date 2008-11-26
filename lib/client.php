@@ -34,6 +34,9 @@ class client {
   // True to make process() print the messages it sends and receives
   var $showprocess = false;
 
+  // Used by newsessionid()
+  var $random = false;
+
   // $db is an object that does put(key, value), get(key), contents(key),
   // & subdir(subkey).
   // $ssl is an object that does the protocol of ssl.php
@@ -1851,6 +1854,102 @@ class client {
                           $transtime,
                           $hashcnt,
                           $hash);
+  }
+
+  // Web client session support
+
+  // Return a new, random, session ID
+  function newsessionid() {
+    $random = $this->random;
+    if (!$random) {
+      require_once "LoomRandom.php";
+      $random = new LoomRandom();
+      $this->random = $random;
+    }
+    $res = bin2hex($random->urandom_bytes(20));
+    if (strlen($res) < 40) $res = str_repeat("0", 40 - strlen($res)) . $res;
+    return $res;
+  }
+
+  // xor copies of $key with $string and return the result.
+  // This is a really simple encryption that only really works if
+  // $key is known to be random, e.g. the output of newsessionid(), and
+  // $string has no known substrings.
+  function xorcrypt($key, $string) {
+    $idx = 0;
+    $keylen = strlen($key);
+    $len = strlen($string);
+    $res = '';
+    for ($i=0; $i<$len; $i++) {
+      $res .= chr(ord(substr($key, $idx, $idx+1)) ^ ord(substr($string, $i, $i+1)));
+      $idx++;
+      if ($idx >= $keylen) $idx = 0;
+    }
+    return $res;
+  }
+
+  // Return the database key for the user's session hash.
+  function usersessionkey() {
+    $t = $this->t;
+
+    return $this->userbankkey($t->SESSION);
+  }
+
+  // Return the user's session hash.
+  function usersessionhash() {
+    $db = $this->db;
+
+    return $db->get($this->usersessionkey());
+  }
+
+  // Return the database key for a session hash
+  function sessionkey($sessionhash) {
+    $t = $this->t;
+
+    return $t->SESSION . "/$sessionhash";
+  }
+
+  // Return the passphrase corresponding to a session id
+  function sessionpassphrase($sessionid) {
+    $db = $this->db;
+
+    $passcrypt = $db->get($this->sessionkey(sha1($sessionid)));
+    return $this->xorcrypt(pack("H*", $sessionid), $passcrypt);
+  }
+
+  // Create a new user session, encoding $passphrase with a new session id.
+  // Return the new session id.
+  // If the user already has a session stored with another session id,
+  // remove that one first.
+  function makesession($passphrase) {
+    $db = $this->db;
+
+    $sessionid = $this->newsessionid();
+    $passcrypt = $this->xorcrypt(pack("H*", $sessionid), $passphrase);
+    $usersessionkey = $this->usersessionkey();
+    $lock = $db->lock($usersessionkey);
+    $oldhash = $db->get($usersessionkey);
+    if ($oldhash) {
+      $db->put($this->sessionkey($oldhash), '');
+    }
+    $newhash = sha1($sessionid);
+    $db->put($this->sessionkey($newhash), $passcrypt);
+    $db->put($usersessionkey, $newhash);
+    $db->unlock($lock);
+  }
+
+  // Remove the current user's session
+  function removesession() {
+    $db = $this->db;
+
+    $usersessionkey = $this->usersessionkey();
+    $lock = $db->lock($usersessionkey);
+    $oldhash = $db->get($usersessionkey);
+    if ($oldhash) {
+      $db->put($this->sessionkey($oldhash), '');
+      $db->put($usersessionkey, '');
+    }
+    $db->unlock($lock);
   }
 
 }

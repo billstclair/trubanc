@@ -11,11 +11,15 @@ function mq($x) {
   else return $x;
 }
 
-$cmd = mq($_POST['cmd']);
+$cmd = mq($_REQUEST['cmd']);
 
 $title = "Trubanc Web Client";
 
 if (!$cmd) draw_login();
+elseif ($cmd == 'logout') {
+  setcookie('session', false);
+  draw_login();
+}
 else {
 
   require_once "../lib/fsdb.php";
@@ -29,6 +33,9 @@ else {
   if ($cmd == 'login') do_login();
   elseif ($cmd == 'balance') draw_balance();
 }
+
+// Use $title, $body, and $onload to fill the page template.
+include "template.php";
 
 function do_login() {
   global $title, $body, $onload;
@@ -51,7 +58,7 @@ function draw_login() {
 
   $onload = "document.forms[0].passphrase.focus()";
   $body = <<<EOT
-<form method="post" action="" autocomplete="off">
+<form method="post" action="./" autocomplete="off">
 <input type="hidden" name="cmd" value="login"/>
 <table>
 <tr>
@@ -80,7 +87,6 @@ button.</td>
 <td><textarea name="privkey" cols="64" rows="40"></textarea></td>
 </table>
 EOT;
-  include "template.php";
 }
 
 

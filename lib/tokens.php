@@ -80,6 +80,7 @@ class tokens {
   var $URL = 'url';
   var $NICKNAME = 'nickname';
   var $CONTACT = 'contact';
+  var $SESSION = 'session';
 
   // Other client tokens
   var $FORMATTEDAMOUNT = 'formattedamount';

@@ -177,7 +177,9 @@ while (true) {
       "spend <user#> <asset#> <amount> [<acct>]: Spend from current user to <user#>\n" .
       "outbox: Show outbox\n" .
       "inbox [<time>...]: Show inbox, or process <time> items\n" .
-      "register <user> <bankurl>: register a new account with the bank\n";
+      "register <user> <bankurl>: register a new account with the bank\n" .
+      "sessionid: create a new session id and print it\n" .
+      "xorcrypt key string: encrypt string with key";
   } elseif ($cmd == 'quit' || $cmd == 'q') {
     exit(0);
   } elseif ($cmd == 'show') {
@@ -400,6 +402,20 @@ while (true) {
         if ($res) echo "Error: $res\n";
         else echo "Inbox processeed successfully.\n";
       }
+    }
+  } elseif ($cmd == 'sessionid') {
+    $sessionid = $client->newsessionid();
+    echo "Session ID: $sessionid\n";
+  } elseif ($cmd == 'xorcrypt') {
+    if (count($tokens) != 3) {
+      echo "Usage is: xorcrypt key string\n";
+    } else {
+      $key = $tokens[1];
+      $string = $tokens[2];
+      $res = $client->xorcrypt($key, $string);
+      echo "xorcrypt('$key', '$string') = '$res'\n";
+      $string = $client->xorcrypt($key, $res);
+      echo "xorcrypt('$key', '$res') = '$string'\n";
     }
   } else {
     echo "Unknown command: $cmd\n";

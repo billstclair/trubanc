@@ -33,8 +33,11 @@ $dbdir/
         createasset=(<bankid>,fee|createasset,<fee#>,<assetid>,<amount>)[...]
       asset/
         <assetid>=(<bankid>,@asset,(<id>,asset,<bankid>,<assetid>,<scale>,<precision>,<assetname>))
+  session/
+    <sessionhash>=<encrypted_passphrase>
   account/
     <id>/
+      session=<sessionhash>
       <bankid>/
         time=<time#>[,<time#>]
         req=<req#>
