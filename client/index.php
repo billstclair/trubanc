@@ -11,10 +11,9 @@ function mq($x) {
   else return $x;
 }
 
-$cmd = mq($_POST['cmd']);
+$title = "Trubanc Web Client";
 
 if (!$cmd) draw_login();
-elseif ($cmd == 'login') do_login();
 else {
 
   require_once "../lib/fsdb.php";
@@ -25,13 +24,29 @@ else {
   $ssl = new ssl();
   $client = new client($db, $ssl);
 
-  if ($cmd == 'balance') draw_balance();
+  if ($cmd == 'login') do_login();
+  elseif ($cmd == 'balance') draw_balance();
+}
+
+function do_login() {
+  global $title, $body, $onload;
+  global $error;
+  global $client;
+
+  $session = "to be computed";
+  if (!setcookie('session', $session)) {
+    $error = "You must enable cookies to use this client";
+    draw_login();
+  } else {
+    $error = "Login not yet implemented";
+    draw_login();
+  }
 }
 
 function draw_login() {
   global $title, $body, $onload;
+  global $error;
 
-  $title = "Trubanc Web Client";
   $onload = "document.forms[0].passphrase.focus()";
   $body = <<<EOT
 <form method="post" action="" autocomplete="off">
@@ -42,6 +57,9 @@ function draw_login() {
 <td><input type="text" name="passphrase" size="50"/>
 <input type="submit" name="login" value="Login"/></td>
 </tr><tr>
+<td></td>
+<td style="color: red">$error&nbsp;</td>
+</tr><tr>
 <td>Key size:</td>
 <td><input type="text" name="keysize" size="4" value="3072"/>
 <input type="submit" name="newaccount" value="Create account"/></td>
@@ -51,7 +69,8 @@ function draw_login() {
 <tr><td style="width: 32em;">To use an existing private key, paste the encrypted private
 key below, enter its passphrase above, and click the "Create account" button.
 To generate a new private key, leave the area below blank, enter a passphrase
-and a key size (512, 1024, 2048, 3072, or 4096), and click "Create account".</td>
+and a key size (512, 1024, 2048, 3072, or 4096), and click the "Create account"
+button.</td>
 </tr>
 </table></td>
 </tr><tr>
