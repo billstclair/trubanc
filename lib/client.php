@@ -92,7 +92,6 @@ class client {
     $t = $this->t;
     $ssl = $this->ssl;
 
-    $this->logout();
     $hash = $this->passphrasehash($passphrase);
     $privkey = $db->GET($t->PRIVKEY . "/$hash");
     if (!$privkey) return "No account for passphrase in database";
@@ -107,8 +106,24 @@ class client {
     return false;
   }
 
+  function login_with_sessionid($sessionid) {
+    $passphrase = $this->sessionpassphrase($sessionid);
+    if (!$passphrase) return "No passphrase for session";
+    return $this->login($passphrase);
+  }
+
+  // Login, create a new session, and return either
+  // an error string or an array containing the sessionid.
+  function login_new_session($passphrase) {
+    $res = $this->login($passphrase);
+    if ($res) return $res;
+    return array($this->makesession($passphrase));
+  }
+
   function logout() {
     $ssl = $this->ssl;
+
+    if ($this->id) $this->removesession();
 
     $this->id = false;
     $privkey = $this->privkey;
@@ -1872,10 +1887,14 @@ class client {
   }
 
   // xor copies of $key with $string and return the result.
+  // If $packkey is true, pack $key as a hex string first.
   // This is a really simple encryption that only really works if
   // $key is known to be random, e.g. the output of newsessionid(), and
   // $string has no known substrings.
-  function xorcrypt($key, $string) {
+  function xorcrypt($key, $string, $packkey=false) {
+    if ($packkey) {
+      $key = pack("H*", $key);
+    }
     $idx = 0;
     $keylen = strlen($key);
     $len = strlen($string);
@@ -1891,8 +1910,9 @@ class client {
   // Return the database key for the user's session hash.
   function usersessionkey() {
     $t = $this->t;
+    $id = $this->id;
 
-    return $this->userbankkey($t->SESSION);
+    return $t->ACCOUNT . "/$id/session";
   }
 
   // Return the user's session hash.
@@ -1914,7 +1934,7 @@ class client {
     $db = $this->db;
 
     $passcrypt = $db->get($this->sessionkey(sha1($sessionid)));
-    return $this->xorcrypt(pack("H*", $sessionid), $passcrypt);
+    return $this->xorcrypt($sessionid, $passcrypt, true);
   }
 
   // Create a new user session, encoding $passphrase with a new session id.
@@ -1925,7 +1945,7 @@ class client {
     $db = $this->db;
 
     $sessionid = $this->newsessionid();
-    $passcrypt = $this->xorcrypt(pack("H*", $sessionid), $passphrase);
+    $passcrypt = $this->xorcrypt($sessionid, $passphrase, true);
     $usersessionkey = $this->usersessionkey();
     $lock = $db->lock($usersessionkey);
     $oldhash = $db->get($usersessionkey);
@@ -1936,6 +1956,7 @@ class client {
     $db->put($this->sessionkey($newhash), $passcrypt);
     $db->put($usersessionkey, $newhash);
     $db->unlock($lock);
+    return $sessionid;
   }
 
   // Remove the current user's session

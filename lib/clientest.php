@@ -108,7 +108,11 @@ oXJF/TS2HsMFmFMCICZAYGLc5sxZ565p16WlaT5HxOpgygGhZAqxDMRENUmRAiAS
 H3CnJ8Ul3VWvyL5hVjFDHYnD6n18+xqsnjeSQ4bRnQ==
 -----END RSA PRIVATE KEY-----
 ";
-$pubkey2 = $ssl->privkey_to_pubkey($privkey2);
+$passphrase2 = "What do you think I'd use as a passphrase anyway?";
+$pk = $ssl->load_private_key($privkey2);
+openssl_pkey_export($pk, $privkey2, $passphrase2);
+openssl_free_key($pk);
+$pubkey2 = $ssl->privkey_to_pubkey($privkey2, $passphrase2);
 $id2 = $ssl->pubkey_id($pubkey2);
 
 $err = $client->newuser($passphrase2, $privkey2);
@@ -195,10 +199,32 @@ while (true) {
       $idx = $tokens[1];
       $user = $users[$idx];
       if ($user) {
-        $client->login($user['passphrase']);
-        $banks = $client->getbanks();
-        $bank = $banks[0];
-        if ($bank) $client->setbank($bank[$t->BANKID]);
+        $sessionid = $user['sessionid'];
+        $err = true;
+        if ($sessionid) {
+          $err = $client->login_with_sessionid($sessionid);
+          if ($err) {
+            echo "sessionid login error: $err\n";
+          }
+        }
+        if ($err) {
+          $err = $client->login_new_session($user['passphrase']);
+          if (!is_string($err)) {
+            $sessionid = $err[0];
+            $users[$idx]['sessionid'] = $sessionid;
+            $err = false;
+          }
+        }
+        if ($err) {
+          echo "Login error: $err\n";
+        } else {
+          $hash = sha1($sessionid);
+          echo "sessionid: $sessionid\n" .
+               "     hash: $hash\n";
+          $banks = $client->getbanks();
+          $bank = $banks[0];
+          if ($bank) $client->setbank($bank[$t->BANKID]);
+        }
       }
       else echo "Unknown user#: $idx\n";
     }
