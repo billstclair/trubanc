@@ -81,6 +81,7 @@ class tokens {
   var $NICKNAME = 'nickname';
   var $CONTACT = 'contact';
   var $SESSION = 'session';
+  var $PREFERENCE = 'preference';
 
   // Other client tokens
   var $FORMATTEDAMOUNT = 'formattedamount';

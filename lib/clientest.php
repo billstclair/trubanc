@@ -129,7 +129,8 @@ $users = array(1 => array('idx' => 1, 'id' => $id, 'name' => 'George Jetson',
 $user = $users[2];
 $client->login($user['passphrase']);
 $banks = $client->getbanks();
-$bank = $banks[0];
+$bank = false;
+foreach ($banks as $bank) break;
 if ($bank) $client->setbank($bank[$t->BANKID]);
 
 // Command loop
@@ -222,7 +223,8 @@ while (true) {
           echo "sessionid: $sessionid\n" .
                "     hash: $hash\n";
           $banks = $client->getbanks();
-          $bank = $banks[0];
+          $bank = false;
+          foreach ($banks as $bank) break;
           if ($bank) $client->setbank($bank[$t->BANKID]);
         }
       }
@@ -230,6 +232,7 @@ while (true) {
     }
   } elseif ($cmd == 'banks') {
     $i = 1;
+    $banks = $client->getbanks();
     foreach ($banks as $bank) {
       $bname = $bank[$t->NAME];
       $burl = $bank[$t->URL];
@@ -249,7 +252,14 @@ while (true) {
       echo "Usage is: setbank <bank#>\n";
     } else {
       $idx = $tokens[1];
-      $bank = $banks[$idx-1];
+      $bank = false;
+      if ($idx <= count($banks)) {
+        $i = $idx;
+        foreach ($banks as $bank) {
+          if (!--$i) break;
+        }
+        if ($i > 0) $bank = false;
+      }
       if ($bank) $client->setbank($bank[$t->BANKID]);
       else echo "No such bank index: $idx\n";
     }

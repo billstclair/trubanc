@@ -6,6 +6,10 @@
 // Define $dbdir, $default_server
 require_once "settings.php";
 
+require_once "../lib/fsdb.php";
+require_once "../lib/ssl.php";
+require_once "../lib/client.php";
+
 function mq($x) {
   if (get_magic_quotes_gpc()) return stripslashes($x);
   else return $x;
@@ -13,23 +17,31 @@ function mq($x) {
 
 $cmd = mq($_REQUEST['cmd']);
 
+$db = new fsdb($dbdir);
+$ssl = new ssl();
+$client = new client($db, $ssl);
+
+$accts = $db->contents('account');
+
 $title = "Trubanc Web Client";
+
+$session = $_COOKIE['session'];
+if ($session) {
+  $err = $client->login_with_sessionid($session);
+  if ($err) {
+    $error = "Session login error: $err";
+    $cmd = 'logout';
+    $session = false;
+  } elseif (!$cmd) $cmd = 'balance';
+}
 
 if (!$cmd) draw_login();
 elseif ($cmd == 'logout') {
+  if ($session) $client->logout();
   setcookie('session', false);
   draw_login();
 }
 else {
-
-  require_once "../lib/fsdb.php";
-  require_once "../lib/ssl.php";
-  require_once "../lib/client.php";
-
-  $db = new fsdb($dbdir);
-  $ssl = new ssl();
-  $client = new client($db, $ssl);
-
   if ($cmd == 'login') do_login();
   elseif ($cmd == 'balance') draw_balance();
 }
@@ -42,13 +54,19 @@ function do_login() {
   global $error;
   global $client;
 
-  $session = "to be computed";
-  if (!setcookie('session', $session)) {
-    $error = "You must enable cookies to use this client";
+  $passphrase = mq($_REQUEST['passphrase']);
+  $session = $client->login_new_session($passphrase);
+  if (is_string($session)) {
+    $error = "Login error: $session";
     draw_login();
   } else {
-    $error = "Login not yet implemented";
-    draw_login();
+    $session = $session[0];
+    if (!setcookie('session', $session)) {
+      $error = "You must enable cookies to use this client";
+      draw_login();
+    } else {
+      draw_balance();
+    }
   }
 }
 
@@ -89,6 +107,71 @@ button.</td>
 EOT;
 }
 
+function draw_balance() {
+  global $client;
+  global $body;
+  
+  $t = $client->t;
+
+  $banks = $client->getbanks();
+  $bank = false;
+  $error = false;
+  $bankid = $client->userpreference('bankid');
+  if ($bankid) {
+    $err = $client->setbank($bankid);
+    if ($err) $bankid = false;
+  }
+  if (!$bankid) {
+    foreach ($banks as $bank) break;
+    if ($bank) {
+      $bankid = $bank[$t->BANKID];
+      $err = $client->setbank($bankid);
+      if ($err) {
+        $error = "Can't set bank: $err";
+        $bankid = false;
+      } else {
+        $client->userpreference('bankid', $bankid);
+      }
+    } else {
+      $error = "No known banks. Please add one.";
+    }
+  }
+  $bank = $banks[$bankid];
+
+  $bankcode = '';
+  if ($bank) {
+    $name = $bank[$t->NAME];
+    $url = $bank[$t->URL];
+    $bankcode = "<b>Bank:</b> $name $url<br>\n";
+  }
+
+  $balcode = '';
+  if (!$error) {
+    $balance = $client->getbalance();
+    if (is_string($balance)) $error = $balance;
+    else {
+      $balcode = "<table>\n";
+      foreach ($balance as $acct => $assets) {
+        $balcode .= "<tr><td colspan=\"3\"><b>$acct</b></td></tr>\n";
+        foreach ($assets as $asset => $data) {
+          $assetname = $data[$t->ASSETNAME];
+          $formattedamount = $data[$t->FORMATTEDAMOUNT];
+          $balcode .= <<<EOT
+<tr>
+<td>&nbsp;&nbsp;</td>
+<td>$formattedamount </td>
+<td>$assetname</td>
+</tr>
+EOT;
+                    
+        }
+      }
+      $balcode .= "</table>\n";
+    }
+  }
+
+  $body = "$error<br/>$bankcode$balcode";
+}
 
 // Copyright 2008 Bill St. Clair
 //

@@ -154,9 +154,9 @@ class client {
   }
 
   // Return all the banks known by the current user:
-  // array(array($t->BANKID => $bankid,
-  //             $t->NAME => $name,
-  //             $t->URL => $url), ...)
+  // array($t->BANKID => array($t->BANKID => $bankid,
+  //                           $t->NAME => $name,
+  //                           $t->URL => $url), ...)
   // $pubkeysig will be blank if the user has no account at the bank.
   function getbanks() {
     $t = $this->t;
@@ -165,13 +165,13 @@ class client {
 
     if (!$this->current_user()) return "Not logged in";
 
-    $banks = $db->contents($t->ACCOUNT . "/$id");
+    $banks = $db->contents($t->ACCOUNT . "/$id/" . $t->BANK);
     $res = array();
     foreach ($banks as $bankid) {
       $bank = array($t->BANKID => $bankid,
-                    $t->NAME => $this->bankprop($t->NAME),
-                    $t->URL => $this->bankprop($t->URL));
-      $res[] = $bank;
+                    $t->NAME => $this->bankprop($t->NAME, $bankid),
+                    $t->URL => $this->bankprop($t->URL, $bankid));
+      $res[$bankid] = $bank;
     }
     return $res;
   }
@@ -1363,18 +1363,18 @@ class client {
     return $t->PUBKEY . "/$id";
   }
 
-  function bankkey($prop=false) {
+  function bankkey($prop=false, $bankid=false) {
     $t = $this->t;
-    $bankid = $this->bankid;
+    if (!$bankid) $bankid = $this->bankid;
 
     $key = $t->BANK . "/$bankid";
     return $prop ? "$key/$prop" : $key;
   }
 
-  function bankprop($prop) {
+  function bankprop($prop, $bankid=false) {
     $db = $this->db;
 
-    return $db->get($this->bankkey($prop));
+    return $db->get($this->bankkey($prop, $bankid));
   }
 
   function assetkey($assetid=false) {
@@ -1420,7 +1420,7 @@ class client {
     $id = $this->id;
     $bankid = $this->bankid;
 
-    $key = $t->ACCOUNT . "/$id/$bankid";
+    $key = $t->ACCOUNT . "/$id/" . $t->BANK . "/$bankid";
     return $prop ? "$key/$prop" : $key;
   }
 
@@ -1912,7 +1912,7 @@ class client {
     $t = $this->t;
     $id = $this->id;
 
-    return $t->ACCOUNT . "/$id/session";
+    return $t->ACCOUNT . "/$id/" . $t->SESSION;
   }
 
   // Return the user's session hash.
@@ -1971,6 +1971,25 @@ class client {
       $db->put($usersessionkey, '');
     }
     $db->unlock($lock);
+  }
+
+  // Preferences
+  function userpreferencekey($preference) {
+    $t = $this->t;
+    $id = $this->id;
+
+    return $t->ACCOUNT . "/$id/" . $t->PREFERENCE;
+  }
+
+  // Get or set a user preference.
+  // Include the $value to set.
+  function userpreference($pref, $value=true) {
+    $db = $this->db;
+
+    $key = $this->userpreferencekey($pref);
+    if ($value === true) $db->put($key, $value);
+    else $value = $db->get($key);
+    return $value;
   }
 
 }
