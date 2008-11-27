@@ -1893,7 +1893,7 @@ class client {
   // $string has no known substrings.
   function xorcrypt($key, $string, $packkey=false) {
     if ($packkey) {
-      $key = pack("H*", $key);
+      $key = @pack("H*", $key);
     }
     $idx = 0;
     $keylen = strlen($key);
