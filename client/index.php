@@ -24,6 +24,7 @@ $client = new client($db, $ssl);
 $accts = $db->contents('account');
 
 $title = "Trubanc Web Client";
+$menu = '<a href="./?cmd=logout">Logout</a>';
 
 $session = $_COOKIE['session'];
 if ($session) {
@@ -32,48 +33,96 @@ if ($session) {
     $error = "Session login error: $err";
     $cmd = 'logout';
     $session = false;
-  } elseif (!$cmd) $cmd = 'balance';
+  } else {
+    if (!$cmd) $cmd = 'balance';
+  }
 }
 
 if (!$cmd) draw_login();
-elseif ($cmd == 'logout') {
-  if ($session) $client->logout();
-  setcookie('session', false);
-  draw_login();
-}
-else {
-  if ($cmd == 'login') do_login();
-  elseif ($cmd == 'balance') draw_balance();
-}
+elseif ($cmd == 'logout') do_logout();
+elseif ($cmd == 'login') do_login();
+elseif ($cmd == 'balance') draw_balance();
 
 // Use $title, $body, and $onload to fill the page template.
 include "template.php";
 
+function do_logout() {
+  global $session, $client, $menu;
+
+  if ($session) $client->logout();
+  setcookie('session', false);
+  draw_login();
+}
+
+// Here from the login page when the user presses one of the buttons
 function do_login() {
   global $title, $body, $onload;
+  global $keysize;
   global $error;
-  global $client;
+  global $client, $ssl;
 
-  $passphrase = mq($_REQUEST['passphrase']);
-  $session = $client->login_new_session($passphrase);
-  if (is_string($session)) {
-    $error = "Login error: $session";
-    draw_login();
-  } else {
-    $session = $session[0];
-    if (!setcookie('session', $session)) {
-      $error = "You must enable cookies to use this client";
+  $passphrase = mq($_POST['passphrase']);
+  $passphrase2 = mq($_POST['passphrase2']);
+  $keysize = mq($_POST['keysize']);
+  $login = mq($_POST['login']);
+  $newacct = mq($_POST['newacct']);
+
+  if ($newacct) {
+    $login = false;
+    if ($passphrase != $passphrase2) {
+      $error = "Passphrase didn't match Verification";
       draw_login();
     } else {
-      draw_balance();
+      $privkey = mq($_POST['privkey']);
+      if ($privkey) {
+        // Support adding a passphrase to a private key without one
+        $pk = $ssl->load_private_key($privkey);
+        if ($pk) {
+          openssl_pkey_export($pk, $privkey, $passphrase);
+          openssl_free_key($pk);
+        }
+      } else $privkey = $keysize;
+      $err = $client->newuser($passphrase, $privkey);
+      if ($err) {
+        $error = $err;
+        draw_login();
+      } else {
+        $login = true;
+      }
+    }
+  }
+
+  if ($login) {
+    $session = $client->login_new_session($passphrase);
+    if (is_string($session)) {
+      $error = "Login error: $session";
+      draw_login();
+    } else {
+      $session = $session[0];
+      if (!setcookie('session', $session)) {
+        $error = "You must enable cookies to use this client";
+        draw_login();
+      } else {
+        draw_balance();
+      }
     }
   }
 }
 
 function draw_login() {
-  global $title, $body, $onload;
+  global $title, $menu, $body, $onload;
+  global $keysize;
   global $error;
 
+  if (!$keysize) $keysize = 3072;
+  $sel = ' selected="selected"';
+  $sel512 = ($keysize == 512) ? $sel : '';
+  $sel1024 = ($keysize == 1024) ? $sel : '';
+  $sel2048 = ($keysize == 2048) ? $sel : '';
+  $sel3072 = ($keysize == 3072) ? $sel : '';
+  $sel4096 = ($keysize == 4096) ? $sel : '';
+
+  $menu = '';
   $onload = "document.forms[0].passphrase.focus()";
   $body = <<<EOT
 <form method="post" action="./" autocomplete="off">
@@ -81,23 +130,35 @@ function draw_login() {
 <table>
 <tr>
 <td>Passphrase:</td>
-<td><input type="text" name="passphrase" size="50"/>
+<td><input type="password" name="passphrase" size="50"/>
 <input type="submit" name="login" value="Login"/></td>
 </tr><tr>
 <td></td>
 <td style="color: red">$error&nbsp;</td>
 </tr><tr>
+<td>Verification:</td>
+<td><input type="password" name="passphrase2" size="50"/>
+</tr><tr>
 <td>Key size:</td>
-<td><input type="text" name="keysize" size="4" value="3072"/>
-<input type="submit" name="newaccount" value="Create account"/></td>
+<td>
+<select name="keysize">
+<option value="512"$sel512>512</option>
+<option value="1024"$sel1024>1024</option>
+<option value="2048"$sel2048>2048</option>
+<option value="3072"$sel3072>3072</option>
+<option value="4096"$sel4096>4096</option>
+</select>
+<input type="submit" name="newacct" value="Create account"/></td>
 </tr><tr>
 <td></td>
 <td><table>
-<tr><td style="width: 32em;">To use an existing private key, paste the encrypted private
-key below, enter its passphrase above, and click the "Create account" button.
-To generate a new private key, leave the area below blank, enter a passphrase
-and a key size (512, 1024, 2048, 3072, or 4096), and click the "Create account"
-button.</td>
+<tr><td style="width: 32em;">
+To generate a new private key, leave the area below blank, enter a
+passphrase, the passphrase again to verify, a key size, and click the
+"Create account" button.  To use an existing private key, paste the
+private key below, enter its passphrase and verification above, and
+click the "Create account" button.
+</td>
 </tr>
 </table></td>
 </tr><tr>
@@ -138,11 +199,14 @@ function draw_balance() {
   }
   $bank = $banks[$bankid];
 
+  $id = $client->id;
+  $idcode = "<b>ID:</b> $id<br/>\n";
+
   $bankcode = '';
   if ($bank) {
     $name = $bank[$t->NAME];
     $url = $bank[$t->URL];
-    $bankcode = "<b>Bank:</b> $name $url<br>\n";
+    $bankcode = "<b>Bank:</b> $name <a href=\"$url\">$url</a><br/>\n";
   }
 
   $balcode = '';
@@ -152,14 +216,13 @@ function draw_balance() {
     else {
       $balcode = "<table>\n";
       foreach ($balance as $acct => $assets) {
-        $balcode .= "<tr><td colspan=\"3\"><b>$acct</b></td></tr>\n";
+        $balcode .= "<tr><td></td><td><br/><b>$acct</b></td></tr>\n";
         foreach ($assets as $asset => $data) {
           $assetname = $data[$t->ASSETNAME];
           $formattedamount = $data[$t->FORMATTEDAMOUNT];
           $balcode .= <<<EOT
 <tr>
-<td>&nbsp;&nbsp;</td>
-<td>$formattedamount </td>
+<td align="right"><span style="margin-right: 5px">$formattedamount</span></td>
 <td>$assetname</td>
 </tr>
 EOT;
@@ -170,7 +233,8 @@ EOT;
     }
   }
 
-  $body = "$error<br/>$bankcode$balcode";
+  if ($error) $error = "<span style=\"color: red\";\">$error</span>";
+  $body = "$error<br/>$idcode$bankcode$balcode";
 }
 
 // Copyright 2008 Bill St. Clair

@@ -67,8 +67,7 @@ class client {
     if ($db->get($t->PRIVKEY . "/$hash")) {
         return "Passphrase already has an associated private key";
     }
-    if (!is_string($privkey)) {
-      if (!is_numeric($privkey)) return "privkey arg not a string or number";
+    if (is_numeric($privkey)) {
       $privkey = $ssl->make_privkey($privkey, $passphrase);
     }
     $privkeystr = $privkey;
