@@ -198,9 +198,11 @@ class client {
     $ssl = $this->ssl;
     $parser = $this->parser;
 
-    $server = new serverproxy($url, $this);
-    $this->server = $server;
+    $server = $this->server;
+    $nserver = new serverproxy($url, $this);
+    $this->server = $nserver;
     $msg = $this->sendmsg($t->BANKID, $pubkey);
+    $this->server = $server;
     $args = $u->match_message($msg);
     if (is_string($args)) return "Bank's bankid response error: $args";
     $bankid = $args[$t->CUSTOMER];
@@ -211,8 +213,14 @@ class client {
     $pubkey = $args[$t->PUBKEY];
     $name = $args[$t->NAME];
     if ($ssl->pubkey_id($pubkey) != $bankid) {
-      return "Bank's id doesn't match its public key: $msg";
+      return "Bank's id doesn't match its public key";
     }
+    $ourl = $this->bankprop($t->URL, $bankid);
+    if ($ourl) {
+      if ($ourl == $url) return false;
+      return "Two banks have same id: $url and $ourl";
+    }
+    $this->server = $nserver;
 
     // Initialize the bank in the database
     $this->bankid = $bankid;
@@ -1973,11 +1981,11 @@ class client {
   }
 
   // Preferences
-  function userpreferencekey($preference) {
+  function userpreferencekey($pref) {
     $t = $this->t;
     $id = $this->id;
 
-    return $t->ACCOUNT . "/$id/" . $t->PREFERENCE;
+    return $t->ACCOUNT . "/$id/" . $t->PREFERENCE . "/$pref";
   }
 
   // Get or set a user preference.
@@ -1986,8 +1994,8 @@ class client {
     $db = $this->db;
 
     $key = $this->userpreferencekey($pref);
-    if ($value === true) $db->put($key, $value);
-    else $value = $db->get($key);
+    if ($value === true) $value = $db->get($key);
+    else $db->put($key, $value);
     return $value;
   }
 
@@ -2008,7 +2016,7 @@ class serverproxy {
     $client = $this->client;
 
     if ($client->showprocess) echo "processing: $msg\n";
-    $res = file_get_contents("$url/?msg=" . urlencode($msg));
+    $res = @file_get_contents("$url/?msg=" . urlencode($msg));
     if ($client->showprocess) echo "returned: $res\n";
     return $res;
   }

@@ -26,6 +26,8 @@ $accts = $db->contents('account');
 $title = "Trubanc Web Client";
 $menu = '<a href="./?cmd=logout">Logout</a>';
 
+$error = false;
+
 $session = $_COOKIE['session'];
 if ($session) {
   $err = $client->login_with_sessionid($session);
@@ -41,6 +43,7 @@ if ($session) {
 if (!$cmd) draw_login();
 elseif ($cmd == 'logout') do_logout();
 elseif ($cmd == 'login') do_login();
+elseif ($cmd == 'bank') do_bank();
 elseif ($cmd == 'balance') draw_balance();
 
 // Use $title, $body, and $onload to fill the page template.
@@ -109,6 +112,22 @@ function do_login() {
   }
 }
 
+// Here to change banks or add a new bank
+function do_bank() {
+  global $client;
+  global $error;
+
+  $newbank = mq($_POST['newbank']);
+  $selectbank = mq($_POST['selectbank']);
+
+  if ($newbank) {
+    $bankurl = mq($_POST['bankurl']);
+    $error = $client->addbank($bankurl);
+    if (!$error) $client->userpreference('bankid', $client->bankid);
+  }
+  draw_balance();
+}
+
 function draw_login() {
   global $title, $menu, $body, $onload;
   global $keysize;
@@ -170,13 +189,16 @@ EOT;
 
 function draw_balance() {
   global $client;
+  global $error;
   global $body;
   
   $t = $client->t;
 
+  $saveerror = $error;
+  $error = false;
+
   $banks = $client->getbanks();
   $bank = false;
-  $error = false;
   $bankid = $client->userpreference('bankid');
   if ($bankid) {
     $err = $client->setbank($bankid);
@@ -200,15 +222,42 @@ function draw_balance() {
   $bank = $banks[$bankid];
 
   $id = $client->id;
-  $idcode = "<b>ID:</b> $id<br/>\n";
+  $idcode = "<b>Your ID:</b> $id<br/><br/>\n";
 
-  $bankcode = '';
+  $bankcode = "<form method=\"post\" action=\"./\">
+<input type=\"hidden\" name=\"cmd\" value=\"bank\">\n";
+
   if ($bank) {
     $name = $bank[$t->NAME];
     $url = $bank[$t->URL];
-    $bankcode = "<b>Bank:</b> $name <a href=\"$url\">$url</a><br/>\n";
+    $bankcode .= "$startform<b>Bank:</b> $name <a href=\"$url\">$url</a><br/>";
+  }
+  $bankopts = '';
+  foreach ($banks as $bid => $b) {
+    if ($bid != $bankid) {
+      $bname = $b[$t->NAME];
+      $burl = $b[$t->URL];
+      $bankopts = "<option value=\"$bid\">$bname $burl</option>\n";
+    }
+  }
+  if ($bankopts) {
+    $bankcode .= <<<EOT
+<select name="bank">
+<option value="">Choose a bank...</option>
+$bankopts
+</select>
+<input type="submit" name="selectbank" value="Change Bank"/>
+EOT;
   }
 
+  $bankcode .= <<<EOT
+Bank URL:
+<input type="text" name="bankurl" size="40"/>
+<input type="submit" name="newbank" value="Add Bank"/>
+</form>
+
+EOT;
+    
   $balcode = '';
   if (!$error) {
     $balance = $client->getbalance();
@@ -216,7 +265,7 @@ function draw_balance() {
     else {
       $balcode = "<table>\n";
       foreach ($balance as $acct => $assets) {
-        $balcode .= "<tr><td></td><td><br/><b>$acct</b></td></tr>\n";
+        $balcode .= "<tr><td></td><td><b>$acct</b></td></tr>\n";
         foreach ($assets as $asset => $data) {
           $assetname = $data[$t->ASSETNAME];
           $formattedamount = $data[$t->FORMATTEDAMOUNT];
@@ -226,14 +275,19 @@ function draw_balance() {
 <td>$assetname</td>
 </tr>
 EOT;
-                    
         }
       }
       $balcode .= "</table>\n";
     }
   }
 
-  if ($error) $error = "<span style=\"color: red\";\">$error</span>";
+  if ($saveerror) {
+    if ($error) $error = "$saveerror<br/>$error";
+    else $error = $saveerror;
+  }
+  if ($error) {
+    $error = "<span style=\"color: red\";\">$error</span>\n";
+  }
   $body = "$error<br/>$idcode$bankcode$balcode";
 }
 
