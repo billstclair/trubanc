@@ -11,7 +11,8 @@ class fsdb {
     $this->dir = $dir;
   }
 
-  function rmkdir($path, $mode = 0755) {
+  function rmkdir($path, $mode=0775) {
+    if (is_dir($path)) return true;
     $path = rtrim(preg_replace(array("/\\\\/", "/\/{2,}/"), "/", $path), "/");
     $e = explode("/", ltrim($path, "/"));
     if(substr($path, 0, 1) == "/") {
@@ -20,10 +21,9 @@ class fsdb {
     $c = count($e);
     $cp = $e[0];
     for($i = 1; $i < $c; $i++) {
-        if(!is_dir($cp) && !@mkdir($cp, $mode)) {
-            return false;
-        }
-        $cp .= "/".$e[$i];
+      // kluge for safe-mode. First element in path must already exist
+      if ($i > 1 && !is_dir($cp) && !@mkdir($cp, $mode)) return false;
+      $cp .= "/".$e[$i];
     }
     return @mkdir($path, $mode);
   }
@@ -48,12 +48,12 @@ class fsdb {
       if ($blank) return '';
       if (!$this->rmkdir(dirname($filename))) {
         if ($blank) return '';
-        die("Can't write $filename\n");
+        die("Can't make dir for $filename\n");
       }
       $fp = @fopen($filename, 'w');
       if (!$fp) {
         if ($blank) return '';
-        die("Can't write $filename\n");
+        die("Can't open for write: $filename\n");
       }
     }
     if (!$this->locks[$key]) flock($fp, LOCK_EX);
