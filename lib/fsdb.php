@@ -22,9 +22,13 @@ class fsdb {
     $cp = $e[0];
     for($i = 1; $i < $c; $i++) {
       // kluge for safe-mode. First element in path must already exist
-      if ($i > 1 && !is_dir($cp) && !@mkdir($cp, $mode)) return false;
+      if ($i > 1 && !is_dir($cp)) {
+        //echo "mkdir($cp, $mode)<br>\n";
+        if (!@mkdir($cp, $mode)) return false;
+      }
       $cp .= "/".$e[$i];
     }
+    //echo "final mkdir($path, $mode)<br>\n";
     return @mkdir($path, $mode);
   }
 

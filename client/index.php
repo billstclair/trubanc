@@ -184,6 +184,7 @@ click the "Create account" button.
 <td></td>
 <td><textarea name="privkey" cols="64" rows="40"></textarea></td>
 </table>
+
 EOT;
 }
 
@@ -246,7 +247,8 @@ function draw_balance() {
 <option value="">Choose a bank...</option>
 $bankopts
 </select>
-<input type="submit" name="selectbank" value="Change Bank"/>
+<input type="submit" name="selectbank" value="Change Bank"/><br/>
+
 EOT;
   }
 
@@ -274,6 +276,7 @@ EOT;
 <td align="right"><span style="margin-right: 5px">$formattedamount</span></td>
 <td>$assetname</td>
 </tr>
+
 EOT;
         }
       }
