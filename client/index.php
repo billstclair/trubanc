@@ -45,6 +45,7 @@ elseif ($cmd == 'logout') do_logout();
 elseif ($cmd == 'login') do_login();
 elseif ($cmd == 'bank') do_bank();
 elseif ($cmd == 'balance') draw_balance();
+elseif ($cmd == 'addbank') draw_addbank();
 
 // Use $title, $body, and $onload to fill the page template.
 include "template.php";
@@ -122,8 +123,18 @@ function do_bank() {
 
   if ($newbank) {
     $bankurl = mq($_POST['bankurl']);
+    $name = mq($_POST['name']);
     $error = $client->addbank($bankurl);
-    if (!$error) $client->userpreference('bankid', $client->bankid);
+    if (!$error) {
+      if ($client->userreq() == -1) {
+        $error = $client->register($name);
+      }
+      if (!$error) $client->userpreference('bankid', $client->bankid);
+    }
+  } elseif ($selectbank) {
+    $bankid = mq($_POST['bank']);
+    if (!$bankid) $error = "You must choose a bank";
+    else $client->userpreference('bankid', $bankid);
   }
   draw_balance();
 }
@@ -188,6 +199,13 @@ click the "Create account" button.
 EOT;
 }
 
+function idcode() {
+  global $client;
+
+  $id = $client->id;
+  $idcode = "<b>Your ID:</b> $id<br/><br/>\n";
+}
+
 function draw_balance() {
   global $client;
   global $error;
@@ -222,8 +240,7 @@ function draw_balance() {
   }
   $bank = $banks[$bankid];
 
-  $id = $client->id;
-  $idcode = "<b>Your ID:</b> $id<br/><br/>\n";
+  $idcode = idcode();
 
   $bankcode = "<form method=\"post\" action=\"./\">
 <input type=\"hidden\" name=\"cmd\" value=\"bank\">\n";
@@ -231,35 +248,35 @@ function draw_balance() {
   if ($bank) {
     $name = $bank[$t->NAME];
     $url = $bank[$t->URL];
-    $bankcode .= "$startform<b>Bank:</b> $name <a href=\"$url\">$url</a><br/>";
+    $bankcode .= "<b>Bank:</b> $name <a href=\"$url\">$url</a>";
   }
   $bankopts = '';
   foreach ($banks as $bid => $b) {
     if ($bid != $bankid) {
-      $bname = $b[$t->NAME];
-      $burl = $b[$t->URL];
-      $bankopts = "<option value=\"$bid\">$bname $burl</option>\n";
+      if ($client->userreq($bid) != -1) {
+        $bname = $b[$t->NAME];
+        $burl = $b[$t->URL];
+        $bankopts = "<option value=\"$bid\">$bname $burl</option>\n";
+      }
     }
   }
+  $addbankcode = '<a href="./?cmd=addbank">Add bank</a><br/>';
   if ($bankopts) {
     $bankcode .= <<<EOT
+<br>
 <select name="bank">
 <option value="">Choose a bank...</option>
 $bankopts
 </select>
-<input type="submit" name="selectbank" value="Change Bank"/><br/>
+<input type="submit" name="selectbank" value="Change Bank"/>
+$addbankcode
 
 EOT;
+  } else {
+    $bankcode .= " $addbankcode\n";
   }
+  $bankcode .= "</form>\n";
 
-  $bankcode .= <<<EOT
-Bank URL:
-<input type="text" name="bankurl" size="40"/>
-<input type="submit" name="newbank" value="Add Bank"/>
-</form>
-
-EOT;
-    
   $balcode = '';
   if (!$error) {
     $balance = $client->getbalance();
@@ -292,6 +309,33 @@ EOT;
     $error = "<span style=\"color: red\";\">$error</span>\n";
   }
   $body = "$error<br/>$idcode$bankcode$balcode";
+}
+
+function draw_addbank() {
+  global $body;
+
+  $idcode = idcode();
+  $body .= <<<EOT
+$idcode
+<form method="post" action="./">
+<input type="hidden" name="cmd" value="bank"/>
+<table>
+<tr>
+<td>Bank URL:</td>
+<td><input type="text" name="bankurl" size="40"/>
+</tr><tr>
+<td>Name (optional):</td>
+<td><input type="text" name="name" size="40"/></td>
+</tr><tr>
+<td></td>
+<td><input type="submit" name="newbank" value="Add Bank"/>
+<input type="submit" name="cancel" value="Cancel"/></td>
+</tr>
+</table>
+</form>
+
+EOT;
+
 }
 
 // Copyright 2008 Bill St. Clair

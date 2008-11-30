@@ -208,7 +208,7 @@ class client {
     $bankid = $args[$t->CUSTOMER];
     if ($args[$t->REQUEST] != $t->REGISTER ||
         $args[$t->BANKID] != $bankid) {
-      return "Bank's bankid message wrong: $msg";
+      return "Bank not responding properly at $url";
     }
     $pubkey = $args[$t->PUBKEY];
     $name = $args[$t->NAME];
@@ -1422,10 +1422,10 @@ class client {
     return $db->get($this->regfeekey());
   }
 
-  function userbankkey($prop=false) {
+  function userbankkey($prop=false, $bankid=false) {
     $t = $this->t;
     $id = $this->id;
-    $bankid = $this->bankid;
+    if (!$bankid) $bankid = $this->bankid;
 
     $key = $t->ACCOUNT . "/$id/" . $t->BANK . "/$bankid";
     return $prop ? "$key/$prop" : $key;
@@ -1437,10 +1437,16 @@ class client {
     return $db->get($this->userbankkey($prop));
   }
 
-  function userreqkey() {
+  function userreqkey($bankid=false) {
     $t = $this->t;
 
-    return $this->userbankkey($t->REQ);
+    return $this->userbankkey($t->REQ, $bankid);
+  }
+
+  function userreq($bankid) {
+    $db = $this->db;
+
+    return $db->get($this->userreqkey($bankid));
   }
 
   function usertimekey() {
