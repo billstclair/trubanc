@@ -85,14 +85,21 @@ class client {
     return false;
   }
 
+  function getprivkey($passphrase) {
+    $db = $this->db;
+    $t = $this->t;
+
+    $hash = $this->passphrasehash($passphrase);
+    return $db->GET($t->PRIVKEY . "/$hash");
+  }
+
   // Log in with the given passphrase. Error if no user associated with passphrase.
   function login($passphrase) {
     $db = $this->db;
     $t = $this->t;
     $ssl = $this->ssl;
 
-    $hash = $this->passphrasehash($passphrase);
-    $privkey = $db->GET($t->PRIVKEY . "/$hash");
+    $privkey = $this->getprivkey($passphrase);
     if (!$privkey) return "No account for passphrase in database";
     $privkey = $ssl->load_private_key($privkey, $passphrase);
     if (!$privkey) return "Could not load private key";

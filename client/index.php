@@ -112,14 +112,20 @@ function do_login() {
   $keysize = mq($_POST['keysize']);
   $login = mq($_POST['login']);
   $newacct = mq($_POST['newacct']);
+  $showkey = mq($_POST['showkey']);
 
+  if ($showkey) {
+    $key = $client->getprivkey($passphrase);
+    if (!$key) $error = "No key for passphrase";
+    draw_login($key);
+  }
   if ($newacct) {
     $login = false;
-    if ($passphrase != $passphrase2) {
+    $privkey = mq($_POST['privkey']);
+    if (!$privkey && $passphrase != $passphrase2) {
       $error = "Passphrase didn't match Verification";
       draw_login();
     } else {
-      $privkey = mq($_POST['privkey']);
       if ($privkey) {
         // Support adding a passphrase to a private key without one
         $pk = $ssl->load_private_key($privkey);
@@ -202,10 +208,12 @@ function do_contact() {
   } else draw_balance();
 }
 
-function draw_login() {
+function draw_login($key=false) {
   global $title, $menu, $body, $onload;
   global $keysize;
   global $error;
+
+  $key = hsc($key);
 
   if (!$keysize) $keysize = 3072;
   $sel = ' selected="selected"';
@@ -241,19 +249,21 @@ function draw_login() {
 <option value="3072"$sel3072>3072</option>
 <option value="4096"$sel4096>4096</option>
 </select>
-<input type="submit" name="newacct" value="Create account"/></td>
+<input type="submit" name="newacct" value="Create account"/>
+<input type="submit" name="showkey" value="Show key"/></td>
 </tr><tr>
 <td></td>
 <td>
 To generate a new private key, leave the area below blank, enter a
 passphrase, the passphrase again to verify, a key size, and click the
 "Create account" button.  To use an existing private key, paste the
-private key below, enter its passphrase and verification above, and
-click the "Create account" button.
+private key below, enter its passphrase above, and click the
+"Create account" button. To show your encrypted private key, enter
+its passphrase, and click the "Show key" button.
 </td>
 </tr><tr>
 <td></td>
-<td><textarea name="privkey" cols="64" rows="40"></textarea></td>
+<td><textarea name="privkey" cols="64" rows="42">$key</textarea></td>
 </table>
 
 EOT;
