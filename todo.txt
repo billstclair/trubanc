@@ -2,6 +2,10 @@ Wrap functions around code shared by do_spend, do_processinbox, and do_asset
 
 Finish two-phase commit for spend and inboxhash.
 
+To cancel a spend, do a negative spend of the same amount with a note of the outbox timestamp of the original spend. There are locking issues with removing the recipient's inbox entry. May have to do it with another inbox entry that cancels the first one. Then both will be quietly removed by the next getinbox.
+
+A real transaction system for disk writes, like Patrick has done for Loom. The locking works, if all goes well in disk writes. But it doesn't if there's an unexpected error, e.g. the problems I had with creating subdirs in a SAFE-MODE environment. We get in an inconsistent state. This should be just a layer on top of fsdb.php.
+
 -----
 
 Remember the last successful spend or processinbox message and its result, and resend the result if the message is resent. This can heal responses that are lost in transit.

@@ -23,6 +23,8 @@ if (!$body) $body = 'This is the template for Trubanc web client pages';
 <b><? echo $bankname; ?></b>
 <? if ($menu) echo "&nbsp;&nbsp;$menu"; ?>
 </p>
+<? echo $bankline; ?>
+<? echo idcode(); ?>
 <? echo $body; ?>
 </body>
 </html>

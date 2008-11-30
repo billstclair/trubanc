@@ -155,7 +155,8 @@ class client {
   // Return all the banks known by the current user:
   // array($t->BANKID => array($t->BANKID => $bankid,
   //                           $t->NAME => $name,
-  //                           $t->URL => $url), ...)
+  //                           $t->URL => $url),
+  //       ...)
   // $pubkeysig will be blank if the user has no account at the bank.
   function getbanks() {
     $t = $this->t;
@@ -1533,10 +1534,8 @@ class client {
 
   function contactkey($otherid=false, $prop=false) {
     $t = $this->t;
-    $id = $this->id;
-    $bankid = $this->bankid;
 
-    $res = $t->ACCOUNT . "/$id/$bankid/" . $t->CONTACT;
+    $res = $this->userbankkey($t->CONTACT);
     if ($otherid) {
       $res .= "/$otherid";
       if ($prop) $res .= "/$prop";
