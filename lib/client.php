@@ -1443,7 +1443,7 @@ class client {
     return $this->userbankkey($t->REQ, $bankid);
   }
 
-  function userreq($bankid) {
+  function userreq($bankid=false) {
     $db = $this->db;
 
     return $db->get($this->userreqkey($bankid));
@@ -1573,35 +1573,39 @@ class client {
   // format an asset value for user printing
   function format_value($value, $scale, $precision) {
     $sign = 1;
-    if ($value < 0) {
+    if (bccomp($value, 0) < 0) {
       $value = bcadd($value, 1);
       $sign = -1;
     }
-    if ($scale == 0 && $precision == 0) return $value;
-    if ($scale > 0) {
-      $res = bcdiv($value, bcpow(10, $scale), $scale);
+    if ($scale == 0 && $precision == 0) $res = $value;
+    else {
+      if ($scale > 0) {
+        $res = bcdiv($value, bcpow(10, $scale), $scale);
+      }
+      $dotpos = strpos($res, '.');
+      if ($dotpos === false) {
+        if ($precision != 0) {
+          $res .= '.' . str_repeat('0', $precision);
+        }
+      } else {
+        // Remove trailing zeroes
+        for ($endpos = strlen($res)-1; $endpos>$dotpos; $endpos--) {
+          if ($res[$endpos] != '0') break;
+        }
+        $zeroes = $precision - ($endpos - $dotpos);
+        $zerostr = ($zeroes >= 0) ? str_repeat('0', $zeroes) : '';
+        $res = substr($res, 0, $endpos+1) . $zerostr;
+      }
     }
-    $dotpos = strpos($res, '.');
-    if ($dotpos === false) {
-      if ($precision == 0) return $res;
-      $res .= '.' . str_repeat('0', $precision);
-      return $res;
-    }
-    // Remove trailing zeroes
-    for ($endpos = strlen($res)-1; $endpos>$dotpos; $endpos--) {
-      if ($res[$endpos] != '0') break;
-    }
-    $zeroes = $precision - ($endpos - $dotpos);
-    $zerostr = ($zeroes >= 0) ? str_repeat('0', $zeroes) : '';
-    $res = substr($res, 0, $endpos+1) . $zerostr;
     if ($value == 0 && $sign < 0) $res = "-$res";
     return $res;
   }
 
   function unformat_value($formattedvalue, $scale) {
-    if ($scale == 0) return $formattedvalue;
-    $value = bcmul($formattedvalue, bcpow(10, $scale), 0);
-    if ($value < 0 || ($value == 0 && substr($formattedvalue, 0, 1) == '-')) {
+    if ($scale == 0) $value = $formattedvalue;
+    else $value = bcmul($formattedvalue, bcpow(10, $scale), 0);
+    if ((bccomp($value, 0) < 0) ||
+        ($value == 0 && substr($formattedvalue, 0, 1) == '-')) {
       $value = bcsub($value, 1);
     }
     return $value;

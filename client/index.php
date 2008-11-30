@@ -203,7 +203,7 @@ function idcode() {
   global $client;
 
   $id = $client->id;
-  $idcode = "<b>Your ID:</b> $id<br/><br/>\n";
+  return "<b>Your ID:</b> $id<br/><br/>\n";
 }
 
 function draw_balance() {
