@@ -247,7 +247,7 @@ class client {
   // Set the bank to the given id.
   // Sets the client instance to use this bank until addbank() or setbank()
   // is called to change it, by setting $this->bankid and $this->server
-  function setbank($bankid) {
+  function setbank($bankid, $check=true) {
     $db = $this->db;
     $t = $this->t;
     $u = $this->u;
@@ -266,15 +266,17 @@ class client {
       $db->put($this->userreqkey(), -1);
     }
 
-    $msg = $this->sendmsg($t->BANKID, $this->pubkey);
-    $args = $u->match_message($msg);
-    if (is_string($args)) return "Bank's bankid response error: $args";
-    if ($bankid != $args[$t->CUSTOMER]) {
-      return "bankid changed since we last contacted this bank";
-    }
-    if ($args[$t->REQUEST] != $t->REGISTER ||
-        $args[$t->BANKID] != $bankid) {
-      return "Bank's bankid message wrong: $msg";
+    if ($check) {
+      $msg = $this->sendmsg($t->BANKID, $this->pubkey);
+      $args = $u->match_message($msg);
+      if (is_string($args)) return "Bank's bankid response error: $args";
+      if ($bankid != $args[$t->CUSTOMER]) {
+        return "bankid changed since we last contacted this bank";
+      }
+      if ($args[$t->REQUEST] != $t->REGISTER ||
+          $args[$t->BANKID] != $bankid) {
+        return "Bank's bankid message wrong: $msg";
+      }
     }
 
     return false;

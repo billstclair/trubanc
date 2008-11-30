@@ -45,11 +45,18 @@ if ($session) {
     $cmd = 'logout';
     $session = false;
   } else {
+    $client->syncedreq = true; // override bank sync; it takes too long
     if (!$cmd) $cmd = 'balance';
   }
 }
 
 if ($client->id) setbank();
+
+if (!$client->bankid) {
+  if ($cmd && $cmd != 'logout' && $cmd != 'login') {
+    $cmd = 'balance';
+  }
+}
 
 if (!$cmd) draw_login();
 elseif ($cmd == 'logout') do_logout();
@@ -83,9 +90,10 @@ function setmenu($highlight=false, $menuitems=false) {
   if (!$menuitems) $menuitems = $default_menuitems;
 
   $menu = '';
-  if ($highlight) {
+  if ($highlight && $client->bankid) {
     foreach ($menuitems as $cmd => $text) {
-      if ($cmd != 'admin' || $client->id == $client->bankid) {
+      if ($cmd != 'admins' ||
+          ($client->bankid && $client->id == $client->bankid)) {
         if ($menu) $menu .= '&nbsp;&nbsp';
         $menu .= menuitem($cmd, $text, $highlight);
       }
@@ -236,6 +244,7 @@ function do_admin() {
 
   $createtoken = $_POST['createtoken'];
   $removetoken = $_POST['removetoken'];
+  $cancel = $_POST['cancel'];
 
   if ($createtoken) {
     $name = mq($_POST['name']);
@@ -253,6 +262,8 @@ function do_admin() {
     $tok = mq($_POST['tok']);
     $client->token($tok, '');
     draw_admin();
+  } elseif ($cancel) {
+    draw_balance();
   } else draw_admin();
 }
 
@@ -348,7 +359,7 @@ function setbank($reporterror=false) {
   $bank = false;
   $bankid = $client->userpreference('bankid');
   if ($bankid) {
-    $err = $client->setbank($bankid);
+    $err = $client->setbank($bankid, false);
     if ($err) {
       if ($reporterror) $error = "Can't set bank: $err";
       $bankid = false;
@@ -419,7 +430,7 @@ EOT;
   }
 
   $balcode = '';
-  if (!$error) {
+  if (!$error && $client->bankid) {
     $balance = $client->getbalance();
     if (is_string($balance)) $error = $balance;
     else {
