@@ -30,6 +30,7 @@ $accts = $db->contents('account');
 $default_menuitems = array('balance' => 'Balance',
                            'contacts' => 'Contacts',
                            'banks' => 'Banks',
+                           'admins' => 'Admin',
                            'logout' => 'Logout');
 
 // Initialize (global) inputs to template.php
@@ -57,9 +58,11 @@ elseif ($cmd == 'logout') do_logout();
 elseif ($cmd == 'login') do_login();
 elseif ($cmd == 'bank') do_bank();
 elseif ($cmd == 'contact') do_contact();
+elseif ($cmd == 'admin') do_admin();
 elseif ($cmd == 'balance') draw_balance();
 elseif ($cmd == 'contacts') draw_contacts();
 elseif ($cmd == 'banks') draw_banks();
+elseif ($cmd == 'admins') draw_admin();
 elseif ($session) draw_balance();
 else draw_login();
 
@@ -77,14 +80,17 @@ function menuitem($cmd, $text, $highlight) {
 
 function setmenu($highlight=false, $menuitems=false) {
   global $menu, $default_menuitems;
+  global $client;
 
   if (!$menuitems) $menuitems = $default_menuitems;
 
   $menu = '';
   if ($highlight) {
     foreach ($menuitems as $cmd => $text) {
-      if ($menu) $menu .= '&nbsp;&nbsp';
-      $menu .= menuitem($cmd, $text, $highlight);
+      if ($cmd != 'admin' || $client->id == $client->bankid) {
+        if ($menu) $menu .= '&nbsp;&nbsp';
+        $menu .= menuitem($cmd, $text, $highlight);
+      }
     }
   } else {
     $menu .= menuitem('logout', 'Logout', false);
@@ -92,11 +98,12 @@ function setmenu($highlight=false, $menuitems=false) {
 }
 
 function do_logout() {
-  global $session, $client, $bankline;
+  global $session, $client, $bankline, $error;
 
   if ($session) $client->logout();
   setcookie('session', false);
   $bankline = '';
+  $error = '';
   draw_login();
 }
 
@@ -206,6 +213,31 @@ function do_contact() {
       draw_contacts($id, $nickname, $notes);
     } else draw_contacts();
   } else draw_balance();
+}
+
+function do_admin() {
+  global $client;
+
+  $createtoken = $_POST['createtoken'];
+  $removetoken = $_POST['removetoken'];
+
+  if ($createtoken) {
+    $name = mq($_POST['name']);
+    $count = mq($_POST['count']);
+    $tokens = mq($_POST['tokens']);
+    $res = '';
+    for ($i=0; $i<$count; $i++) {
+      $tok = $client->newsessionid();
+      $client->token($tok, "$tokens|$name");
+      if ($res) $res .= ' ';
+      $res .= $tok;
+    }
+    draw_admin($name, $res);
+  } elseif ($removetoken) {
+    $tok = mq($_POST['tok']);
+    $client->token($tok, '');
+    draw_admin();
+  } else draw_admin();
 }
 
 function draw_login($key=false) {
@@ -409,10 +441,10 @@ function draw_banks() {
 <input type="hidden" name="cmd" value="bank"/>
 <table>
 <tr>
-<td>Bank URL:</td>
+<td><b>Bank URL:</b></td>
 <td><input type="text" name="bankurl" size="40"/>
 </tr><tr>
-<td>Account Name<br>(optional):</td>
+<td><b>Account Name<br>(optional):</b></td>
 <td><input type="text" name="name" size="40"/></td>
 </tr><tr>
 <td></td>
@@ -478,13 +510,13 @@ function draw_contacts($id=false, $nickname=false, $notes=false) {
 <input type="hidden" name="cmd" value="contact">
 <table>
 <tr>
-<td align="right">ID:</td>
+<td align="right"><b>ID:</b></td>
 <td><input type="text" name="id" size="40" value="$id"/></td>
 </tr><tr>
-<td>Nickname<br/>(Optional):</td>
+<td><b>Nickname<br/>(Optional):</b></td>
 <td><input type="text" name="nickname" size="30" value="$nickname"/></td>
 </tr><tr>
-<td>Notes<br/>(Optional):</td>
+<td><b>Notes<br/>(Optional):</b></td>
 <td><textarea name="notes" cols="30" rows="10">$notes</textarea></td>
 </tr><tr>
 <td></td>
@@ -521,6 +553,86 @@ EOT;
 EOT;
     }
     $body .= "</table>\n";
+  }
+}
+
+function draw_admin($name=false, $tokens=false) {
+  global $onload, $body;
+  global $error;
+  global $client;
+
+  setmenu('admin');
+
+  $onload = "document.forms[0].name.focus()";
+
+  $name = hsc($name);
+  $tokens = hsc($tokens);
+
+  $body = <<<EOT
+<br/>
+<form method="post" action="./">
+<input type="hidden" name="cmd" value="admin"/>
+<table>
+<tr>
+<td align="right"><b>Name:</b></td>
+<td><input type="text" name="name" width="30" value="$name"/></td>
+</tr><tr>
+<td align="right"><b>Count:</b></td>
+<td><input type="text" name="count" value="1"/>
+</tr><tr>
+<td><b>Usage tokens:</b></td>
+<td><input type="text" name="tokens" value="50"/>
+</tr><tr>
+<td></td>
+<td><input type="submit" name="createtoken" value="Create account token(s)"/>
+<input type="submit" name="cancel" value="Cancel"/></td>
+</tr>
+</table>
+
+EOT;
+  if ($tokens) {
+    $body .= <<<EOT
+<br/>
+<table>
+<tr>
+<th>Tokens:</th>
+<td><textarea readonly="readonly" id="tokens" rows="10" cols="40">$tokens</textarea></td>
+</tr>
+</table>
+</span>
+
+EOT;
+  } else {
+    $tokens = $client->gettokens();
+    if (count($tokens) > 0) {
+      $body .= '<table border="1">
+<tr>
+<th>Name</th>
+<th>Usage Tokens</th>
+<th>Token</th>
+<th>Remove</th>
+</tr>';
+      foreach ($tokens as $tok => $token) {
+        $tok = hsc($tok);
+        $token = explode('|', $token);
+        $tokcnt = hsc($token[0]);
+        $name = hsc($token[1]);
+        $body .= <<<EOT
+<form method="post" action="./">
+<input type="hidden" name="cmd" value="admin"/>
+<input type="hidden" name="tok" value="$tok"/>
+<tr>
+<td>$name</td>
+<td align="right">$tokcnt</td>
+<td>$tok</td>
+<td><input type="submit" name="removetoken" value="Remove"/></td>
+</tr>
+</form>
+
+EOT;
+      }
+      $body .= "</table>\n";
+    }
   }
 }
 

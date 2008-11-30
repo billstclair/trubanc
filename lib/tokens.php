@@ -82,6 +82,7 @@ class tokens {
   var $CONTACT = 'contact';
   var $SESSION = 'session';
   var $PREFERENCE = 'preference';
+  var $TOKEN = 'token';
 
   // Other client tokens
   var $FORMATTEDAMOUNT = 'formattedamount';

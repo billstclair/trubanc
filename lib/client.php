@@ -2015,6 +2015,38 @@ class client {
     return $value;
   }
 
+  // Account creation tokens
+  function tokenkey($token=false) {
+    $t = $this->t;
+    
+    $key = $t->TOKEN;
+    if ($token) $key .= "/$token";
+    return $key;
+  }
+
+  function token($token, $value=false) {
+    $db = $this->db;
+
+    $key = $this->tokenkey($token);
+    if ($value === false) return $db->get($key);
+    else {
+      $db->put($key, $value);
+      return $value;
+    }
+  }
+
+  // Returns array($tok => $value, ...)
+  function gettokens() {
+    $db = $this->db;
+
+    $tokens = $db->contents($this->tokenkey());
+    $res = array();
+    foreach ($tokens as $tok) {
+      $res[$tok] = $db->get($this->tokenkey($tok));
+    }
+    return $res;
+  }
+
 }
 
 class serverproxy {
