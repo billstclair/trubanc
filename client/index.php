@@ -3,7 +3,7 @@
   // client/index.php
   // A Trubanc web client
 
-// Define $dbdir, $default_server
+// Define $dbdir, $default_server, $require_tokens
 require_once "settings.php";
 
 require_once "../lib/fsdb.php";
@@ -24,8 +24,6 @@ $cmd = mq($_REQUEST['cmd']);
 $db = new fsdb($dbdir);
 $ssl = new ssl();
 $client = new client($db, $ssl);
-
-$accts = $db->contents('account');
 
 $default_menuitems = array('balance' => 'Balance',
                            'contacts' => 'Contacts',
@@ -110,7 +108,7 @@ function do_logout() {
 // Here from the login page when the user presses one of the buttons
 function do_login() {
   global $title, $body, $onload;
-  global $keysize;
+  global $keysize, $require_tokens;
   global $error;
   global $client, $ssl;
 
@@ -133,6 +131,15 @@ function do_login() {
       $error = "Passphrase didn't match Verification";
       draw_login();
     } else {
+      if ($require_tokens) {
+        $tok = mq($_POST['tok']);
+        $token = $client->token($tok);
+        if (!$token) {
+          $error = "You must get an invitation token from the owner of this web site";
+          draw_login();
+          return;
+        }
+      }
       if ($privkey) {
         // Support adding a passphrase to a private key without one
         $pk = $ssl->load_private_key($privkey);
@@ -146,8 +153,17 @@ function do_login() {
         $error = $err;
         draw_login();
       } else {
-        $login = true;
+        if ($require_tokens) {
+          // It would be nice to give the user some usage tokens here
+          // and register him with the bank, but I need bearer
+          // certificates in the server to do that.
+          // The bank is a client, but we don't know its passphrase,
+          // and we don't want to.
+          // So just remove the token
+          $client->token($tok, '');
+        }
       }
+      $login = true;
     }
   }
 
@@ -242,7 +258,7 @@ function do_admin() {
 
 function draw_login($key=false) {
   global $title, $menu, $body, $onload;
-  global $keysize;
+  global $keysize, $require_tokens;
   global $error;
 
   $key = hsc($key);
@@ -262,17 +278,29 @@ function draw_login($key=false) {
 <input type="hidden" name="cmd" value="login"/>
 <table>
 <tr>
-<td>Passphrase:</td>
+<td><b>Passphrase:</b></td>
 <td><input type="password" name="passphrase" size="50"/>
 <input type="submit" name="login" value="Login"/></td>
 </tr><tr>
 <td></td>
 <td style="color: red">$error&nbsp;</td>
 </tr><tr>
-<td>Verification:</td>
+<td><b>Verification:</b></td>
 <td><input type="password" name="passphrase2" size="50"/>
 </tr><tr>
-<td>Key size:</td>
+
+EOT;
+
+  if ($require_tokens) {
+    $body .= <<<EOT
+<td><b>Invitation<br/>token:</b></td>
+<td><input type="text" name="tok" size="40"/></td>
+</tr><tr>
+EOT;
+  }
+
+  $body .= <<<EOT
+<td><b>Key size:</b></td>
 <td>
 <select name="keysize">
 <option value="512"$sel512>512</option>

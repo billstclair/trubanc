@@ -2016,6 +2016,8 @@ class client {
   }
 
   // Account creation tokens
+  // A kluge to keep spammers out of my web client
+
   function tokenkey($token=false) {
     $t = $this->t;
     

@@ -5,6 +5,7 @@
 
 $dbdir = '../../protected/clientdb'; // The client database directory
 $default_server = 'http://trubanc.com/';
+$require_tokens = true;  // True to require acount tokens for creating accounts.
 
 // Copyright 2008 Bill St. Clair
 //
