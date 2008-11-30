@@ -92,10 +92,11 @@ function setmenu($highlight=false, $menuitems=false) {
 }
 
 function do_logout() {
-  global $session, $client;
+  global $session, $client, $bankline;
 
   if ($session) $client->logout();
   setcookie('session', false);
+  $bankline = '';
   draw_login();
 }
 
@@ -382,11 +383,13 @@ EOT;
 }
 
 function draw_banks() {
-  global $body;
+  global $onload, $body;
   global $error;
   global $client, $banks, $bank;
 
   $t = $client->t;
+
+  $onload = "document.forms[0].bankurl.focus()";
 
   setmenu('banks');
 
@@ -460,7 +463,7 @@ function draw_contacts($id=false, $nickname=false, $notes=false) {
   $notes = hsc($notes);
 
   $body = <<<EOT
-<br/><span style="color: red;">$error</span><br/>
+<span style="color: red;">$error</span><br/>
 <form method="post" action="./">
 <input type="hidden" name="cmd" value="contact">
 <table>
