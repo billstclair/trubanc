@@ -115,7 +115,9 @@ class client {
   function login_with_sessionid($sessionid) {
     $passphrase = $this->sessionpassphrase($sessionid);
     if (!$passphrase) return "No passphrase for session";
-    return $this->login($passphrase);
+    $err = $this->login($passphrase);
+    if (!$err) $this->syncedreq = true; // no server sync for session login
+    return $err;
   }
 
   // Login, create a new session, and return either

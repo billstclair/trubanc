@@ -45,7 +45,6 @@ if ($session) {
     $cmd = 'logout';
     $session = false;
   } else {
-    $client->syncedreq = true; // override bank sync; it takes too long
     if (!$cmd) $cmd = 'balance';
   }
 }
@@ -64,6 +63,7 @@ elseif ($cmd == 'login') do_login();
 elseif ($cmd == 'bank') do_bank();
 elseif ($cmd == 'contact') do_contact();
 elseif ($cmd == 'admin') do_admin();
+elseif ($cmd == 'spend') do_spend();
 elseif ($cmd == 'balance') draw_balance();
 elseif ($cmd == 'contacts') draw_contacts();
 elseif ($cmd == 'banks') draw_banks();
@@ -267,6 +267,57 @@ function do_admin() {
   } else draw_admin();
 }
 
+function do_spend() {
+  global $error;
+  global $client;
+
+  $amount = mq($_POST['amount']);
+  $recipient = mq($_POST['recipient']);
+  $note = mq($_POST['note']);
+  if (!$amount || !$recipient) {
+    $error = "Spend amount or Recipient missing";
+    draw_balance($amount, $recipient, $note);
+  } else {
+    $found = false;
+    foreach ($_POST as $key => $value) {
+      $prefix = 'spentasset';
+      $prelen = strlen($prefix);
+      if (substr($key, 0, $prelen) == $prefix) {
+        $acctdotasset = substr($key, $prelen);
+        echo "acctdotasset: $acctdotasset<br>\n";
+        $acctdotasset = explode('|', $acctdotasset);
+        if (count($acctdotasset) != 2) {
+          $error = "Bug: don't understand spentasset";
+          draw_balance($amount, $recipient, $note);
+        } else {
+          $acctidx = $acctdotasset[0];
+          $assetidx = $acctdotasset[1];
+          $acct = mq($_POST["acct$acctidx"]);
+          $assetid = mq($_POST["assetid$acctidx|$assetidx"]);
+          if (!$acct || !$assetid) {
+            $error = "Bug: blank acct or assetid";
+            draw_balance($amount, $recipient, $note);
+          } else {
+            $err = $client->spend($recipient, $assetid, $amount, $acct, $note);
+            if ($err) {
+              $error = "Error from spend: $err";
+              draw_balance($amount, $recipient, $note);
+            } else {
+              draw_balance();
+            }
+          }
+        }
+        $found = true;
+        break;
+      }
+    }
+    if (!$found) {
+      $error = "Bug: can't find acct/asset to spend";
+      draw_balance($amount, $recipient, $note);
+    }
+  }
+}
+
 function draw_login($key=false) {
   global $title, $menu, $body, $onload;
   global $keysize, $require_tokens;
@@ -389,10 +440,10 @@ function setbank($reporterror=false) {
   }
 }
 
-function draw_balance() {
+function draw_balance($spend_amount=false, $recipient=false, $note=false) {
   global $client, $banks, $bank;
   global $error;
-  global $body;
+  global $onload, $body;
   
   $t = $client->t;
 
@@ -430,27 +481,105 @@ EOT;
   }
 
   $balcode = '';
+  $assetlist = '';
+  $assetidx = 0;
+  $acctidx = 0;
+  $gotbal = false;
+  $contacts = $client->getcontacts();
+  $havecontacts = (count($contacts) > 0);
+
   if (!$error && $client->bankid) {
     $balance = $client->getbalance();
     if (is_string($balance)) $error = $balance;
     else {
       $balcode = "<table>\n";
       foreach ($balance as $acct => $assets) {
+        $acct = hsc($acct);
         $balcode .= "<tr><td></td><td><b>$acct</b></td></tr>\n";
+        $newassetlist = '';
         foreach ($assets as $asset => $data) {
-          $assetname = $data[$t->ASSETNAME];
-          $formattedamount = $data[$t->FORMATTEDAMOUNT];
-          $balcode .= <<<EOT
+          if ($data[$t->AMOUNT] != 0) {
+            $gotbal = true;
+            $assetid = hsc($data[$t->ASSET]);
+            $assetname = hsc($data[$t->ASSETNAME]);
+            $formattedamount = hsc($data[$t->FORMATTEDAMOUNT]);
+            $submitcode = '';
+            if ($havecontacts) {
+              $newassetlist .= <<<EOT
+<input type="hidden" name="assetid$acctidx|$assetidx" value="$assetid"/>
+
+EOT;
+              $submitcode = <<<EOT
+<input type="submit" name="spentasset$acctidx|$assetidx" value="Spend"/>
+
+EOT;
+              $assetidx++;
+            }
+            $balcode .= <<<EOT
 <tr>
 <td align="right"><span style="margin-right: 5px">$formattedamount</span></td>
 <td>$assetname</td>
+<td>$submitcode</td>
 </tr>
 
 EOT;
+          }
+        }
+        if ($newassetlist) {
+          $assetlist .= <<<EOT
+<input type="hidden" name="acct$acctidx" value="$acct"/>
+$newassetlist
+EOT;
+          $acctidx++;
         }
       }
       $balcode .= "</table>\n";
     }
+  }
+
+  $spendcode = '';
+  $closespend = '';
+  if ($gotbal && $havecontacts) {
+    $recipopts = '<select name="recipient">
+<option value="">Choose recipient...</option>
+';
+    foreach ($contacts as $contact) {
+      $name = hsc($contact[$t->NAME]);
+      $nickname = hsc($contact[$t->NICKNAME]);
+      $recipid = hsc($contact[$t->ID]);
+      if ($nickname) {
+        if ($name && $name != $nickname) $namestr = "$nickname ($name)";
+      } elseif ($name) $namestr = $name;
+      else $namestr = "id: recipid";
+      $selected = '';
+      if ($recipid == $recipient) $selected = ' selected="selected"';
+      $recipopts .= <<<EOT
+<option value="$recipid"$selected>$namestr</option>
+
+EOT;
+    }
+    $recipopts .= "</select>\n";
+    $spendcode = <<<EOT
+<p>To make a spend, fill in the "Spend amount" and "Recipient" and click the "Spend" button next to the asset you wish to spend.</p>
+<form method="post" action="./" autocomplete="off">
+<input type="hidden" name="cmd" value="spend"/>
+<table>
+<tr>
+<td><b>Spend amount:</b></td>
+<td><input type="text" name="amount" size="20" value="$spend_amount" style="text-align: right;"/>
+</tr><tr>
+<td><b>Recipient:</b></td>
+<td>$recipopts</td>
+</tr><tr>
+<td><b>Note:</b></td>
+<td><textarea name="note" cols="30" rows="10">$note</textarea></td>
+</tr>
+</table>
+<br/>
+
+EOT;
+    $onload = "document.forms[0].amount.focus()";
+    $closespend = "</form>\n";
   }
 
   if ($saveerror) {
@@ -460,7 +589,7 @@ EOT;
   if ($error) {
     $error = "<span style=\"color: red\";\">$error</span>\n";
   }
-  $body = "$error<br>$bankcode$balcode";
+  $body = "$error<br>$bankcode$spendcode$assetlist$balcode$closespend";
 }
 
 function draw_banks() {
