@@ -284,7 +284,6 @@ function do_spend() {
       $prelen = strlen($prefix);
       if (substr($key, 0, $prelen) == $prefix) {
         $acctdotasset = substr($key, $prelen);
-        echo "acctdotasset: $acctdotasset<br>\n";
         $acctdotasset = explode('|', $acctdotasset);
         if (count($acctdotasset) != 2) {
           $error = "Bug: don't understand spentasset";
@@ -560,7 +559,10 @@ EOT;
     }
     $recipopts .= "</select>\n";
     $spendcode = <<<EOT
-<p>To make a spend, fill in the "Spend amount" and "Recipient" and click the "Spend" button next to the asset you wish to spend.</p>
+
+To make a spend, fill in the "Spend amount", "Recipient", and (optionally) "Note",
+and click the "Spend" button next to the asset you wish to spend.<br/><br/>
+
 <form method="post" action="./" autocomplete="off">
 <input type="hidden" name="cmd" value="spend"/>
 <table>

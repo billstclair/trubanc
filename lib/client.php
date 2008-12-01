@@ -161,6 +161,18 @@ class client {
     return false;
   }
 
+  function comparebanks($b1, $b2) {
+    $t = $this->t;
+
+    if ($b1[$t->NAME] < $b2[$t->NAME]) return -1;
+    elseif ($b1[$t->NAME] > $b2[$t->NAME]) return 1;
+    else {
+      if ($b1[$t->URL] < $b2[$t->URL]) return -1;
+      elseif ($b1[$t->URL] > $b2[$t->URL]) return 1;
+      else return 0;
+    }
+  }
+
   // Return all the banks known by the current user:
   // array($t->BANKID => array($t->BANKID => $bankid,
   //                           $t->NAME => $name,
@@ -180,9 +192,18 @@ class client {
       $bank = array($t->BANKID => $bankid,
                     $t->NAME => $this->bankprop($t->NAME, $bankid),
                     $t->URL => $this->bankprop($t->URL, $bankid));
-      $res[$bankid] = $bank;
+      $res[] = $bank;
     }
-    return $res;
+
+    usort($res, array('client', 'comparebanks'));
+
+    // Unfortunately, usort doesn't preserve keys
+    $res2 = array();
+    foreach ($res as $bank) {
+      $res2[$bank[$t->BANKID]] = $bank;
+    }
+
+    return $res2;
   }
 
   // Add a bank with the given URL to the database.
@@ -335,6 +356,7 @@ class client {
   }
 
   // Get contacts for the current bank.
+  // Contacts are sorted by nickname, name, id
   // Returns an error string or an array of items of the form:
   //
   //   array($t->ID => $id,
@@ -354,6 +376,23 @@ class client {
     return $res;
   }
 
+  // For usort in getcontacts_internal
+  function comparecontacts($c1, $c2) {
+    $t = $this->t;
+
+    if ($c1[$t->NICKNAME] < $c2[$t->NICKNAME]) return -1;
+    elseif ($c1[$t->NICKNAME] > $c2[$t->NICKNAME]) return 1;
+    else {
+      if ($c1[$t->NAME] < $c2[$t->NAME]) return -1;
+      elseif ($c1[$t->NAME] > $c2[$t->NAME]) return 1;
+      else {
+        if ($c1[$t->ID] < $c2[$t->ID]) return -1;
+        elseif ($c1[$t->ID] > $c2[$t->ID]) return 1;
+        else return 0;
+      }
+    }
+  }
+
   function getcontacts_internal() {
     $t = $this->t;
     $db = $this->db;
@@ -364,6 +403,7 @@ class client {
       $contact = $this->getcontact_internal($otherid);
       if ($contact) $res[] = $contact;
     }
+    usort($res, array("client", "comparecontacts"));
     return $res;
   }
 
