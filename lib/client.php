@@ -414,27 +414,31 @@ class client {
   //         $t->NICKNAME => $nickname,
   //         $t->NOTE => $note)
   // or false, if can't find that contact.
-  function getcontact($otherid) {
+  function getcontact($otherid, $add=false) {
     $t = $this->t;
     $db = $this->db;
     
     if (!$this->current_bank()) return false;
 
     $lock = $db->lock($this->userreqkey());
-    $res = $this->getcontact_internal($otherid);
+    $res = $this->getcontact_internal($otherid, $add);
     $db->unlock($lock);
 
     return $res;
   }
 
-  function getcontact_internal($otherid) {
+  function getcontact_internal($otherid, $add=false) {
     $t = $this->t;
     $db = $this->db;
     
     $pubkeysig = $this->contactprop($otherid, $t->PUBKEYSIG);
     if (!$pubkeysig) {
-      $this->addcontact_internal($otherid);
-      $pubkeysig = $this->contactprop($otherid, $t->PUBKEYSIG);
+      if ($add) {
+        $this->addcontact_internal($otherid);
+        $pubkeysig = $this->contactprop($otherid, $t->PUBKEYSIG);
+      } else {
+        return $this->get_id($otherid);
+      }
     }
     if (!$pubkeysig) return false;
     $res = array($t->ID => $otherid,
@@ -488,6 +492,19 @@ class client {
     $db->put($this->contactkey($otherid, $t->NOTE), $note);
     $db->put($this->contactkey($otherid, $t->NAME), $name);
     $db->put($this->contactkey($otherid, $t->PUBKEYSIG), $msg);
+  }
+
+  // Return the parsed ID message if an ID exists on the server,
+  // or false if not.
+  function get_id($id) {
+    $t = $this->t;
+
+    $msg = $this->sendmsg($t->ID, $bankid, $id);
+    $args = $this->unpack_bankmsg($msg, $t->ATREGISTER);
+    if (is_string($args)) return false;
+    $pubkey = $args[$t->PUBKEY];
+    if ($id != $ssl->pubkey_id($pubkey)) return false;
+    return $args;
   }
 
   // GET sub-account names.

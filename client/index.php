@@ -52,8 +52,8 @@ if ($session) {
 if ($client->id) setbank();
 
 if (!$client->bankid) {
-  if ($cmd && $cmd != 'logout' && $cmd != 'login') {
-    $cmd = 'balance';
+  if ($cmd && $cmd != 'logout' && $cmd != 'login' & $cmd != 'bank') {
+    $cmd = 'banks';
   }
 }
 
@@ -187,7 +187,8 @@ function do_login() {
         draw_login();
       } else {
         setbank();
-        draw_balance();
+        if ($client->bankid) draw_balance();
+        else draw_banks();
       }
     }
   }
@@ -197,6 +198,8 @@ function do_login() {
 function do_bank() {
   global $client;
   global $error;
+
+  $error = false;
 
   $newbank = mq($_POST['newbank']);
   $selectbank = mq($_POST['selectbank']);
@@ -274,12 +277,21 @@ function do_spend() {
   $amount = mq($_POST['amount']);
   $recipient = mq($_POST['recipient']);
   $recipientid = mq($_POST['recipientid']);
+  $allowunregistered = mq($_POST['allowunregistered']);
   $note = mq($_POST['note']);
-  if (!$recipient) $recipient = $recipientid;
   $error = false;
-  if (!$amount) $error = 'Spend amount missing';
-  elseif (!$recipient) $error = 'Recipient missing';
-  elseif (!$client->is_id($recipient)) $error = "Recipient ID malformed";
+  if (!$recipient) {
+    $recipient = $recipientid;
+    if ($recipient && !$allowunregistered &&
+        $client->is_id($recipient) && !$client->get_id($recipient)) {
+      $error = 'Recipient ID not registered at bank';
+    }
+  }
+  if (!$error) {
+    if (!$amount) $error = 'Spend amount missing';
+    elseif (!$recipient) $error = 'Recipient missing';
+    elseif (!$client->is_id($recipient)) $error = "Recipient ID malformed";
+  }
   if ($error) {
     draw_balance($amount, $recipient, $note);
   } else {
@@ -444,6 +456,21 @@ function setbank($reporterror=false) {
   }
 }
 
+function contact_namestr($contact) {
+  global $client;
+
+  $t = $client->t;
+
+  $name = hsc($contact[$t->NAME]);
+  $nickname = hsc($contact[$t->NICKNAME]);
+  $recipid = hsc($contact[$t->ID]);
+  if ($nickname) {
+    if ($name && $name != $nickname) $namestr = "$nickname ($name)";
+  } elseif ($name) $namestr = $name;
+  else $namestr = "$recipid";
+  return $namestr;
+}
+
 function draw_balance($spend_amount=false, $recipient=false, $note=false) {
   global $client, $banks, $bank;
   global $error;
@@ -484,6 +511,7 @@ $bankopts
 EOT;
   }
 
+  $inboxcode = '';
   $balcode = '';
   $assetlist = '';
   $assetidx = 0;
@@ -493,10 +521,107 @@ EOT;
   $havecontacts = (count($contacts) > 0);
 
   if (!$error && $client->bankid) {
+    // Print inbox, if there is one
+    $inbox = $client->getinbox();
+    $outbox = $client->getoutbox();
+    if (is_string($inbox)) $error = "Error getting inbox: $inbox";
+    elseif (count($inbox) == 0) $inboxcode .= "<b><u>Inbox empty</u></b><br/><br/>\n";
+    else {
+      $inboxcode .= <<<EOT
+<table border="1">
+<caption>=== Inbox ===</caption>
+<tr>
+<th>Request</th>
+<th>From</th>
+<th colspan="2">Amount</th>
+<th>Note</th>
+<th>Action</th>
+<th>Reply</th>
+</tr>
+
+EOT;
+      if (is_string($outbox)) {
+        $error = "Error getting outbox: $outbox";
+        $outbox = array();
+      }
+      $nonspends = array();
+      foreach ($inbox as $item) {
+        $item = $item[0];
+        $request = $item[$t->REQUEST];
+        $fromid = $item[$t->ID];
+        $contact = $client->getcontact($fromid);
+        if ($contact) $namestr = contact_namestr($contact);
+        else $namestr = hsc($fromid);
+
+        if ($request != $t->SPEND) {
+          $msgtime = $item[$msgtime];
+          $outitem = $outbox[$msgtime];
+          if ($outitem) {
+            $item[$t->ASSETNAME] = $outitem[$t->ASSETNAME];
+            $item[$t->FORMATTEDAMOUNT] = $outitem[$t->FORMATTEDAMOUNT];
+          }
+          $nonspends[] = $item;
+        }
+        else {
+          $assetname = hsc($item[$t->ASSETNAME]);
+          $amount = hsc($item[$t->FORMATTEDAMOUNT]);
+          $note = hsc($item[$t->NOTE]);
+          if (!$note) $note = '&nbsp;';
+          $selcode = <<<EOT
+<select name="sel">
+<option value="accept">Accept</option>
+<option value="reject">Reject</option>
+<option value="ignore">Ignore</option>
+</select>
+
+EOT;
+          $inboxcode .= <<<EOT
+<tr>
+<td>Spend</td>
+<td>$namestr</td>
+<td align="right" style="border-right-width: 0;">$amount</td>
+<td style="border-left-width: 0;">$assetname</td>
+<td>$note</td>
+<td>$selcode</td>
+<td><textarea name="text" cols="20" rows="2"></textarea></td>
+</tr>
+
+EOT;
+        }
+      }
+      foreach ($nonspends as $item) {
+        $request = $item[$t->REQUEST];
+        $assetname = hsc($item[$t->ASSETNAME]);
+        $amount = hsc($item[$t->FORMATTEDAMOUNT]);
+        $note = hsc($item[$t->NOTE]);
+        if (!$note) $note = '&nbsp;';
+        $selcode = <<<EOT
+<input type="checkbox" name="check">Remove</input>
+
+EOT;
+          $inboxcode .= <<<EOT
+<tr>
+<td>Spend</td>
+<td>$namestr</td>
+<td align="right" style="border-right-width: 0;">$amount</td>
+<td style="border-left-width: 0;">$assetname</td>
+<td>$note</td>
+<td>$selcode</td>
+</tr>
+
+EOT;
+      }
+      $inboxcode .= <<<EOT
+</table>
+<br/>
+
+EOT;
+    }
+
     $balance = $client->getbalance();
     if (is_string($balance)) $error = $balance;
     else {
-      $balcode = "<table>\n";
+      $balcode = "<table>\n<caption>=== Balances ===</caption>\n";
       foreach ($balance as $acct => $assets) {
         $acct = hsc($acct);
         $balcode .= "<tr><td></td><td><b>$acct</b></td></tr>\n";
@@ -549,13 +674,7 @@ EOT;
 ';
     $found = false;
     foreach ($contacts as $contact) {
-      $name = hsc($contact[$t->NAME]);
-      $nickname = hsc($contact[$t->NICKNAME]);
-      $recipid = hsc($contact[$t->ID]);
-      if ($nickname) {
-        if ($name && $name != $nickname) $namestr = "$nickname ($name)";
-      } elseif ($name) $namestr = $name;
-      else $namestr = "id: recipid";
+      $namestr = contact_namestr($contact);
       $selected = '';
       if ($recipid == $recipient) {
         $selected = ' selected="selected"';
@@ -586,10 +705,12 @@ enter a "Recipient ID, enter (optionally) a "Note", and click the
 <td>$recipopts</td>
 </tr><tr>
 <td><b>Recipient ID:</b></td>
-<td><input type="text" name="recipientid" size="40" value="$recipientid"</td>
+<td><input type="text" name="recipientid" size="40" value="$recipientid"
+<input type="checkbox" name="allowunregistered">Allow unregistered</checkbox></td>
+
 </tr><tr>
 <td><b>Note:</b></td>
-<td><textarea name="note" cols="30" rows="10">$note</textarea></td>
+<td><textarea name="note" cols="40" rows="10">$note</textarea></td>
 </tr>
 </table>
 <br/>
@@ -606,7 +727,7 @@ EOT;
   if ($error) {
     $error = "<span style=\"color: red\";\">$error</span>\n";
   }
-  $body = "$error<br>$bankcode$spendcode$assetlist$balcode$closespend";
+  $body = "$error<br>$bankcode$inboxcode$spendcode$assetlist$balcode$closespend";
 }
 
 function draw_banks() {
