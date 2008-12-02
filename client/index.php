@@ -273,9 +273,14 @@ function do_spend() {
 
   $amount = mq($_POST['amount']);
   $recipient = mq($_POST['recipient']);
+  $recipientid = mq($_POST['recipientid']);
   $note = mq($_POST['note']);
-  if (!$amount || !$recipient) {
-    $error = "Spend amount or Recipient missing";
+  if (!$recipient) $recipient = $recipientid;
+  $error = false;
+  if (!$amount) $error = 'Spend amount missing';
+  elseif (!$recipient) $error = 'Recipient missing';
+  elseif (!$client->is_id($recipient)) $error = "Recipient ID malformed";
+  if ($error) {
     draw_balance($amount, $recipient, $note);
   } else {
     $found = false;
@@ -542,6 +547,7 @@ EOT;
     $recipopts = '<select name="recipient">
 <option value="">Choose recipient...</option>
 ';
+    $found = false;
     foreach ($contacts as $contact) {
       $name = hsc($contact[$t->NAME]);
       $nickname = hsc($contact[$t->NICKNAME]);
@@ -551,17 +557,23 @@ EOT;
       } elseif ($name) $namestr = $name;
       else $namestr = "id: recipid";
       $selected = '';
-      if ($recipid == $recipient) $selected = ' selected="selected"';
+      if ($recipid == $recipient) {
+        $selected = ' selected="selected"';
+        $found = true;
+      }
       $recipopts .= <<<EOT
 <option value="$recipid"$selected>$namestr</option>
 
 EOT;
     }
     $recipopts .= "</select>\n";
+    $recipientid = '';
+    if (!$found) $recipientid = $recipient;
     $spendcode = <<<EOT
 
-To make a spend, fill in the "Spend amount", "Recipient", and (optionally) "Note",
-and click the "Spend" button next to the asset you wish to spend.<br/><br/>
+To make a spend, fill in the "Spend amount", choose a "Recipient" or
+enter a "Recipient ID, enter (optionally) a "Note", and click the
+"Spend" button next to the asset you wish to spend.<br/><br/>
 
 <form method="post" action="./" autocomplete="off">
 <input type="hidden" name="cmd" value="spend"/>
@@ -572,6 +584,9 @@ and click the "Spend" button next to the asset you wish to spend.<br/><br/>
 </tr><tr>
 <td><b>Recipient:</b></td>
 <td>$recipopts</td>
+</tr><tr>
+<td><b>Recipient ID:</b></td>
+<td><input type="text" name="recipientid" size="40" value="$recipientid"</td>
 </tr><tr>
 <td><b>Note:</b></td>
 <td><textarea name="note" cols="30" rows="10">$note</textarea></td>

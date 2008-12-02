@@ -749,6 +749,14 @@ class client {
     $res = $this->spend_internal($toid, $assetid, $formattedamount, $acct, $note);
     $db->unlock($lock);
 
+    if ($res) {
+      // Force a resync with the server.
+      // Should eventually distinguish user errors, which don't require
+      // resync, from errors that do.
+      $this->syncedreq = false;
+      $db->put($this->userbankkey($t->REQ), -2);
+    }
+
     return $res;
   }
 
@@ -757,6 +765,7 @@ class client {
     $db = $this->db;
     $u = $this->u;
 
+    $id = $this->id;
     $bankid = $this->bankid;
     $server = $this->server;
     $parser = $this->parser;
@@ -819,24 +828,33 @@ class client {
     }      
     $balance = $this->custmsg
       ($t->BALANCE, $bankid, $time, $assetid, $newamount, $acct);
-    $outboxhash = $this->outboxhashmsg($time, $spend);
+    $outboxhash = '';
+    if ($id != $bankid) {
+      $outboxhash = $this->outboxhashmsg($time, $spend);
+    }
 
     // Compute balancehash
-    if ($feebal) {
-      if ($t->MAIN == $acct) {
-        $acctbals = array($acct => array($assetid => $balance,
-                                         $tranfee_asset => $feebal));
+    if ($id != $bankid) {
+      if ($feebal) {
+        if ($t->MAIN == $acct) {
+          $acctbals = array($acct => array($assetid => $balance,
+                                           $tranfee_asset => $feebal));
+        } else {
+          $acctbals = array($acct => array($assetid => $balance),
+                            $t->MAIN => array($tranfee_asset => $feebal));
+        }
       } else {
-        $acctbals = array($acct => array($assetid => $balance),
-                          $t->MAIN => array($tranfee_asset => $feebal));
+        $acctbals = array($acct => array($assetid => $balance));
       }
-    } else {
-      $acctbals = array($acct => array($assetid => $balance));
+      $balancehash = $this->balancehashmsg($time, $acctbals);
     }
-    $balancehash = $this->balancehashmsg($time, $acctbals);
 
     // Send request to server, and get response
-    $msg = "$spend.$feeandbal.$balance.$outboxhash.$balancehash";
+    $msg = $spend;
+    if ($feeandbal) $msg.= ".$feeandbal";
+    $msg .= ".$balance";
+    if ($outboxhash) $msg .= ".$outboxhash";
+    if ($balancehash) $msg .= ".$balancehash";
     $msg = $server->process($msg);
 
     $reqs = $parser->parse($msg);
@@ -851,14 +869,15 @@ class client {
     }
 
     $msgs = array($spend => true,
-                  $balance => true,
-                  $outboxhash => true,
-                  $balancehash => true);
+                  $balance => true);
+    if ($outboxhash) $msgs[$outboxhash] = true;
+    if ($balancehash) $msgs[$balancehash] = true;
     if ($feeandbal) {
       $msgs[$feemsg] = true;
       if ($feebal) $msgs[$feebal] = true;
     }
 
+    $err = false;
     foreach ($reqs as $req) {
       $msg = $parser->get_parsemsg($req);
       $args = $this->match_bankreq($req);
@@ -877,8 +896,12 @@ class client {
 
     // All is well. Commit this baby.
     $db->put($this->userbalancekey($acct, $assetid), $msgs[$balance]);
-    $db->put($this->useroutboxhashkey(), $msgs[$outboxhash]);
-    $db->put($this->userbalancehashkey(), $msgs[$balancehash]);
+    if ($outboxhash) {
+      $db->put($this->useroutboxhashkey(), $msgs[$outboxhash]);
+    }
+    if ($balancehash) {
+      $db->put($this->userbalancehashkey(), $msgs[$balancehash]);
+    }
     $spend = $msgs[$spend];
     if ($feeandbal) {
       $spend = "$spend." . $msgs[$feemsg];
@@ -2093,6 +2116,10 @@ class client {
     return $res;
   }
 
+  // Predicate. True if arg looks like an ID
+  function is_id($x) {
+    return is_string($x) && strlen($x) == 40 && @pack("H*", $x);
+  }
 }
 
 class serverproxy {

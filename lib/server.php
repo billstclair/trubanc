@@ -774,7 +774,7 @@ class server {
         $tranasset = $reqargs[$t->ASSET];
         $tranamt = $reqargs[$t->AMOUNT];
         if ($tranasset != $tokenid || $tranamt != $tokens) {
-          return $this->failmsg($msg, "Mismatched tranfee asset or amount");
+          return $this->failmsg($msg, "Mismatched tranfee asset or amount ($tranasset <> $tokenid || $tranamt <> $tokens)");
         }
         $feemsg = $this->bankmsg($t->ATTRANFEE, $parser->get_parsemsg($req));
       } elseif ($request == $t->BALANCE) {
