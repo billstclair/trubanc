@@ -468,7 +468,7 @@ function contact_namestr($contact) {
     if ($name && $name != $nickname) $namestr = "$nickname ($name)";
   } elseif ($name) $namestr = $name;
   else $namestr = "$recipid";
-  return $namestr;
+  return "$namestr";
 }
 
 function draw_balance($spend_amount=false, $recipient=false, $note=false) {
@@ -550,7 +550,12 @@ EOT;
         $request = $item[$t->REQUEST];
         $fromid = $item[$t->ID];
         $contact = $client->getcontact($fromid);
-        if ($contact) $namestr = contact_namestr($contact);
+        if ($contact) {
+          $namestr = contact_namestr($contact);
+          if ($namestr != $fromid) {
+            $namestr = "<span title=\"$fromid\">$namestr<span>";
+          }
+        }
         else $namestr = hsc($fromid);
 
         if ($request != $t->SPEND) {

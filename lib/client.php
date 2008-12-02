@@ -328,7 +328,7 @@ class client {
     if (!$this->current_bank()) return "In register(): Bank not set";
 
     // If already registered and we know it, nothing to do
-    if ($this->userbankprop($t->PUBKEYSIG)) return false;
+    if ($db->get(userbankkey($t->PUBKEYSIG) . "/$id")) return false;
 
     // See if bank already knows us
     // Resist the urge to change this to a call to
@@ -350,7 +350,7 @@ class client {
     $pubkey = $args[$t->PUBKEY];
     $keyid = $ssl->pubkey_id($pubkey);
     if ($keyid != $id) return "Server's pubkey wrong";
-    $db->put($this->userbankkey($t->PUBKEYSIG), $msg);
+    $db->put($this->userbankkey($t->PUBKEYSIG) . "/$id", $msg);
 
     return false;
   }
@@ -498,8 +498,14 @@ class client {
   // or false if not.
   function get_id($id) {
     $t = $this->t;
+    $db = $this->db;
 
-    $msg = $this->sendmsg($t->ID, $bankid, $id);
+    $key = $this->userbankkey($t->PUBKEYSIG) . "/$id";
+    $msg = $db->get($key);
+    if (!$msg) {
+      $msg = $this->sendmsg($t->ID, $bankid, $id);
+      $db->put($key, $msg);
+    }    
     $args = $this->unpack_bankmsg($msg, $t->ATREGISTER);
     if (is_string($args)) return false;
     $pubkey = $args[$t->PUBKEY];

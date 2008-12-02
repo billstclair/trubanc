@@ -44,7 +44,8 @@ $dbdir/
         <bankid>/
           time=<time#>[,<time#>]
           req=<req#>
-          pubkeysig=(<bankid>,@register,(<id>,register,<bankid>,<pubkey>,name=<name>))
+          pubkeysig/
+            <id>=(<bankid>,@register,(<id>,register,<bankid>,<pubkey>,name=<name>))
           contact/
             <otherid>/
               nickname=<nickname>
