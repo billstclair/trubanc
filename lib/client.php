@@ -412,7 +412,8 @@ class client {
   //   array($t->ID => $id,
   //         $t->NAME => $name,
   //         $t->NICKNAME => $nickname,
-  //         $t->NOTE => $note)
+  //         $t->NOTE => $note,
+  //         $t->CONTACT => $iscontact)
   // or false, if can't find that contact.
   function getcontact($otherid, $add=false) {
     $t = $this->t;
@@ -444,7 +445,8 @@ class client {
     $res = array($t->ID => $otherid,
                  $t->NAME => $this->contactprop($otherid, $t->NAME),
                  $t->NICKNAME => $this->contactprop($otherid, $t->NICKNAME),
-                 $t->NOTE => $this->contactprop($otherid, $t->NOTE));
+                 $t->NOTE => $this->contactprop($otherid, $t->NOTE),
+                 $t->CONTACT => true);
     return $res;
   }
   
@@ -512,8 +514,12 @@ class client {
     $args = $args[$t->MSG];
     $pubkey = $args[$t->PUBKEY];
     if ($id != $ssl->pubkey_id($pubkey)) return false;
+    $res = array();
+    $res[$t->ID] = $args[$t->CUSTOMER];
+    $res[$t->PUBKEY] = $args[$t->PUBKEY];
+    $res[$t->NAME] = $args[$t->NAME];
     $args[$t->MSG] = $msg;
-    return $args;
+    return $res;
   }
 
   // GET sub-account names.
@@ -1646,6 +1652,7 @@ class client {
   function contactprop($otherid, $prop) {
     $db = $this->db;
 
+    $key = $this->contactkey($otherid, $prop);
     return $db->get($this->contactkey($otherid, $prop));
   }
 

@@ -572,6 +572,13 @@ EOT;
           if ($namestr != $fromid) {
             $namestr = "<span title=\"$fromid\">$namestr<span>";
           }
+          if (!$contact[$t->CONTACT]) {
+            $namestr .= <<<EOT
+<br/>
+<span style="text-align: center;">Add contact
+<input type="checkbox" name="addspend$spendcnt"/></span>
+EOT;
+          }
         } else $namestr = hsc($fromid);
 
         if ($request != $t->SPEND) {
@@ -707,7 +714,7 @@ EOT;
     $closespend = '';
     if ($gotbal) {
       $recipopts = '<select name="recipient">
-<option value="">Choose recipient...</option>
+<option value="">Choose contact...</option>
 ';
       $found = false;
       foreach ($contacts as $contact) {
