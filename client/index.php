@@ -15,6 +15,10 @@ function mq($x) {
   else return $x;
 }
 
+function mqpost($x) {
+  return mq($_POST[$x]);
+}
+
 function hsc($x) {
   return htmlspecialchars($x);
 }
@@ -337,8 +341,50 @@ function do_spend() {
 
 function do_processinbox() {
   global $error;
+  global $client;
+ 
+  $t = $client->t;
 
-  $error = "Processinbox not yet implemented";
+  $spendcnt = mqpost('spendcnt');
+  $nonspendcnt = mqpost('nonspendcnt');
+
+  $directions = array();
+  for ($i=0; $i<$spendcnt; $i++) {
+    $time = mqpost("spendtime$i");
+    $spend = mqpost("spend$i");
+    $note = mqpost("spendnote$i");
+    if ($spend == 'accept' || $spend == 'reject') {
+      $dir = array($t->TIME => $time);
+      if ($note) $dir[$t->NOTE] = $note;
+      $dir[$t->REQUEST] = ($spend == 'accept') ? $t->SPENDACCEPT : $t->SPENDREJECT;
+      $directions[] = $dir;
+    }
+    $addspend = mqpost("addspend$i");
+    $spendid = mqpost("spendid$i");
+    if ($addspend && $spendid) {
+      $client->addcontact($spendid);
+    }
+  }
+
+  for ($i=0; $i<$nonspendcnt; $i++) {
+    $time = mqpost("nonspendtime$i");
+    $process = mqpost("nonspend$i");
+    if ($process) {
+      $dir = array($t->TIME => $time);
+      $directions[] = $dir;
+    }
+    $addspend = mqpost("addnonspend$i");
+    $spendid = mqpost("nonspendid$i");
+    if ($addspend && $spendid) {
+      $client->addcontact($spendid);
+    }
+  }
+
+  if (count($directions) > 0) {
+    $err = $client->processinbox($directions);
+    if ($err) $error = "error from processinbox: $err";
+  }
+
   draw_balance();
 }
 
@@ -541,7 +587,7 @@ EOT;
     $inbox = $client->getinbox();
     $outbox = $client->getoutbox();
     if (is_string($inbox)) $error = "Error getting inbox: $inbox";
-    elseif (count($inbox) == 0) $inboxcode .= "<b><u>Inbox empty</u></b><br/><br/>\n";
+    elseif (count($inbox) == 0) $inboxcode .= "<b>=== Inbox empty ===</b><br/><br/>\n";
     else {
       $inboxcode .= <<<EOT
 <table border="1">
@@ -566,23 +612,17 @@ EOT;
         $item = $item[0];
         $request = $item[$t->REQUEST];
         $fromid = $item[$t->ID];
+        $time = $item[$t->TIME];
         $contact = $client->getcontact($fromid);
         if ($contact) {
           $namestr = contact_namestr($contact);
           if ($namestr != $fromid) {
             $namestr = "<span title=\"$fromid\">$namestr<span>";
           }
-          if (!$contact[$t->CONTACT]) {
-            $namestr .= <<<EOT
-<br/>
-<span style="text-align: center;">Add contact
-<input type="checkbox" name="addspend$spendcnt"/></span>
-EOT;
-          }
         } else $namestr = hsc($fromid);
 
         if ($request != $t->SPEND) {
-          $msgtime = $item[$msgtime];
+          $msgtime = $item[$t->MSGTIME];
           $outitem = $outbox[$msgtime];
           if ($outitem) {
             $item[$t->ASSETNAME] = $outitem[$t->ASSETNAME];
@@ -596,6 +636,19 @@ EOT;
           $note = hsc($item[$t->NOTE]);
           if (!$note) $note = '&nbsp;';
           $selname = "spend$spendcnt";
+          $notename = "spendnote$spendcnt";
+          if (!$contact[$t->CONTACT]) {
+            $namestr .= <<<EOT
+<br/>
+<span style="text-align: center;">Add contact
+<input type="hidden" name="spendid$spendcnt" value="$fromid"/>
+<input type="checkbox" name="addspend$spendcnt"/></span>
+EOT;
+          }
+          $timecode = <<<EOT
+<input type="hidden" name="spendtime$spendcnt" value="$time">
+EOT;
+
           $spendcnt++;
           $selcode = <<<EOT
 <select name="$selname">
@@ -606,6 +659,7 @@ EOT;
 
 EOT;
           $inboxcode .= <<<EOT
+$timecode
 <tr>
 <td>Spend</td>
 <td>$namestr</td>
@@ -613,7 +667,7 @@ EOT;
 <td style="border-left-width: 0;">$assetname</td>
 <td>$note</td>
 <td>$selcode</td>
-<td><textarea name="text" cols="20" rows="2"></textarea></td>
+<td><textarea name="$notename" cols="20" rows="2"></textarea></td>
 </tr>
 
 EOT;
@@ -622,17 +676,30 @@ EOT;
       $nonspendcnt = 0;
       foreach ($nonspends as $item) {
         $request = $item[$t->REQUEST];
+        $time = $item[$t->TIME];
         $assetname = hsc($item[$t->ASSETNAME]);
         $amount = hsc($item[$t->FORMATTEDAMOUNT]);
         $note = hsc($item[$t->NOTE]);
         if (!$note) $note = '&nbsp;';
         $selname = "nonspend$nonspendcnt";
+        if (!$contact[$t->CONTACT]) {
+          $namestr .= <<<EOT
+<br/>
+<span style="text-align: center;">Add contact
+<input type="hidden" name="nonspendid$nonspendcnt" value="$fromid"/>
+<input type="checkbox" name="addnonspend$nonspendcnt"/></span>
+EOT;
+          }
+        $timecode = <<<EOT
+<input type="hidden" name="nonspendtime$nonspendcnt" value="$time">
+EOT;
         $nonspendcnt++;
         $selcode = <<<EOT
 <input type="checkbox" name="$selname" checked="checked">Remove</input>
 
 EOT;
           $inboxcode .= <<<EOT
+$timecode
 <tr>
 <td>Spend</td>
 <td>$namestr</td>
@@ -663,7 +730,7 @@ EOT;
     $balance = $client->getbalance();
     if (is_string($balance)) $error = $balance;
     else {
-      $balcode = "<table border=\"1\">\n<caption>=== Balances ===</caption>
+      $balcode = "<table border=\"1\">\n<caption><b>=== Balances ===</b></caption>
 <tr><td><table>";
       $firstacct = true;
       foreach ($balance as $acct => $assets) {
@@ -733,14 +800,15 @@ EOT;
       $recipopts .= "</select>\n";
       $recipientid = '';
       if (!$found) $recipientid = $recipient;
-      $spendcode = <<<EOT
-
+      $openspend = '<form method="post" action="./" autocomplete="off">
+<input type="hidden" name="cmd" value="spend"/>
 To make a spend, fill in the "Spend amount", choose a "Recipient" or
 enter a "Recipient ID, enter (optionally) a "Note", and click the
 "Spend" button next to the asset you wish to spend.<br/><br/>
 
-<form method="post" action="./" autocomplete="off">
-<input type="hidden" name="cmd" value="spend"/>
+';
+      $spendcode = <<<EOT
+
 <table>
 <tr>
 <td><b>Spend amount:</b></td>
@@ -773,7 +841,20 @@ EOT;
   if ($error) {
     $error = "<span style=\"color: red\";\">$error</span>\n";
   }
-  $body = "$error<br>$bankcode$inboxcode$spendcode$assetlist$balcode$closespend";
+  $fullspend = <<<EOT
+$openspend
+<table>
+<tr>
+<td valign="top">
+$assetlist$balcode
+</td>
+<td valign="top">
+$spendcode
+</td>
+</table>
+$closespend
+EOT;
+  $body = "$error<br>$bankcode$inboxcode$fullspend";
 }
 
 function draw_banks() {
