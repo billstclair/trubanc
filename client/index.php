@@ -53,13 +53,15 @@ if ($session) {
   }
 }
 
-if ($client->id) setbank();
+if ($client->id) {
+  setbank();
 
-if (!$client->bankid) {
-  if ($cmd && $cmd != 'logout' && $cmd != 'login' & $cmd != 'bank') {
-    $cmd = 'banks';
+  if (!$client->bankid) {
+    if ($cmd && $cmd != 'logout' && $cmd != 'login' & $cmd != 'bank') {
+      $cmd = 'banks';
+    }
   }
-}
+} elseif ($cmd != 'login') $cmd = '';
 
 if (!$cmd) draw_login();
 elseif ($cmd == 'logout') do_logout();
@@ -234,6 +236,7 @@ function do_contact() {
   global $error;
 
   $addcontact = $_POST['addcontact'];
+  $deletecontacts = $_POST['deletecontacts'];
 
   if ($addcontact) {
     $id = $_POST['id'];
@@ -244,8 +247,20 @@ function do_contact() {
       $error = "Can't add contact: $err";
       draw_contacts($id, $nickname, $notes);
     } else draw_contacts();
+  } elseif ($deletecontacts) {
+    $chkcnt = mqpost('chkcnt');
+    for ($i=0; $i<$chkcnt; $i++) {
+      $chki = mqpost("chk$i");
+      if ($chki) {
+        $id = mqpost("id$i");
+        echo "deleting $id<br>\n";
+        $client->deletecontact($id);
+      }
+    }
+    draw_contacts();
   } else draw_balance();
-}
+
+  }
 
 function do_admin() {
   global $client;
@@ -448,10 +463,11 @@ EOT;
 <td>
 To generate a new private key, leave the area below blank, enter a
 passphrase, the passphrase again to verify, a key size, and click the
-"Create account" button.  To use an existing private key, paste the
+"Create account" button. To use an existing private key, paste the
 private key below, enter its passphrase above, and click the
 "Create account" button. To show your encrypted private key, enter
-its passphrase, and click the "Show key" button.
+its passphrase, and click the "Show key" button. Warning: if you
+forget your passphrase, <b>nobody can recover it, ever</b>.
 </td>
 </tr><tr>
 <td></td>
@@ -961,14 +977,20 @@ function draw_contacts($id=false, $nickname=false, $notes=false) {
 EOT;
 
   $contacts = $client->getcontacts();
-  if (count($contacts) > 0) {
-    $body .= '<br/><table border="1">
+  $cnt = count($contacts);
+  if ($cnt > 0) {
+    $body .= '<br/><form method="post" action="./">
+<input type="hidden" name="cmd" value="contact"/>
+<input type="hidden" name="chkcnt" value="' . $cnt . '"/>
+<table border="1">
 <tr>
 <th>Name</th>
 <th>Nickname</th>
 <th>ID</th>
 <th>Notes</th>
+<th>x</th>
 </tr>';
+    $idx = 0;
     foreach ($contacts as $contact) {
       $id = hsc($contact[$t->ID]);
       $name = hsc($contact[$t->NAME]);
@@ -981,11 +1003,21 @@ EOT;
 <td>$nickname</td>
 <td>$id</td>
 <td>$note</td>
+<td>
+<input type="hidden" name="id$idx" value="$id"/>
+<input type="checkbox" name="chk$idx"/>
+</td>
 </tr>
 
 EOT;
+      $idx++;
     }
-    $body .= "</table>\n";
+    $body .= <<<EOT
+</table>
+<br/>
+<input type="submit" name="deletecontacts" value="Delete checked"/>
+</form>
+EOT;
   }
 }
 

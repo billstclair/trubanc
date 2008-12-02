@@ -328,7 +328,7 @@ class client {
     if (!$this->current_bank()) return "In register(): Bank not set";
 
     // If already registered and we know it, nothing to do
-    if ($db->get(userbankkey($t->PUBKEYSIG) . "/$id")) return false;
+    if ($db->get($this->userbankkey($t->PUBKEYSIG) . "/$id")) return false;
 
     // See if bank already knows us
     // Resist the urge to change this to a call to
@@ -400,7 +400,7 @@ class client {
     $ids = $db->contents($this->contactkey());
     $res = array();
     foreach ($ids as $otherid) {
-      $contact = $this->getcontact_internal($otherid);
+      $contact = $this->getcontact_internal($otherid, false, false);
       if ($contact) $res[] = $contact;
     }
     usort($res, array("client", "comparecontacts"));
@@ -428,7 +428,7 @@ class client {
     return $res;
   }
 
-  function getcontact_internal($otherid, $add=false) {
+  function getcontact_internal($otherid, $add=false, $probebank=true) {
     $t = $this->t;
     $db = $this->db;
     
@@ -437,7 +437,7 @@ class client {
       if ($add) {
         $this->addcontact_internal($otherid);
         $pubkeysig = $this->contactprop($otherid, $t->PUBKEYSIG);
-      } else {
+      } elseif ($probebank) {
         return $this->get_id($otherid);
       }
     }
@@ -482,7 +482,6 @@ class client {
     $args = $this->get_id($otherid);
     if (!$args) return "Can't find id at bank: $otherid";
     $msg = $args[$t->MSG];
-    $pubkey = $args[$t->PUBKEY];
     $name = $args[$t->NAME];
 
     if (!$nickname) $nickname = $name ? $name : 'anonymous';
@@ -490,6 +489,33 @@ class client {
     $db->put($this->contactkey($otherid, $t->NOTE), $note);
     $db->put($this->contactkey($otherid, $t->NAME), $name);
     $db->put($this->contactkey($otherid, $t->PUBKEYSIG), $msg);
+  }
+
+  // Delete a contact from the current bank.
+  function deletecontact($otherid) {
+    $t = $this->t;
+    $db = $this->db;
+
+    $lock = $db->lock($this->userreqkey());
+    $res = $this->deletecontact_internal($otherid);
+    $db->unlock($lock);
+
+    return $res;
+  }
+
+  function deletecontact_internal($otherid) {
+    $t = $this->t;
+    $db = $this->db;
+
+    $key = $this->contactkey($otherid);
+    $contents = $db->contents($key);
+    echo "contents($key): "; print_r($contents); echo "<br>\n";
+    foreach ($contents as $k) {
+      echo "deleting $key/$k<br>\n";
+      $db->put("$key/$k", '');
+    }
+
+    return false;
   }
 
   // Check for an id at the bank. Return false if not there.
@@ -514,11 +540,13 @@ class client {
     $args = $args[$t->MSG];
     $pubkey = $args[$t->PUBKEY];
     if ($id != $ssl->pubkey_id($pubkey)) return false;
+
     $res = array();
     $res[$t->ID] = $args[$t->CUSTOMER];
     $res[$t->PUBKEY] = $args[$t->PUBKEY];
     $res[$t->NAME] = $args[$t->NAME];
-    $args[$t->MSG] = $msg;
+    $res[$t->MSG] = $msg;
+
     return $res;
   }
 
@@ -781,13 +809,7 @@ class client {
     $res = $this->spend_internal($toid, $assetid, $formattedamount, $acct, $note);
     $db->unlock($lock);
 
-    if ($res) {
-      // Force a resync with the server.
-      // Should eventually distinguish user errors, which don't require
-      // resync, from errors that do.
-      $this->syncedreq = false;
-      $db->put($this->userbankkey($t->REQ), -2);
-    }
+    if ($res) $this->forceinit();
 
     return $res;
   }
@@ -992,6 +1014,8 @@ class client {
     $res = $this->getinbox_internal();
     $db->unlock($lock);
 
+    if ($res) $this->forceinit();
+
     return $res;
   }
 
@@ -1044,6 +1068,7 @@ class client {
       }
       $res[$time] = $items;
     }
+
     return $res;
   }
 
@@ -1136,6 +1161,8 @@ class client {
     $lock = $db->lock($this->userreqkey());
     $res = $this->processinbox_internal($directions, false);
     $db->unlock($lock);
+
+    if ($res) $this->forceinit();
 
     return $res;
   }
@@ -2153,6 +2180,7 @@ class client {
   function is_id($x) {
     return is_string($x) && strlen($x) == 40 && @pack("H*", $x);
   }
+
 }
 
 class serverproxy {

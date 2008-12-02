@@ -427,8 +427,8 @@ class server {
   // Add $amount to the bank balance for $assetid in the main account
   // Any non-false return value is an error string
   function add_to_bank_balance($assetid, $amount) {
-    global $bankid;
-    global $db;
+    $bankid = $this->bankid;
+    $db = $this->db;
 
     if ($amount == 0) return;
     $key = $this->assetbalancekey($bankid, $assetid);
@@ -439,9 +439,9 @@ class server {
   }
 
   function add_to_bank_balance_internal($key, $assetid, $amount) {
-    global $bankid;
-    global $db;
-    global $t;
+    $bankid = $this->bankid;
+    $db = $this->db;
+    $t = $this->t;
 
     $balmsg = $db->get($key);
     $balargs = $this->unpack_bankmsg($balmsg, $t->ATBALANCE, $t->BALANCE);
@@ -462,6 +462,9 @@ class server {
         $msg = $this->bankmsg($t->BALANCE, $bankid, $this->gettime(), $assetid, $newbal);
         $msg = $this->bankmsg($t->ATBALANCE, $msg);
         $db->put($key, $msg);
+        $key = $this->acctreqkey($bankid);
+        // Make sure clients update the balance
+        $db->put($key, bcadd(1, $db->get($key)));
       }
     }
     return false;
