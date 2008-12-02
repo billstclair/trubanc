@@ -64,6 +64,7 @@ elseif ($cmd == 'bank') do_bank();
 elseif ($cmd == 'contact') do_contact();
 elseif ($cmd == 'admin') do_admin();
 elseif ($cmd == 'spend') do_spend();
+elseif ($cmd == 'processinbox') do_processinbox();
 elseif ($cmd == 'balance') draw_balance();
 elseif ($cmd == 'contacts') draw_contacts();
 elseif ($cmd == 'banks') draw_banks();
@@ -334,6 +335,13 @@ function do_spend() {
   }
 }
 
+function do_processinbox() {
+  global $error;
+
+  $error = "Processinbox not yet implemented";
+  draw_balance();
+}
+
 function draw_login($key=false) {
   global $title, $menu, $body, $onload;
   global $keysize, $require_tokens;
@@ -412,7 +420,15 @@ function idcode() {
 
   $id = '';
   if ($client) $id = $client->id;
-  return $id ? "<b>Your ID:</b> $id<br/>\n": '';
+  if (!$id) return '';
+  $args = $client->get_id($id);
+  if ($args) {
+    $t = $client->t;
+    $name = $args[$t->NAME];
+    if ($name) $res = "<b>Account name:</b> $name<br/>\n";
+  }
+  $res .= "<b>Your ID:</b> $id<br/>\n";
+  return $res;
 }
 
 function setbank($reporterror=false) {
@@ -466,7 +482,7 @@ function contact_namestr($contact) {
   $recipid = hsc($contact[$t->ID]);
   if ($nickname) {
     if ($name && $name != $nickname) $namestr = "$nickname ($name)";
-  } elseif ($name) $namestr = $name;
+  } elseif ($name) $namestr = "($name)";
   else $namestr = "$recipid";
   return "$namestr";
 }
@@ -545,6 +561,7 @@ EOT;
         $outbox = array();
       }
       $nonspends = array();
+      $spendcnt = 0;
       foreach ($inbox as $item) {
         $item = $item[0];
         $request = $item[$t->REQUEST];
@@ -555,8 +572,7 @@ EOT;
           if ($namestr != $fromid) {
             $namestr = "<span title=\"$fromid\">$namestr<span>";
           }
-        }
-        else $namestr = hsc($fromid);
+        } else $namestr = hsc($fromid);
 
         if ($request != $t->SPEND) {
           $msgtime = $item[$msgtime];
@@ -572,8 +588,10 @@ EOT;
           $amount = hsc($item[$t->FORMATTEDAMOUNT]);
           $note = hsc($item[$t->NOTE]);
           if (!$note) $note = '&nbsp;';
+          $selname = "spend$spendcnt";
+          $spendcnt++;
           $selcode = <<<EOT
-<select name="sel">
+<select name="$selname">
 <option value="accept">Accept</option>
 <option value="reject">Reject</option>
 <option value="ignore">Ignore</option>
@@ -594,14 +612,17 @@ EOT;
 EOT;
         }
       }
+      $nonspendcnt = 0;
       foreach ($nonspends as $item) {
         $request = $item[$t->REQUEST];
         $assetname = hsc($item[$t->ASSETNAME]);
         $amount = hsc($item[$t->FORMATTEDAMOUNT]);
         $note = hsc($item[$t->NOTE]);
         if (!$note) $note = '&nbsp;';
+        $selname = "nonspend$nonspendcnt";
+        $nonspendcnt++;
         $selcode = <<<EOT
-<input type="checkbox" name="check">Remove</input>
+<input type="checkbox" name="$selname" checked="checked">Remove</input>
 
 EOT;
           $inboxcode .= <<<EOT
@@ -616,8 +637,17 @@ EOT;
 
 EOT;
       }
-      $inboxcode .= <<<EOT
+      
+      $inboxcode = <<<EOT
+<form method="post" action="./" autocomplete="off">
+<input type="hidden" name="cmd" value="processinbox"/>
+<input type="hidden" name="spendcnt" value="$spendcnt"/>
+<input type="hidden" name="nonspendcnt" value="$nonspendcnt"/>
+$inboxcode
 </table>
+<br/>
+<input type="submit" name="submit" value="Process Inbox"/>
+</form>
 <br/>
 
 EOT;
@@ -626,10 +656,15 @@ EOT;
     $balance = $client->getbalance();
     if (is_string($balance)) $error = $balance;
     else {
-      $balcode = "<table>\n<caption>=== Balances ===</caption>\n";
+      $balcode = "<table border=\"1\">\n<caption>=== Balances ===</caption>
+<tr><td><table>";
+      $firstacct = true;
       foreach ($balance as $acct => $assets) {
         $acct = hsc($acct);
-        $balcode .= "<tr><td></td><td><b>$acct</b></td></tr>\n";
+        if (!$firstacct) {
+          $balcode .= "<tr><td colspan=\"3\">&nbsp;</td></tr>\n";
+        } else $firstacct = false;
+        $balcode .= "<tr><th colspan=\"3\">$acct</td></tr>\n";
         $newassetlist = '';
         foreach ($assets as $asset => $data) {
           if ($data[$t->AMOUNT] != 0) {
@@ -638,17 +673,15 @@ EOT;
             $assetname = hsc($data[$t->ASSETNAME]);
             $formattedamount = hsc($data[$t->FORMATTEDAMOUNT]);
             $submitcode = '';
-            if ($havecontacts) {
-              $newassetlist .= <<<EOT
+            $newassetlist .= <<<EOT
 <input type="hidden" name="assetid$acctidx|$assetidx" value="$assetid"/>
 
 EOT;
-              $submitcode = <<<EOT
+            $submitcode = <<<EOT
 <input type="submit" name="spentasset$acctidx|$assetidx" value="Spend"/>
 
 EOT;
-              $assetidx++;
-            }
+            $assetidx++;
             $balcode .= <<<EOT
 <tr>
 <td align="right"><span style="margin-right: 5px">$formattedamount</span></td>
@@ -667,33 +700,33 @@ EOT;
           $acctidx++;
         }
       }
-      $balcode .= "</table>\n";
+      $balcode .= "</table>\n</td></tr></table>";
     }
-  }
 
-  $spendcode = '';
-  $closespend = '';
-  if ($gotbal && $havecontacts) {
-    $recipopts = '<select name="recipient">
+    $spendcode = '';
+    $closespend = '';
+    if ($gotbal) {
+      $recipopts = '<select name="recipient">
 <option value="">Choose recipient...</option>
 ';
-    $found = false;
-    foreach ($contacts as $contact) {
-      $namestr = contact_namestr($contact);
-      $selected = '';
-      if ($recipid == $recipient) {
-        $selected = ' selected="selected"';
-        $found = true;
-      }
-      $recipopts .= <<<EOT
+      $found = false;
+      foreach ($contacts as $contact) {
+        $namestr = contact_namestr($contact);
+        $recipid = $contact[$t->ID];
+        $selected = '';
+        if ($recipid == $recipient) {
+          $selected = ' selected="selected"';
+          $found = true;
+        }
+        $recipopts .= <<<EOT
 <option value="$recipid"$selected>$namestr</option>
 
 EOT;
-    }
-    $recipopts .= "</select>\n";
-    $recipientid = '';
-    if (!$found) $recipientid = $recipient;
-    $spendcode = <<<EOT
+      }
+      $recipopts .= "</select>\n";
+      $recipientid = '';
+      if (!$found) $recipientid = $recipient;
+      $spendcode = <<<EOT
 
 To make a spend, fill in the "Spend amount", choose a "Recipient" or
 enter a "Recipient ID, enter (optionally) a "Note", and click the
@@ -710,7 +743,7 @@ enter a "Recipient ID, enter (optionally) a "Note", and click the
 <td>$recipopts</td>
 </tr><tr>
 <td><b>Recipient ID:</b></td>
-<td><input type="text" name="recipientid" size="40" value="$recipientid"
+<td><input type="text" name="recipientid" size="40" value="$recipientid"/>
 <input type="checkbox" name="allowunregistered">Allow unregistered</checkbox></td>
 
 </tr><tr>
@@ -721,8 +754,9 @@ enter a "Recipient ID, enter (optionally) a "Note", and click the
 <br/>
 
 EOT;
-    $onload = "document.forms[0].amount.focus()";
-    $closespend = "</form>\n";
+      $onload = "document.forms[0].amount.focus()";
+      $closespend = "</form>\n";
+    }
   }
 
   if ($saveerror) {

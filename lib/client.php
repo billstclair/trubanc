@@ -477,15 +477,11 @@ class client {
       return false;
     }
 
-    $msg = $this->sendmsg($t->ID, $bankid, $otherid);
-    $args = $this->unpack_bankmsg($msg, $t->ATREGISTER);
-    if (is_string($args)) return $args;
-    $args = $args[$t->MSG];
+    $args = $this->get_id($otherid);
+    if (!$args) return "Can't find id at bank: $otherid";
+    $msg = $args[$t->MSG];
     $pubkey = $args[$t->PUBKEY];
     $name = $args[$t->NAME];
-    if ($otherid != $ssl->pubkey_id($pubkey)) {
-      return "pubkey from server doesn't match ID";
-    }
 
     if (!$nickname) $nickname = $name ? $name : 'anonymous';
     $db->put($this->contactkey($otherid, $t->NICKNAME), $nickname);
@@ -494,11 +490,16 @@ class client {
     $db->put($this->contactkey($otherid, $t->PUBKEYSIG), $msg);
   }
 
-  // Return the parsed ID message if an ID exists on the server,
-  // or false if not.
+  // Check for an id at the bank. Return false if not there.
+  // Return array($t->PUBKEY => $pubkey,
+  //              $t->NAME => $name)
   function get_id($id) {
     $t = $this->t;
     $db = $this->db;
+    $bankid = $this->bankid;
+    $ssl = $this->ssl;
+
+    if (!$bankid) return false;
 
     $key = $this->userbankkey($t->PUBKEYSIG) . "/$id";
     $msg = $db->get($key);
@@ -508,8 +509,10 @@ class client {
     }    
     $args = $this->unpack_bankmsg($msg, $t->ATREGISTER);
     if (is_string($args)) return false;
+    $args = $args[$t->MSG];
     $pubkey = $args[$t->PUBKEY];
     if ($id != $ssl->pubkey_id($pubkey)) return false;
+    $args[$t->MSG] = $msg;
     return $args;
   }
 
