@@ -672,21 +672,25 @@ class client {
     $bal1 = $this->getbalance($t->MAIN, $tokenid);
     if (is_string($bal1)) return $bal1;
     $bal1 = $bal1[$t->AMOUNT];
-    $ispos = (bccomp($bal1, 0) >= 0);
-    if ($id != $bankid) {
+    if ($id == $bankid) $bal1 = '';
+    else {
+      $ispos = (bccomp($bal1, 0) >= 0);
       $bal1 = bcsub($bal1, 2);
       if ($ispos && (bccomp($bal1, 0) < 0)) {
         return "You need 2 usage tokens to create a new asset";
       }
       $bal1 = $this->custmsg($t->BALANCE, $bankid, $time, $tokenid, $bal1);
-      $bal1 = ".$bal1";
-    } else $bal1 = '';
+    }
     $bal2 = $this->custmsg($t->BALANCE, $bankid, $time, $assetid, -1);
+
     $acctbals = array($t->MAIN => array($assetid => $bal2));
     if ($bal1) $acctbals[$t->MAIN][$tokenid] = $bal1;
-                                        
     $balancehash = $this->balancehashmsg($time, $acctbals);
-    $msg = $server->process("$process$bal1.$bal2.$balancehash");
+
+    $msg = $process;
+    if ($bal1) $msg .= ".$bal1";
+    $msg .= ".$bal2.$balancehash";
+    $msg = $server->process($msg);
 
     // Request sent. Check for error
     $reqs = $this->parser->parse($msg);

@@ -296,7 +296,8 @@ function do_asset() {
     $scale = mqpost('scale');
     $precision = mqpost('precision');
     $assetname = mqpost('assetname');
-    if (!($scale && $precision && $assetname)) {
+    if (!((strlen(scale) > 0) && (strlen($precision) > 0) &&
+          (strlen($assetname) > 0))) {
       $error = "Scale, Precision, and Asset name must all be specified";
     } elseif (!(is_numeric($scale) && is_numeric($precision))) {
       $error = "Scale and Precision must be numbers";
