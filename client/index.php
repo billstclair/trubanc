@@ -23,11 +23,20 @@ function hsc($x) {
   return htmlspecialchars($x);
 }
 
+$debug = '';
+
+function appenddebug($x) {
+  global $debug;
+  $debug .= $x;
+}
+
 $cmd = mq($_REQUEST['cmd']);
 
 $db = new fsdb($dbdir);
 $ssl = new ssl();
 $client = new client($db, $ssl);
+
+if ($_COOKIE['debug']) $client->showprocess = 'appenddebug';
 
 $default_menuitems = array('balance' => 'Balance',
                            'contacts' => 'Contacts',
@@ -84,7 +93,8 @@ elseif ($session) draw_balance();
 
 else draw_login();
 
-// Use $title, $body, and $onload to fill the page template.
+// Use $title, $body, and $onload, $debug to fill the page template.
+if ($debug) $debug = "<b>=== Debug log ===</b><br/><pre>$debug</pre>\n";
 include "template.php";
 
 function menuitem($cmd, $text, $highlight) {

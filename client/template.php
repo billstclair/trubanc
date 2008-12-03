@@ -26,6 +26,7 @@ if (!$body) $body = 'This is the template for Trubanc web client pages';
 <? echo $bankline; ?>
 <? echo idcode(); ?>
 <? echo $body; ?>
+<? echo $debug; ?>
 </body>
 </html>
 <?

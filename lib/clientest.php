@@ -189,7 +189,7 @@ while (true) {
   } elseif ($cmd == 'quit' || $cmd == 'q') {
     exit(0);
   } elseif ($cmd == 'show') {
-    $client->showprocess = !$client->showprocess;
+    $client->showproess = $client->showprocess ? false : 'echo';
   } elseif ($cmd == 'users') {
     foreach($users as $user) {
       echo $user['idx'] . ': ' . $user['name'] . ', ' . $user['id'] . "\n";

@@ -2334,9 +2334,10 @@ class serverproxy {
     $url = $this->url;
     $client = $this->client;
 
-    if ($client->showprocess) echo "processing: $msg\n";
+    $showfun = $client->showprocess;
+    if ($showfun) $showfun("processing: $msg\n");
     $res = @file_get_contents("$url/?msg=" . urlencode($msg));
-    if ($client->showprocess) echo "returned: $res\n";
+    if ($showfun) $showfun("returned: $res\n");
     return $res;
   }
 }
