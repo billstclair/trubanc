@@ -1057,7 +1057,8 @@ class client {
           $item[$t->AMOUNT] = $amount;
           if (!is_string($asset)) {
             $item[$t->ASSETNAME] = $asset[$t->ASSETNAME];
-            $item[$t->FORMATTEDAMOUNT] = $this->format_asset_value($amount, $asset);
+            $item[$t->FORMATTEDAMOUNT] =
+              $this->format_asset_value($amount, $asset, false);
           }
         } elseif ($request == $t->SPENDACCEPT || $request == $t->SPENDREJECT) {
           // Pull in data from outbox to get amounts
@@ -1255,6 +1256,20 @@ class client {
 
     $acctbals = array();
 
+    // Compute fees for new balance files
+    $fees = $this->getfees();
+    if (is_string($fees)) return $fees;
+    $tranfee = $fees[$t->TRANFEE];
+    $feeasset = $tranfee[$t->ASSET];
+    foreach ($deltas as $acct => $amounts) {
+      foreach ($amounts as $asset => $amount) {
+        $oldamount = $balance[$acct][$asset][$t->AMOUNT];
+        if ((!$oldamount) && !($oldamount===0)) {
+          $deltas[$t->MAIN][$feeasset] = bcsub($deltas[$t->MAIN][$feeasset], 1);
+        }
+      }
+    }
+
     // Create balance, outboxhash, and balancehash messages
     foreach ($deltas as $acct => $amounts) {
       foreach ($amounts as $asset => $amount) {
@@ -1407,7 +1422,8 @@ class client {
         $item[$t->AMOUNT] = $amount;
         if (!is_string($asset)) {
           $item[$t->ASSETNAME] = $asset[$t->ASSETNAME];
-          $item[$t->FORMATTEDAMOUNT] = $this->format_asset_value($amount, $asset);
+          $item[$t->FORMATTEDAMOUNT] =
+            $this->format_asset_value($amount, $asset, false);
         }
         $items[] = $item;
       }
@@ -1684,13 +1700,13 @@ class client {
   }
 
   // format an asset value from the asset ID or $this->getasset($assetid)
-  function format_asset_value($value, $assetid) {
+  function format_asset_value($value, $assetid, $incnegs=true) {
     $t = $this->t;
 
     if (is_string($assetid)) $asset = $this->getasset($assetid);
     else $asset = $assetid;
     if (is_string($asset)) return $value;
-    return $this->format_value($value, $asset[$t->SCALE], $asset[$t->PRECISION]);
+    return $this->format_value($value, $asset[$t->SCALE], $asset[$t->PRECISION], $incnegs);
   }
 
   // Unformat an asset value from the asset ID or $this->getasset($assetid)
@@ -1704,9 +1720,9 @@ class client {
   }
 
   // format an asset value for user printing
-  function format_value($value, $scale, $precision) {
+  function format_value($value, $scale, $precision, $incnegs=true) {
     $sign = 1;
-    if (bccomp($value, 0) < 0) {
+    if ($incnegs && bccomp($value, 0) < 0) {
       $value = bcadd($value, 1);
       $sign = -1;
     }
@@ -1899,7 +1915,12 @@ class client {
       // Get account balances
       $msg = $this->sendmsg($t->GETBALANCE, $bankid, $reqnum);
       $reqs = $parser->parse($msg);
-      if (!$reqs) return "While parsing getbalance: " . $parser->errmsg;
+      if (!$reqs) {
+        if ($parser->errmsg) {
+          return "While parsing getbalance: " . $parser->errmsg;
+        }
+        $reqs = array();
+      }
       $balances = array();
       $balancehash = false;
       foreach ($reqs as $req) {

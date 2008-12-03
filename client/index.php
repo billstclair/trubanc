@@ -3,7 +3,7 @@
   // client/index.php
   // A Trubanc web client
 
-// Define $dbdir, $default_server, $require_tokens
+// Define $dbdir, $default_server, $require_tokens, $server_dbdir
 require_once "settings.php";
 
 require_once "../lib/fsdb.php";
@@ -123,9 +123,11 @@ function do_logout() {
 // Here from the login page when the user presses one of the buttons
 function do_login() {
   global $title, $body, $onload;
-  global $keysize, $require_tokens;
+  global $keysize, $require_tokens, $server_dbdir;
   global $error;
   global $client, $ssl;
+
+  $t = $client->t;
 
   $passphrase = mq($_POST['passphrase']);
   $passphrase2 = mq($_POST['passphrase2']);
@@ -150,15 +152,28 @@ function do_login() {
         $tok = mq($_POST['tok']);
         $token = $client->token($tok);
         if (!$token) {
-          $error = "You must get an invitation token from the owner of this web site";
-          draw_login();
-          return;
+          $sprivkey = '';
+          // If the user knows the server private key, let him in.
+          if ($server_dbdir) {
+            $sdb = new fsdb($server_dbdir);
+            $sprivkey = $sdb->get($t->PRIVKEY);
+          }
+          if ((trim($sprivkey) == trim($privkey)) || (!$privkey)) {
+            $error = "You must get an invitation token from the owner of this web site";
+            draw_login();
+            return;
+          }
         }
       }
       if ($privkey) {
         // Support adding a passphrase to a private key without one
         $pk = $ssl->load_private_key($privkey);
         if ($pk) {
+          if ($passphrase != $passphrase2) {
+            $error = "Passphrase didn't match Verification";
+            draw_login();
+            return;
+          }
           openssl_pkey_export($pk, $privkey, $passphrase);
           openssl_free_key($pk);
         }
@@ -756,7 +771,7 @@ EOT;
 
     $balance = $client->getbalance();
     if (is_string($balance)) $error = $balance;
-    else {
+    elseif (count($balance) > 0) {
       $balcode = "<table border=\"1\">\n<caption><b>=== Balances ===</b></caption>
 <tr><td><table>";
       $firstacct = true;
