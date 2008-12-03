@@ -559,7 +559,20 @@ class client {
     return $db->contents($this->userbalancekey());
   }
 
-  // Return the assets known to the current bank.
+  // For usort in getassets
+  function compareassets($c1, $c2) {
+    $t = $this->t;
+
+    if ($c1[$t->ASSETNAME] < $c2[$t->ASSETNAME]) return -1;
+    elseif ($c1[$t->ASSETNAME] > $c2[$t->ASSETNAME]) return 1;
+    else {
+      if ($c1[$t->ASSET] < $c2[$t->ASSET]) return -1;
+      elseif ($c1[$t->ASSET] > $c2[$t->ASSET]) return 1;
+      else return 0;
+    }
+  }
+
+  // Return the assets for which the customer has balances
   // array(<getasset() result>)
   function getassets() {
     $db = $this->db;
@@ -569,12 +582,20 @@ class client {
     $bankid = $this->bankid;
 
     if ($bankid) {
-      $assets = $db->contents($this->assetkey());
-      foreach ($assets as $assetid) {
-        $res[] = $this->getasset($assetid);
+      $key = $this->userbalancekey();
+      $accts = $db->contents($key);
+      foreach ($accts as $acct) {
+        $assetids = $db->contents("$key/$acct");
+        foreach ($assetids as $assetid) {
+          if (!$res[$assetid]) {
+            $asset = $this->getasset($assetid);
+            if ($asset) $res[$assetid] = $asset;
+          }
+        }
       }
     }
 
+    usort($res, array("client", "compareassets"));
     return $res;
   }
 
