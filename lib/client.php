@@ -192,18 +192,12 @@ class client {
       $bank = array($t->BANKID => $bankid,
                     $t->NAME => $this->bankprop($t->NAME, $bankid),
                     $t->URL => $this->bankprop($t->URL, $bankid));
-      $res[] = $bank;
+      $res[$bankid] = $bank;
     }
 
-    usort($res, array('client', 'comparebanks'));
+    uasort($res, array('client', 'comparebanks'));
 
-    // Unfortunately, usort doesn't preserve keys
-    $res2 = array();
-    foreach ($res as $bank) {
-      $res2[$bank[$t->BANKID]] = $bank;
-    }
-
-    return $res2;
+    return $res;
   }
 
   // Add a bank with the given URL to the database.
@@ -376,21 +370,21 @@ class client {
     return $res;
   }
 
+  // General comparison function on array element
+  function comparearrays($a1, $a2, $keys, $comparer='strcmp') {
+    foreach ($keys as $key) {
+      $res = $comparer($a1[$key], $a2[$key]);
+      if ($res != 0) return $res;
+    }
+    return 0;
+  }
+
   // For usort in getcontacts_internal
   function comparecontacts($c1, $c2) {
     $t = $this->t;
 
-    if ($c1[$t->NICKNAME] < $c2[$t->NICKNAME]) return -1;
-    elseif ($c1[$t->NICKNAME] > $c2[$t->NICKNAME]) return 1;
-    else {
-      if ($c1[$t->NAME] < $c2[$t->NAME]) return -1;
-      elseif ($c1[$t->NAME] > $c2[$t->NAME]) return 1;
-      else {
-        if ($c1[$t->ID] < $c2[$t->ID]) return -1;
-        elseif ($c1[$t->ID] > $c2[$t->ID]) return 1;
-        else return 0;
-      }
-    }
+    return $this->comparearrays
+      ($t1, $t2, array($t->NICKNAME, $t->NAME, $t->ID));
   }
 
   function getcontacts_internal() {
@@ -563,13 +557,7 @@ class client {
   function compareassets($c1, $c2) {
     $t = $this->t;
 
-    if ($c1[$t->ASSETNAME] < $c2[$t->ASSETNAME]) return -1;
-    elseif ($c1[$t->ASSETNAME] > $c2[$t->ASSETNAME]) return 1;
-    else {
-      if ($c1[$t->ASSET] < $c2[$t->ASSET]) return -1;
-      elseif ($c1[$t->ASSET] > $c2[$t->ASSET]) return 1;
-      else return 0;
-    }
+    return $this->comparearrays($c1, $c2, array($t->ASSETNAME, $t->ASSET));
   }
 
   // Return the assets for which the customer has balances
@@ -860,6 +848,22 @@ class client {
     return $res;
   }
 
+  function compareaccts($a1, $a2) {
+    $t = $this->t;
+
+    if ($a1 == $t->MAIN) {
+      if ($a2 == $t->MAIN) return 0;
+      return -1;
+    } elseif ($a2 == $t->MAIN) return 1;
+    return strcmp($a1, $a2);
+  }
+
+  function comparebalances($b1, $b2) {
+    $t = $this->t;
+
+    return $this->comparearrays($b1, $b2, array($t->ASSETNAME, $t->ASSET));
+  }
+
   function getbalance_internal($inacct, $inassetid) {
     $t = $this->t;
     $db = $this->db;
@@ -868,12 +872,14 @@ class client {
     if (is_string($inacct)) $accts = array($inacct);
     else {
       $accts = $db->contents($this->userbalancekey());
+      usort($accts, array('client', 'compareaccts'));
     }
 
     $res = array();
     foreach ($accts as $acct) {
       if ($inassetid) $assetids = array($inassetid);
       else $assetids = $db->contents($this->userbalancekey($acct));
+      $assets = array();
       foreach ($assetids as $assetid) {
         $amount = $this->userbalance($acct, $assetid);
         if (!is_numeric($amount)) return "While gathering balances: $amount";
@@ -885,11 +891,13 @@ class client {
           $formattedamount = $this->format_asset_value($amount, $asset);
           $assetname = $asset[$t->ASSETNAME];
         }
-        $res[$acct][$assetid] = array($t->ASSET => $assetid,
-                                      $t->ASSETNAME => $assetname,
-                                      $t->AMOUNT => $amount,
-                                      $t->FORMATTEDAMOUNT => $formattedamount);
+        $assets[$assetid] = array($t->ASSET => $assetid,
+                                  $t->ASSETNAME => $assetname,
+                                  $t->AMOUNT => $amount,
+                                  $t->FORMATTEDAMOUNT => $formattedamount);
       }
+      uasort($assets, array('client', 'comparebalances'));
+      $res[$acct] = $assets;
     }
     if (is_string($inacct) && $inassetid) {
       if (count($res) == 0) $res = false;
