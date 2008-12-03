@@ -32,6 +32,7 @@ $client = new client($db, $ssl);
 $default_menuitems = array('balance' => 'Balance',
                            'contacts' => 'Contacts',
                            'banks' => 'Banks',
+                           'assets' => 'Assets',
                            'admins' => 'Admin',
                            'logout' => 'Logout');
 
@@ -64,18 +65,23 @@ if ($client->id) {
 } elseif ($cmd != 'login') $cmd = '';
 
 if (!$cmd) draw_login();
+
 elseif ($cmd == 'logout') do_logout();
 elseif ($cmd == 'login') do_login();
-elseif ($cmd == 'bank') do_bank();
 elseif ($cmd == 'contact') do_contact();
+elseif ($cmd == 'bank') do_bank();
+elseif ($cmd == 'asset') do_asset();
 elseif ($cmd == 'admin') do_admin();
 elseif ($cmd == 'spend') do_spend();
 elseif ($cmd == 'processinbox') do_processinbox();
+
 elseif ($cmd == 'balance') draw_balance();
 elseif ($cmd == 'contacts') draw_contacts();
 elseif ($cmd == 'banks') draw_banks();
+elseif ($cmd == 'assets') draw_assets();
 elseif ($cmd == 'admins') draw_admin();
 elseif ($session) draw_balance();
+
 else draw_login();
 
 // Use $title, $body, and $onload to fill the page template.
@@ -276,6 +282,31 @@ function do_contact() {
   } else draw_balance();
 
   }
+
+// Here to add a new asset
+function do_asset() {
+  global $client;
+  global $error;
+
+  $error = false;
+
+  $newasset = mq($_POST['newasset']);
+
+  if ($newasset) {
+    $scale = mqpost('scale');
+    $precision = mqpost('precision');
+    $assetname = mqpost('assetname');
+    if (!($scale && $precision && $assetname)) {
+      $error = "Scale, Precision, and Asset name must all be specified";
+    } elseif (!(is_numeric($scale) && is_numeric($precision))) {
+      $error = "Scale and Precision must be numbers";
+    } else {
+      $error = $client->addasset($scale, $precision, $assetname);
+    }
+    if ($error) draw_assets($scale, $precision, $assetname);
+    else draw_assets();
+  } else draw_balance();
+}
 
 function do_admin() {
   global $client;
@@ -1044,6 +1075,84 @@ EOT;
 <input type="submit" name="deletecontacts" value="Delete checked"/>
 </form>
 EOT;
+  }
+}
+
+function draw_assets($scale=false, $precision=false, $assetname=false) {
+  global $onload, $body;
+  global $error;
+  global $client;
+
+  $t = $client->t;
+
+  $onload = "document.forms[0]..focus()";
+
+  setmenu('assets');
+
+  $scale = hsc($scale);
+  $precision = hsc($precision);
+  $assetname = hsc($assetname);
+
+  $body .= <<<EOT
+<span style="color: red;">$error</span><br>
+<form method="post" action="./">
+<input type="hidden" name="cmd" value="asset"/>
+<table>
+<tr>
+<td><b>Scale:</b></td>
+<td><input type="text" name="scale" size="3" value="$scale"/>
+</tr><tr>
+<td><b>Precision:</b></td>
+<td><input type="text" name="precision" size="3" value="$precision"/></td>
+</tr><tr>
+<td><b>Asset name:</b></td>
+<td><input type="text" name="assetname" size="30" value="$assetname"/></td>
+</tr><tr>
+<td></td>
+<td><input type="submit" name="newasset" value="Add Asset"/>
+<input type="submit" name="cancel" value="Cancel"/></td>
+</tr>
+</table>
+</form>
+
+EOT;
+
+  $assets = $client->getassets();
+  if (count($assets) > 0) {
+    $body .= '<table border="1">
+<tr>
+<th>Asset name</th>
+<th>Scale</th>
+<th>Precision</th>
+<th>Owner</th>
+<th>Asset ID</th>
+</tr>
+';
+    foreach ($assets as $asset) {
+      $ownerid = $asset[$t->ID];
+      $contact = $client->getcontact($ownerid);
+      if ($contact) {
+        $namestr = contact_namestr($contact);
+        if ($namestr != $ownerid) {
+          $namestr = "<span title=\"$ownerid\">$namestr<span>";
+        }
+      } else $namestr = hsc($ownerid);
+      $assetid = $asset[$t->ASSET];
+      $scale = $asset[$t->SCALE];
+      $precision = $asset[$t->PRECISION];
+      $assetname = $asset[$t->ASSETNAME];
+      $body .= <<<EOT
+<tr>
+<td>$assetname</td>
+<td align="right">$scale</td>
+<td align="right">$precision</td>
+<td>$namestr</td>
+<td>$assetid</td>
+</tr>
+
+EOT;
+    }
+    $body .= "</table>\n";
   }
 }
 

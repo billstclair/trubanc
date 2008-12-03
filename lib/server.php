@@ -534,8 +534,9 @@ class server {
 
     $assetbalancekey = $this->assetbalancekey($id, $asset, $acct);
     $acctmsg = $db->get($assetbalancekey);
-    if (!$acctmsg && $id != $bankid) $state['tokens']++;
-    else {
+    if (!$acctmsg) {
+      if ($id != $bankid) $state['tokens']++;
+    } else {
       $acctargs = $this->unpack_bankmsg($acctmsg, $t->ATBALANCE, $t->BALANCE);
       if (is_string($acctargs) || !$acctargs ||
           $acctargs[$t->ASSET] != $asset ||
@@ -1420,7 +1421,8 @@ class server {
       return $this->failmsg($msg, "Asset already exists: $assetid");
     }
 
-    $tokens = 1;                // costs 1 token for the /asset/<assetid> file
+    $tokens = 1;       // costs 1 token for the /asset/<assetid> file
+    if ($id == $bankid) $tokens = 0;
 
     $bals = array($assetid => -1);
     $acctbals = array();
@@ -1522,7 +1524,8 @@ class server {
       $hash = $hasharray[$t->HASH];
       $hashcnt = $hasharray[$t->COUNT];
       if ($balancehash != $hash || $balancehashcnt != $hashcnt) {
-        return $this->failmsg($msg, $t->BALANCEHASH . ' mismatch');
+        return $this->failmsg($msg, $t->BALANCEHASH .
+                              " mismatch, hash: $balancehash, sb: $hash, count: $balancehashcnt, sb: $hashcnt");
       }
     }
   

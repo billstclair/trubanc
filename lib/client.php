@@ -509,9 +509,7 @@ class client {
 
     $key = $this->contactkey($otherid);
     $contents = $db->contents($key);
-    echo "contents($key): "; print_r($contents); echo "<br>\n";
     foreach ($contents as $k) {
-      echo "deleting $key/$k<br>\n";
       $db->put("$key/$k", '');
     }
 
@@ -562,7 +560,7 @@ class client {
   }
 
   // Return the assets known to the current bank.
-  // array(<getassset() result>)
+  // array(<getasset() result>)
   function getassets() {
     $db = $this->db;
     $t = $this->t;
@@ -636,6 +634,88 @@ class client {
     }
     $db->put($key, $msg);
     return $args;
+  }
+
+  function addasset($scale, $precision, $assetname) {
+    $t = $this->t;
+    $db = $this->db;
+
+    $lock = $db->lock($this->userreqkey());
+    $res = $this->addasset_internal($scale, $precision, $assetname);
+    $db->unlock($lock);
+
+    if ($res) $this->forceinit();
+
+    return $res;
+  }
+
+  function addasset_internal($scale, $precision, $assetname) {
+    $t = $this->t;
+    $u = $this->u;
+    $db = $this->db;
+    $id = $this->id;
+    $bankid = $this->bankid;
+    $server = $this->server;
+    $parser = $this->parser;
+
+    if (!$id || !$bankid) return "Can't add asset unless bank is set";
+
+    $assetid = $u->assetid($id, $scale, $precision, $assetname);
+    $time = $this->gettime();
+    if (!$time) return "While adding asset: can't get timestamp";
+    $fees = $this->getfees();
+    if (is_string($fees)) return "While adding asset: $fees";
+    $tranfee = $fees[$t->TRANFEE];
+    $tokenid = $tranfee[$t->ASSET];
+    
+    $process = $this->custmsg($t->ASSET, $bankid, $assetid, $scale, $precision, $assetname);
+    $bal1 = $this->getbalance($t->MAIN, $tokenid);
+    if (is_string($bal1)) return $bal1;
+    $bal1 = $bal1[$t->AMOUNT];
+    $ispos = (bccomp($bal1, 0) >= 0);
+    if ($id != $bankid) {
+      $bal1 = bcsub($bal1, 2);
+      if ($ispos && (bccomp($bal1, 0) < 0)) {
+        return "You need 2 usage tokens to create a new asset";
+      }
+      $bal1 = $this->custmsg($t->BALANCE, $bankid, $time, $tokenid, $bal1);
+      $bal1 = ".$bal1";
+    } else $bal1 = '';
+    $bal2 = $this->custmsg($t->BALANCE, $bankid, $time, $assetid, -1);
+    $acctbals = array($t->MAIN => array($assetid => $bal2));
+    if ($bal1) $acctbals[$t->MAIN][$tokenid] = $bal1;
+                                        
+    $balancehash = $this->balancehashmsg($time, $acctbals);
+    $msg = $server->process("$process$bal1.$bal2.$balancehash");
+
+    // Request sent. Check for error
+    $reqs = $this->parser->parse($msg);
+    if (!$reqs) return "While adding asset: " . $parser->errmsg;
+    $gotbal1 = $gotbal2 = false;
+    foreach ($reqs as $req) {
+      $args = $this->match_bankreq($req);
+      if (is_string($args)) return "While adding asset: $args";
+      if ($args[$t->REQUEST] == $t->FAILED) {
+        return "While adding asset: " . $args[$t->ERRMSG];
+      }
+      $msg = $parser->get_parsemsg($req);
+      $m = $args[$t->MSG];
+      $m = trim($parser->get_parsemsg($m));
+      if ($m == $bal1) $gotbal1 = $msg;
+      elseif ($m == $bal2) $gotbal2 = $msg;
+    }
+
+    if (!(($gotbal1 || (!$bal1)) && $gotbal2)) {
+      return "While adding asset: missing returned balance from server";
+    }
+
+    // All is well. Commit the balance changes
+    if ($bal1) $db->put($this->userbalancekey($t->MAIN, $tokenid), $gotbal1);
+    $db->put($this->userbalancekey($t->MAIN, $assetid), $gotbal2);
+
+    $this->getasset($assetid);
+
+    return false;
   }
 
   // Look up the transaction cost.
@@ -788,7 +868,7 @@ class client {
     }
     if (is_string($inacct) && $inassetid) {
       if (count($res) == 0) $res = false;
-      else $res = $res[$inacct][0];
+      else $res = $res[$inacct][$inassetid];
     }
     return $res;
   }
@@ -1831,7 +1911,7 @@ class client {
     }
 
     $req = $this->getreq();
-    if (!$req) return "Couldn't get req for gettime";
+    if (!$req) return false;
     $msg = $this->sendmsg($t->GETTIME, $bankid, $req);
     $args = $this->unpack_bankmsg($msg, $t->TIME);
     if (is_string($args)) return false;

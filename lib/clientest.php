@@ -176,6 +176,7 @@ while (true) {
       "addbank url: Add a bank to the current user\n" .
       "setbank <bank#>: set the current bank for the current user\n" .
       "assets: list asset types\n" .
+      "addasset: scale precision assetname\n" .
       "fees: get transaction and registration fees\n" .
       "contacts: list contacts known to the current user\n" .
       "balance: show balances for current user\n" .
@@ -273,6 +274,17 @@ while (true) {
       $precision = $asset[$t->PRECISION];
       echo "$i: $name $scale/$precision $assetid\n";
       $i++;
+    }
+  } elseif ($cmd == 'addasset') {
+    $cnt = count($tokens);
+    if ($cnt != 4) {
+      echo "Usage is: addasset scale precision assetname\n";
+    } else {
+      $scale = $tokens[1];
+      $precision = $tokens[2];
+      $assetname = $tokens[3];
+      $err = $client->addasset($scale, $precision, $assetname);
+      if ($err) echo "$err\n";
     }
   } elseif ($cmd == 'fees') {
     $fees = $client->getfees();
