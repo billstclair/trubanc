@@ -1085,7 +1085,7 @@ function draw_assets($scale=false, $precision=false, $assetname=false) {
 
   $t = $client->t;
 
-  $onload = "document.forms[0]..focus()";
+  $onload = "document.forms[0].scale.focus()";
 
   setmenu('assets');
 
