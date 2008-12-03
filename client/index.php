@@ -543,7 +543,10 @@ function contact_namestr($contact) {
   $nickname = hsc($contact[$t->NICKNAME]);
   $recipid = hsc($contact[$t->ID]);
   if ($nickname) {
-    if ($name && $name != $nickname) $namestr = "$nickname ($name)";
+    if ($name) {
+      if ($name != $nickname) $namestr = "$nickname ($name)";
+      else $namestr = $name;
+    }
   } elseif ($name) $namestr = "($name)";
   else $namestr = "$recipid";
   return "$namestr";
@@ -624,7 +627,7 @@ EOT;
       }
       $nonspends = array();
       $spendcnt = 0;
-      foreach ($inbox as $item) {
+      foreach ($inbox as $itemkey => $item) {
         $item = $item[0];
         $request = $item[$t->REQUEST];
         $fromid = $item[$t->ID];
@@ -640,9 +643,13 @@ EOT;
         if ($request != $t->SPEND) {
           $msgtime = $item[$t->MSGTIME];
           $outitem = $outbox[$msgtime];
+          // outbox entries are array($spend, $tranfee)
+          if ($outitem) $outitem = $outitem[0];
           if ($outitem) {
             $item[$t->ASSETNAME] = $outitem[$t->ASSETNAME];
             $item[$t->FORMATTEDAMOUNT] = $outitem[$t->FORMATTEDAMOUNT];
+            $item['reply'] = $item[$t->NOTE];
+            $item[$t->NOTE] = $outitem[$t->NOTE];
           }
           $nonspends[] = $item;
         }
@@ -692,11 +699,14 @@ EOT;
       $nonspendcnt = 0;
       foreach ($nonspends as $item) {
         $request = $item[$t->REQUEST];
+        $reqstr = ($request == $t->SPENDACCEPT) ? "Accept" : "Reject";
         $time = $item[$t->TIME];
         $assetname = hsc($item[$t->ASSETNAME]);
         $amount = hsc($item[$t->FORMATTEDAMOUNT]);
         $note = hsc($item[$t->NOTE]);
         if (!$note) $note = '&nbsp;';
+        $reply = hsc($item['reply']);
+        if (!$reply) $reply = '&nbsp;';
         $selname = "nonspend$nonspendcnt";
         if (!$contact[$t->CONTACT]) {
           $namestr .= <<<EOT
@@ -717,12 +727,13 @@ EOT;
           $inboxcode .= <<<EOT
 $timecode
 <tr>
-<td>Spend</td>
+<td>$reqstr</td>
 <td>$namestr</td>
 <td align="right" style="border-right-width: 0;">$amount</td>
 <td style="border-left-width: 0;">$assetname</td>
 <td>$note</td>
 <td>$selcode</td>
+<td>$reply</td>
 </tr>
 
 EOT;
