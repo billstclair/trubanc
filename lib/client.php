@@ -523,15 +523,18 @@ class client {
 
     $key = $this->userbankkey($t->PUBKEYSIG) . "/$id";
     $msg = $db->get($key);
+    $needstore = false;
     if (!$msg) {
       $msg = $this->sendmsg($t->ID, $bankid, $id);
-      $db->put($key, $msg);
+      $needstore = true;
     }    
     $args = $this->unpack_bankmsg($msg, $t->ATREGISTER);
     if (is_string($args)) return false;
     $args = $args[$t->MSG];
     $pubkey = $args[$t->PUBKEY];
     if ($id != $ssl->pubkey_id($pubkey)) return false;
+
+    if ($needstore) $db->put($key, $msg);
 
     $res = array();
     $res[$t->ID] = $args[$t->CUSTOMER];

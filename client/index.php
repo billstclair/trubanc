@@ -593,7 +593,7 @@ function contact_namestr($contact) {
     if ($name) {
       if ($name != $nickname) $namestr = "$nickname ($name)";
       else $namestr = $name;
-    }
+    } else $namestr = $nickname;
   } elseif ($name) $namestr = "($name)";
   else $namestr = "$recipid";
   return "$namestr";
