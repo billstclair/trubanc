@@ -2,7 +2,11 @@ A way to transfer contacts between clients, likely as a big URL.
 
 spend to nobody with an acct selection or fill-in transfers to that acct.
 
+Need a canonical URL for a bank. If somebody adds or removed a trailing slash in the same client instance, the second one will complain that it sees the same bank ID for a different URL. Same with capitalization.
+
 -----
+
+Email notification. Info must be encrypted in the server database. And it's obviously optional. User specifies message to send and options about transaction details, e.g. amount, asset, spender, bank url.
 
 Wrap functions around code shared by do_spend, do_processinbox, and do_asset
 

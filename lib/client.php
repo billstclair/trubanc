@@ -2173,15 +2173,11 @@ class client {
     return $res;
   }
 
-  // xor copies of $key with $string and return the result.
-  // If $packkey is true, pack $key as a hex string first.
+  // xor hashed copies of $key with $string and return the result.
   // This is a really simple encryption that only really works if
-  // $key is known to be random, e.g. the output of newsessionid(), and
-  // $string has no known substrings.
-  function xorcrypt($key, $string, $packkey=false) {
-    if ($packkey) {
-      $key = @pack("H*", $key);
-    }
+  // $key is known to be random, e.g. the output of newsessionid().
+  function xorcrypt($key, $string) {
+    $key = @pack("H*", sha1($key));
     $idx = 0;
     $keylen = strlen($key);
     $len = strlen($string);
@@ -2189,7 +2185,11 @@ class client {
     for ($i=0; $i<$len; $i++) {
       $res .= chr(ord(substr($key, $idx, $idx+1)) ^ ord(substr($string, $i, $i+1)));
       $idx++;
-      if ($idx >= $keylen) $idx = 0;
+      if ($idx >= $keylen) {
+        $idx = 0;
+        $key = @pack("H*", sha1($key));
+        $keylen = strlen($key);
+      }
     }
     return $res;
   }
@@ -2221,7 +2221,7 @@ class client {
     $db = $this->db;
 
     $passcrypt = $db->get($this->sessionkey(sha1($sessionid)));
-    return $this->xorcrypt($sessionid, $passcrypt, true);
+    return $this->xorcrypt($sessionid, $passcrypt);
   }
 
   // Create a new user session, encoding $passphrase with a new session id.
@@ -2232,7 +2232,7 @@ class client {
     $db = $this->db;
 
     $sessionid = $this->newsessionid();
-    $passcrypt = $this->xorcrypt($sessionid, $passphrase, true);
+    $passcrypt = $this->xorcrypt($sessionid, $passphrase);
     $usersessionkey = $this->usersessionkey();
     $lock = $db->lock($usersessionkey);
     $oldhash = $db->get($usersessionkey);

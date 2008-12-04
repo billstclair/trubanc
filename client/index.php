@@ -675,7 +675,7 @@ EOT;
     else {
       $inboxcode .= <<<EOT
 <table border="1">
-<caption>=== Inbox ===</caption>
+<caption><b>=== Inbox ===</b></caption>
 <tr>
 <th>Request</th>
 <th>From</th>
