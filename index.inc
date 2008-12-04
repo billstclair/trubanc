@@ -7,7 +7,7 @@
 <center>
 <h1>Trubanc</h1>
 <p>
-<img src="trubanc-logo.jpg" alt="Truebanc" width="376" height="355"/>
+<img src="trubanc-logo.jpg" alt="Trubanc" width="376" height="355"/>
 <p>
 <table width="75%"><tr><td>
 <a href="http://Trubanc.com/">Trubanc</a> is an anonymous,

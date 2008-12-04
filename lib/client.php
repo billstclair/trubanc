@@ -2330,9 +2330,24 @@ class serverproxy {
   var $client;
 
   function serverproxy($url, $client=false) {
-    if (substr($url,-1) == '/') $url = substr($url, 0, -1);
     $this->url = $url;
     $this->client = $client;
+  }
+
+  // From http://us.php.net/manual/en/function.stream-context-create.php#72017
+  function post($url, $post_variables=array()) {
+    $content = http_build_query($post_variables);
+    $content_length = strlen($content);
+    //echo "len: $content_length<br>\n$content<br/>\n";
+    $options = array
+      ('http'=>array('method' => 'POST',
+                     'header' =>
+                     "User-Agent: Trubanc\r\n" .
+                     "Content-type: application/x-www-form-urlencoded\r\n" . 
+                     "Content-length: $content_length\r\n",
+                     'content' => $content));
+    $context = stream_context_create($options);
+    return file_get_contents($url, false, $context);
   }
 
   function process($msg) {
@@ -2340,19 +2355,29 @@ class serverproxy {
     $client = $this->client;
     $db = $client->db;
 
-    $url = "$url/?msg=" . urlencode($msg);
+    // This is a kluge to get around versions of Apache that insist
+    // on sending "301 Moved Permanently" for directory URLs that
+    // are missing a trailing slash.
+    // file_get_contents doesn't resend the post data in that case
+    // This will break URLs that are to files intead of directories.
+    // As part of adding a bank, I should really do the raw send without
+    // params and see if I get a 301.
+    if (substr($url,-1) != '/') $url = $url .= '/';
+
+    $vars = array('msg' => $msg);
 
     $debugfile = '';
     if ($client->showprocess) {
       $debugdir = realpath($db->dir);
       $debugfile = 'serverdebug/' . $client->newsessionid();
-      $url = "$url&debugdir=" . urlencode($debugdir);
-      $url = "$url&debugfile=" . urlencode($debugfile);
+      $vars['debugdir'] = $debugdir;
+      $vars['debugfile'] = $debugfile;
     }
 
     $client->debugmsg("===PROCESSING: $msg\n");
 
-    $res = @file_get_contents($url);
+    //$res = file_get_contents("$url?" . http_build_query($vars));
+    $res = $this->post($url, $vars);
 
     if ($debugfile) {
       $text = $db->get($debugfile);
