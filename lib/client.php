@@ -2318,6 +2318,11 @@ class client {
     return is_string($x) && strlen($x) == 40 && @pack("H*", $x);
   }
 
+  function debugmsg($x) {
+    $showfun = $this->showprocess;
+    if ($showfun) @$showfun($x);
+  }
+
 }
 
 class serverproxy {
@@ -2333,11 +2338,31 @@ class serverproxy {
   function process($msg) {
     $url = $this->url;
     $client = $this->client;
+    $db = $client->db;
 
-    $showfun = $client->showprocess;
-    if ($showfun) $showfun("processing: $msg\n");
-    $res = @file_get_contents("$url/?msg=" . urlencode($msg));
-    if ($showfun) $showfun("returned: $res\n");
+    $url = "$url/?msg=" . urlencode($msg);
+
+    $debugfile = '';
+    if ($client->showprocess) {
+      $debugdir = realpath($db->dir);
+      $debugfile = 'serverdebug/' . $client->newsessionid();
+      $url = "$url&debugdir=" . urlencode($debugdir);
+      $url = "$url&debugfile=" . urlencode($debugfile);
+    }
+
+    $client->debugmsg("===PROCESSING: $msg\n");
+
+    $res = @file_get_contents($url);
+
+    if ($debugfile) {
+      $text = $db->get($debugfile);
+      if ($text) {
+        $db->put($debugfile, '');
+        $client->debugmsg("===SERVER SAYS: $text");
+      }
+    }
+    $client->debugmsg("===RETURNED: $res\n");
+
     return $res;
   }
 }

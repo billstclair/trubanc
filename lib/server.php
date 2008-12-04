@@ -23,6 +23,10 @@ class server {
   var $privkey;
   var $bankid;
 
+  // Debugging. See setdebugdir() and debugmsg()
+  var $debugdir;
+  var $debugfile;
+
   var $unpack_reqs_key = 'unpack_reqs';
 
   // $db is an object that does put(key, value), get(key), and dir(key)
@@ -554,6 +558,21 @@ class server {
       }
     }
     return false;
+  }
+
+  /*** Debugging ***/
+  function setdebugdir($debugdir, $debugfile) {
+    $this->debugdir = $debugdir;
+    $this->debugfile = $debugfile;
+  }
+
+  function debugmsg($msg) {
+    $debugdir = $this->debugdir;
+    $file = $this->debugfile;
+    if ($debugdir && $file) {
+      $db = new fsdb($debugdir);
+      $db->put($file, $db->get($file) . "$msg\n");
+    }
   }
 
   /*** Request processing ***/

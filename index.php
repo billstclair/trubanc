@@ -11,8 +11,14 @@ function mq($x) {
   else return $x;
 }
 
-$msg = mq($_REQUEST['msg']);
-$debug = mq($_REQUEST['debug']);
+function mqreq($x) {
+  return mq($_REQUEST[$x]);
+}
+
+$msg = mqreq('msg');
+$debug = mqreq('debug');
+$debugdir = mqreq('debugdir');
+$debugfile = mqreq('debugfile');
 
 if ($msg) {
 
@@ -23,6 +29,7 @@ if ($msg) {
   $db = new fsdb($dbdir);
   $ssl = new ssl();
   $server = new server($db, $ssl, false, $bank_name);
+  if ($debugdir && $debugfile) $server->setdebugdir($debugdir, $debugfile);
   if ($debug) {
     echo "msg: <pre>$msg</pre>\n";
     echo "response: <pre>";

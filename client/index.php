@@ -30,6 +30,12 @@ function appenddebug($x) {
   $debug .= $x;
 }
 
+function debugmsg($x) {
+  global $client;
+
+  $client->debugmsg($x);
+}
+
 $cmd = mq($_REQUEST['cmd']);
 
 $db = new fsdb($dbdir);
@@ -55,6 +61,7 @@ $session = $_COOKIE['session'];
 if ($session) {
   $err = $client->login_with_sessionid($session);
   if ($err) {
+    setcookie('session', false);
     $error = "Session login error: $err";
     $cmd = 'logout';
     $session = false;
@@ -85,6 +92,7 @@ elseif ($cmd == 'spend') do_spend();
 elseif ($cmd == 'processinbox') do_processinbox();
 
 elseif ($cmd == 'balance') draw_balance();
+elseif ($cmd == 'rawbalance') draw_raw_balance();
 elseif ($cmd == 'contacts') draw_contacts();
 elseif ($cmd == 'banks') draw_banks();
 elseif ($cmd == 'assets') draw_assets();
@@ -164,7 +172,7 @@ function do_login() {
       $error = "Passphrase didn't match Verification";
       draw_login();
     } else {
-      if ($require_tokens) {
+      if ($require_tokens && ($_SERVER['HTTP_HOST'] != 'localhost')) {
         $tok = mq($_POST['tok']);
         $token = $client->token($tok);
         if (!$token) {
@@ -637,7 +645,7 @@ function draw_balance($spend_amount=false, $recipient=false, $note=false) {
 
   if ($bankopts) {
     $bankcode .= <<<EOT
-<form method="post" action="./">
+<form method="post" action="./" autocomplete="off">
 <input type="hidden" name="cmd" value="bank">
 <select name="bank">
 <option value="">Choose a bank...</option>
@@ -858,7 +866,8 @@ EOT;
           $acctidx++;
         }
       }
-      $balcode .= "</table>\n</td></tr></table>";
+      $balcode .= "</table>\n</td></tr></table>\n";
+      $balcode .= '<br/><a href="./?cmd=rawbalance">Show raw balance</a><br/>' . "\n";
     }
 
     $spendcode = '';
@@ -941,6 +950,90 @@ EOT;
   $body = "$error<br>$bankcode$inboxcode$fullspend";
 }
 
+function draw_raw_balance() {
+  global $body;
+  global $client;
+
+  setmenu('balance');
+
+  if ($client) {
+    $t = $client->t;
+    $db = $client->db;
+    $id = $client->id;
+    $bankid = $client->bankid;
+    if (!($id && $bankid)) return;
+
+    $body = '';
+
+
+    $key = $client->userbankkey($t->INBOX);
+    $inbox = $db->contents($key);
+    if (count($inbox) == 0) {
+      $body .= "<br/><b>=== Inbox empty ===</b><br/>\n";
+    } else {
+      $body .= '<br/><b>=== Inbox ===</b><br/>
+<table border="1">
+
+';
+      foreach ($inbox as $file) {
+        $msg = $db->get("$key/$file");
+        $body .= <<<EOT
+<tr>
+<td valign="top">$file</td>
+<td><pre>$msg</pre></td>
+</tr>
+
+EOT;
+      }
+      $body .= "</table>\n";
+    }
+
+    $key = $client->userbankkey($t->OUTBOX);
+    $outbox = $db->contents($key);
+    if (count($outbox) == 0) {
+      $body .= "<br/><b>=== Outbox empty ===</b><br/>\n";
+    } else {
+      $body .= '<br/><b>=== Outbox===</b><br/>
+<table border="1">
+
+';
+      foreach ($outbox as $file) {
+        $msg = $db->get("$key/$file");
+        $body .= <<<EOT
+<tr>
+<td valign="top">$file</td>
+<td><pre>$msg</pre></td>
+</tr>
+
+EOT;
+      }
+      $body .= "</table>\n";
+    }
+
+    $key = $client->userbankkey($t->BALANCE);
+    $accts = $db->contents($key);
+    foreach ($accts as $acct) {
+      $body .= '<br/><b>' . $acct . '</b><br/>
+<table border="1">
+
+';
+      $assets = $db->contents("$key/$acct");
+      foreach ($assets as $assetid) {
+        $asset = $client->getasset($assetid);
+        $assetname = $asset[$t->ASSETNAME];
+        $msg = $db->get("$key/$acct/$assetid");
+        $body .= <<<EOT
+<tr>
+<td valign="top">$assetname</td>
+<td><pre>$msg</pre></td>
+</tr>
+EOT;
+      }
+      $body .= "</table>\n";
+    }
+  }
+}
+
 function draw_banks() {
   global $onload, $body;
   global $error;
@@ -954,7 +1047,7 @@ function draw_banks() {
 
   $body .= <<<EOT
 <span style="color: red;">$error</span><br>
-<form method="post" action="./">
+<form method="post" action="./" autocomplete="off">
 <input type="hidden" name="cmd" value="bank"/>
 <table>
 <tr>
@@ -988,7 +1081,7 @@ EOT;
         if (!$name) $name = "unnamed";
         $url = hsc($b[$t->URL]);
         $body .= <<<EOT
-<form method="post" action="./">
+<form method="post" action="./" autocomplete="off">
 <input type="hidden" name="cmd" value="bank"/>
 <input type="hidden" name="bank" value="$bid"/>
 <tr>
@@ -1023,7 +1116,7 @@ function draw_contacts($id=false, $nickname=false, $notes=false) {
 
   $body = <<<EOT
 <span style="color: red;">$error</span><br/>
-<form method="post" action="./">
+<form method="post" action="./" autocomplete="off">
 <input type="hidden" name="cmd" value="contact">
 <table>
 <tr>
@@ -1047,7 +1140,7 @@ EOT;
   $contacts = $client->getcontacts();
   $cnt = count($contacts);
   if ($cnt > 0) {
-    $body .= '<br/><form method="post" action="./">
+    $body .= '<br/><form method="post" action="./" autocomplete="off">
 <input type="hidden" name="cmd" value="contact"/>
 <input type="hidden" name="chkcnt" value="' . $cnt . '"/>
 <table border="1">
@@ -1106,7 +1199,7 @@ function draw_assets($scale=false, $precision=false, $assetname=false) {
 
   $body .= <<<EOT
 <span style="color: red;">$error</span><br>
-<form method="post" action="./">
+<form method="post" action="./" autocomplete="off">
 <input type="hidden" name="cmd" value="asset"/>
 <table>
 <tr>
@@ -1181,7 +1274,7 @@ function draw_admin($name=false, $tokens=false) {
 
   $body = <<<EOT
 <br/>
-<form method="post" action="./">
+<form method="post" action="./" autocomplete="off">
 <input type="hidden" name="cmd" value="admin"/>
 <table>
 <tr>
@@ -1229,7 +1322,7 @@ EOT;
         $tokcnt = hsc($token[0]);
         $name = hsc($token[1]);
         $body .= <<<EOT
-<form method="post" action="./">
+<form method="post" action="./" autocomplete="off">
 <input type="hidden" name="cmd" value="admin"/>
 <input type="hidden" name="tok" value="$tok"/>
 <tr>

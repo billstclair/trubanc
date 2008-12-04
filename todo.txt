@@ -1,3 +1,11 @@
+Debugging code in the server that saves in a file, sent by the client through its debugging function.
+
+A way to transfer contacts between clients, likely as a big URL.
+
+spend to nobody with an acct selection or fill-in transfers to that acct.
+
+-----
+
 Wrap functions around code shared by do_spend, do_processinbox, and do_asset
 
 Finish two-phase commit for spend and inboxhash.

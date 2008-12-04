@@ -16,7 +16,7 @@ if ($_COOKIE['debug']) {
 <title>Toggle Trubanc Client Debugging</title>
 </head>
 <body>
-<? echo $msg; ?>
+<? echo "$msg\n"; ?>
 </body>
 </html>
 
