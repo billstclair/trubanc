@@ -359,11 +359,14 @@ function do_spend() {
   global $error;
   global $client;
 
+  $id = $client->id;
+
   $amount = mq($_POST['amount']);
   $recipient = mq($_POST['recipient']);
   $recipientid = mq($_POST['recipientid']);
   $allowunregistered = mq($_POST['allowunregistered']);
   $note = mq($_POST['note']);
+
   $error = false;
   if (!$recipient) {
     $recipient = $recipientid;
@@ -372,6 +375,7 @@ function do_spend() {
       $error = 'Recipient ID not registered at bank';
     }
   }
+  if ($id == $recipient) $error = "Spends to yourself not yet supported";
   if (!$error) {
     if (!$amount) $error = 'Spend amount missing';
     elseif (!$recipient) $error = 'Recipient missing';
@@ -686,6 +690,26 @@ EOT;
 </tr>
 
 EOT;
+      $seloptions = <<<EOT
+<option value="accept">Accept</option>
+<option value="reject">Reject</option>
+<option value="ignore">Ignore</option>
+
+EOT;
+
+      $acctoptions = '';
+      $accts = $client->getaccts();
+      if (count($accts) > 1) {
+        $first = true;
+        foreach ($accts as $acct) {
+          $selected = $first ? ' selected="selected"' : '';
+          $acctoptions .= <<<EOT
+<option value="$acct"$selected>$acct</option>
+
+EOT;
+        }
+      }
+
       if (is_string($outbox)) {
         $error = "Error getting outbox: $outbox";
         $outbox = array();
@@ -725,6 +749,7 @@ EOT;
           if (!$note) $note = '&nbsp;';
           $selname = "spend$spendcnt";
           $notename = "spendnote$spendcnt";
+          $acctselname = "acct$spendcnt";
           if (!$contact[$t->CONTACT]) {
             $namestr .= <<<EOT
 <br/>
@@ -740,12 +765,18 @@ EOT;
           $spendcnt++;
           $selcode = <<<EOT
 <select name="$selname">
-<option value="accept">Accept</option>
-<option value="reject">Reject</option>
-<option value="ignore">Ignore</option>
+$seloptions
 </select>
 
 EOT;
+          $acctcode = '';
+          if ($acctoptions) {
+            $acctcode = <<<EOT
+<td><select name="$acctselname">
+$acctoptions
+</select></td>
+EOT;
+          }
           $inboxcode .= <<<EOT
 $timecode
 <tr>
@@ -756,6 +787,7 @@ $timecode
 <td>$note</td>
 <td>$selcode</td>
 <td><textarea name="$notename" cols="20" rows="2"></textarea></td>
+$acctcode
 </tr>
 
 EOT;
@@ -897,7 +929,12 @@ EOT;
 <input type="hidden" name="cmd" value="spend"/>
 To make a spend, fill in the "Spend amount", choose a "Recipient" or
 enter a "Recipient ID, enter (optionally) a "Note", and click the
-"Spend" button next to the asset you wish to spend.<br/><br/>
+"Spend" button next to the asset you wish to spend.<br>
+To transfer balances to another acct, enter the "Spend Amount",
+select or fill-in the "Transfer to" acct name (letters, numbers, and
+spaces only), and click the "Spend" button next to the asset you want
+to transfer from.
+<br/><br/>
 
 ';
       $spendcode = <<<EOT

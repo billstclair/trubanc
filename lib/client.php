@@ -550,10 +550,12 @@ class client {
   function getaccts() {
     $db = $this->db;
 
-    if (!$this->current_bank()) return "In getacct(): Bank not set";
+    if (!$this->current_bank()) return "In getaccts(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
     
-    return $db->contents($this->userbalancekey());
+    $res = $db->contents($this->userbalancekey());
+    usort($res, array('client', 'compareaccts'));
+    return $res;
   }
 
   // For usort in getassets
