@@ -1,0 +1,157 @@
+<html>
+<head>
+<title>A Trubanc Web Client</title>
+</head>
+<body>
+<h1>A Trubanc Web Client</h1>
+
+<p>
+I have written a <a href="./">Trubanc</a> web client, mostly as an
+example of how to use the
+<a href="viewtext.php?file=lib%2Fclient.php&search=&numbers=Yes">
+client API</a>, but it's also a useful tool for maintaining multiple
+Trubanc accounts on multiple Trubanc servers. This page uses sampled
+screen-shots from the client to teach you how to use it. You can
+follow those links within the text, or simply go to
+<a href="./client/">Trubanc.com/client</a> to create a new account.
+</p>
+
+<p>
+If you're interested in technical details of what goes on behind the
+scenes, this page is organized in about the same way as
+<a href="plain-english.html">
+Trubanc in Plain English</a>.
+
+<p>
+Disclaimer: This site has a fully-functional Trubanc client and
+server, but you wouldn't want to store any real money here. First off,
+you enter your passphrase into the client, unencrypted, so it's
+visible to anyone who can see your web traffic. You COULD install the
+client on your own computer and get rid of that problem, but the
+Trubanc server on this machine is under development, so I may
+occasionally break things. Plus, it's hosted on a machine in Arizona,
+under the watchful guns of the United States government. They have a
+nasty habit of deciding to steal people's property, because of made up
+"crimes" of money laundering, or operating a money tranfer service
+without a license. I hope that there will one day soon be many real
+Trubanc servers to choose from, hosted outside of the influence of the
+US government, and backed up daily to prevent lossage. For now,
+though, please use this site to become accustomed to Trubanc, and to
+help me test it.
+</p>
+
+<h2>Opening an Account</h2>
+
+<p>
+When you first go to the client web page, you'll see the
+<a href="demo/">Login screen</a>. Once you've created an account,
+simply enter your passphrase and press the "Login" key (or the "Enter"
+or "Return" key on your keyboard). But first, you need to create
+public key pair.
+</p>
+
+<p>
+Trubanc uses
+<a href="http://www.pgpi.org/doc/pgpintro/">
+public key</a>
+<a href="http://en.wikipedia.org/wiki/Public-key_cryptography">
+cryptography</a> to identify you in all communication with
+the server, and to ensure that the server you reach over the internet
+today is the same one you reached yesterday. With Trubanc, your
+private key, stored, encrypted with your passphrase, on the machine
+that hosts the client, <i>is</i> your identity. Guard it well. And if
+you're connecting to a real Trubanc server, install the client on your
+own machine. Don't use a public web client, like the one on this
+site. Protect your passphrase like your gold. If somebody gets it,
+and your encrypted passphrase, they are <i>you</i> as far as a Trubanc
+server is concerned. But without it, <i>nobody</i> can impersonate
+you.
+</p>
+
+<p>
+To create your identity, you must first pick a passphrase. This should
+be a longish sequence of words that you can remember, but that it
+would be unlikely for anyone to guess. It's best to use your memory,
+not a piece of paper, to remember your passphrase. Pick a good one,
+and don't forget it. If you do, you've lost your identity and access
+to any assets stored in accounts keyed to it. Unless you picked a
+really easy passphrase, nobody can recover it for you. That's a good
+thing.
+</p>
+
+<p>
+In order to protect this web site from spammers, you'll also need to
+enter an "Invitation token". This is a 40-character string that I'll
+send to you if you ask. Email billstclair at gmail dot com. Or Skype
+billstclair.
+</p>
+
+<p>
+Enter your passphrase twice, once in the "Passphrase" field, and again
+in the "Verification" field. Enter the "Invitation token". Pick a "Key
+size". RSA labs
+<a href="http://www.rsa.com/rsalabs/node.asp?id=2004">thinks</a> that
+a key size of 3072 bits should be secure until beyond the year
+2031. So that's the default. Smaller sizes are a little faster to
+generate, and use, but only a little. It hardly matters for a key that
+you'll only be using on this site to play with the interface. Finally,
+press the "Create account" button.
+</p>
+
+<h2>Adding a Bank</h2>
+
+<p>
+The
+<a href="demo/banks.html">
+Banks page</a> will be your first landing spot after creating a new
+account. Until you've registered at a bank, you can't do much. It
+costs "usage tokens" to join a bank. Somebody has to give them or sell
+them to you. The bank at this site charges 10 usage tokens to create
+an account, and 1 token for each server file your account uses. In
+order to get some tokens, you'll have to ask me to fund your
+account. Use the contact info above to send me the long string of hex
+digits (0-9 and a-f) that you see after "Your ID". I'll gift you 100
+usage tokens ("Trubanc Asset Tokens") and 10 "Bill Fake GoldGrams", so
+you can play. I'll be creating bearer certificates pretty soon, which
+will take the place of the invitation token and of this second
+contact. You'll be able to forge them for your friends, if you have
+enough usage tokens.
+</p>
+
+<p>
+After I've notified you that I've funded your account, enter
+"http://trubanc.com" as the "Bank URL", and, if you want, an "Account
+Name". That name will be part of your ID at the bank. Anybody who
+knows your ID and has an account will see it. There is currently no
+way to change it, but I may add that, if there's demand. Press the
+"Add Bank" button, and you should be taken to the
+<a href="balance.html">
+Balance page</a>.
+</p>
+
+<h2>Receiving Assets</h2>
+
+<h2>Adding Contacts</h2>
+
+<h2>Spending Assets</h2>
+
+<h2>Closing a Transaction</h2>
+
+<h2>Preventing Spam</h2>
+
+<h2>Issuing Assets</h2>
+
+<h2>Multiple Sub-Accounts</h2>
+
+<p>To be done</p>
+
+<h2>Getting Information</h2>
+
+<h2>Cancelling a Spend</h2>
+
+<p>To be done</p>
+
+<p>Copyright &copy; 2008 Bill St. Clair, All Rights Reserved</p>
+
+</body>
+</html>

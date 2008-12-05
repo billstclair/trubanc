@@ -242,17 +242,20 @@ class client {
     }
     $ourl = $this->bankprop($t->URL, $bankid);
     if ($ourl) {
-      if ($ourl == $url) return false;
-      return "Two banks have same id: $url and $ourl";
-    }
-    $this->server = $nserver;
+      // Need a way for a bank to change URL. Or not.
+      $this->server = new serverproxy($ourl, $this);
+      $this->bankid = $bankid;
+      return;
+    } else {
+      $this->server = $nserver;
 
-    // Initialize the bank in the database
-    $this->bankid = $bankid;
-    $db->put("$urlkey/$urlhash", $bankid);
-    $db->put($this->bankkey($t->URL), $url);
-    $db->put($this->bankkey($t->NAME), $name);
-    $db->put($this->pubkeykey($bankid), trim($pubkey) . "\n");
+      // Initialize the bank in the database
+      $this->bankid = $bankid;
+      $db->put("$urlkey/$urlhash", $bankid);
+      $db->put($this->bankkey($t->URL), $url);
+      $db->put($this->bankkey($t->NAME), $name);
+      $db->put($this->pubkeykey($bankid), trim($pubkey) . "\n");
+    }
 
     // Mark the user as knowing about this bank
     // Also mark this account as not yet being synced with bank
