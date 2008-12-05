@@ -33,12 +33,12 @@ Trubanc server on this machine is under development, so I may
 occasionally break things. Plus, it's hosted on a machine in Arizona,
 under the watchful guns of the United States government. They have a
 nasty habit of deciding to steal people's property, because of made up
-"crimes" of money laundering, or operating a money tranfer service
-without a license. I hope that there will one day soon be many real
-Trubanc servers to choose from, hosted outside of the influence of the
-US government, and backed up daily to prevent lossage. For now,
-though, please use this site to become accustomed to Trubanc, and to
-help me test it.
+"crimes" of "money laundering", or "operating a money tranfer service
+without a license" or "tax evasion". I hope that there will one day
+soon be many real Trubanc servers to choose from, hosted outside of
+the influence of the US government, and backed up daily to prevent
+lossage. For now, though, please use this site only to become
+accustomed to Trubanc, and to help me test it.
 </p>
 
 <span class="summary-header">Note</span>
@@ -95,7 +95,7 @@ billstclair.
 <p>
 Enter your passphrase twice, once in the "Passphrase" field, and again
 in the "Verification" field. Enter the "Invitation token". Pick a "Key
-size". RSA labs
+size". RSA Labs
 <a href="http://www.rsa.com/rsalabs/node.asp?id=2004">thinks</a> that
 a key size of 3072 bits should be secure until beyond the year
 2031. So that's the default. Smaller sizes are a little faster to
@@ -142,7 +142,7 @@ Name". That name will be part of your ID at the bank. Anybody who
 knows your ID and has an account will see it. There is currently no
 way to change it, but I may add that, if there's demand. Press the
 "Add Bank" button, and you should be taken to the
-<a href="balance.html">
+<a href="demo/balance.html">
 Balance screen</a>.
 </p>
 
@@ -151,7 +151,7 @@ Balance screen</a>.
 <li>Send "Your ID" to billstclair at gmail dot com, and ask for usage
 tokens and fake GoldGrams</li>
 <li>Go to the
-<a href="client/?cmd=banks">Banks page</a></li>
+<a href="client/?cmd=banks">Banks screen</a></li>
 <li>Enter "http://trubanc.com" as the "Bank URL"</li>
 <li>Enter an "Account Name", if you want to identify yourself with
 other than your ID</li>
@@ -237,6 +237,9 @@ to each row.
 
 <span class="summary-header">Summary</span>
 <ul id="summary">
+<li>Go to the
+<a href="demo/balance.html">
+Balance screen</a>.
 <li>In the "Action" column, select an action for each spend and unclick
   the "Remove" boxes for acknowledgements you wish to keep.</li>
 <li>Type a "Reply" for each accepted or rejected spend that needs
@@ -255,10 +258,11 @@ to each row.
 <p>
 Since a spend requires two files, an outbox entry for the spender and
 an inbox entry for the recipient, the spender is charged two usage
-tokens to make the spend. That allows the bank to charge for disk
-space. If the recipient accepts the spend, the spender will get those
-usage tokens back when he closes the transaction. If the recipient
-rejects the spend, he, not the spender, gets the usage tokens.
+tokens to make the spend. That pays the bank for disk space (storage
+fees and non-refundable transaction fees will come soon). If the
+recipient accepts the spend, the spender will get those usage tokens
+back when he closes the transaction. If the recipient rejects the
+spend, he, not the spender, gets the usage tokens.
 </p>
 
 <p>
