@@ -30,6 +30,9 @@ function appenddebug($x) {
   $debug .= $x;
 }
 
+// Add a string to the debug output.
+// Does NOT add a newline.
+// Use var_export($val, true) to dump arrays
 function debugmsg($x) {
   global $client;
 
@@ -104,6 +107,7 @@ else draw_login();
 // Use $title, $body, and $onload, $debug to fill the page template.
 if ($debug) $debug = "<b>=== Debug log ===</b><br/><pre>$debug</pre>\n";
 include "template.php";
+return;
 
 function menuitem($cmd, $text, $highlight) {
   $res = "<a href=\"./?cmd=$cmd\">";
@@ -253,13 +257,8 @@ function do_bank() {
   if ($newbank) {
     $bankurl = mq($_POST['bankurl']);
     $name = mq($_POST['name']);
-    $error = $client->addbank($bankurl);
-    if (!$error) {
-      if ($client->userreq() == -1) {
-        $error = $client->register($name);
-      }
-      if (!$error) $client->userpreference('bankid', $client->bankid);
-    }
+    $error = $client->addbank($bankurl, $name);
+    if (!$error) $client->userpreference('bankid', $client->bankid);
   } elseif ($selectbank) {
     $bankid = mq($_POST['bank']);
     if (!$bankid) $error = "You must choose a bank";
@@ -292,7 +291,6 @@ function do_contact() {
       $chki = mqpost("chk$i");
       if ($chki) {
         $id = mqpost("id$i");
-        echo "deleting $id<br>\n";
         $client->deletecontact($id);
       }
     }
@@ -546,6 +544,25 @@ forget your passphrase, <b>nobody can recover it, ever</b>.
 EOT;
 }
 
+function bankline() {
+  global $client;
+  
+  $t = $client->t;
+  $bankid = $client->bankid;
+
+  $bankline = '';
+  if ($bankid) {
+    $bank = $client->getbank($bankid);
+
+    if ($bank) {
+      $name = $bank[$t->NAME];
+      $url = $bank[$t->URL];
+      $bankline = "<b>Bank:</b> $name <a href=\"$url\">$url</a><br/>\n";
+    }
+  }
+  return $bankline;
+}
+
 function idcode() {
   global $client;
 
@@ -563,7 +580,7 @@ function idcode() {
 }
 
 function setbank($reporterror=false) {
-  global $banks, $bank, $bankline;
+  global $banks, $bank;
   global $error;
   global $client;
 
@@ -575,32 +592,31 @@ function setbank($reporterror=false) {
   if ($bankid) {
     $err = $client->setbank($bankid, false);
     if ($err) {
-      if ($reporterror) $error = "Can't set bank: $err";
+      $err = "Can't set bank: $err";
+      $client->userpreference('bankid', '');
       $bankid = false;
     }
   }
   if (!$bankid) {
-    foreach ($banks as $bank) break;
-    if ($bank) {
+    foreach ($banks as $bank) {
       $bankid = $bank[$t->BANKID];
       $err = $client->setbank($bankid);
       if ($err) {
-        $error = "Can't set bank: $err";
+        $err = "Can't set bank: $err";
         $bankid = false;
-      } else {
-        $client->userpreference('bankid', $bankid);
       }
-    } else {
-      $error = "No known banks. Please add one.";
+      else {
+        $client->userpreference('bankid', $bankid);
+        break;
+      }
+    } 
+    if (!$bankid) {
+      $err = "No known banks. Please add one.";
+      $error = $err;
     }
   }
-  $bank = $banks[$bankid];
 
-  if ($bank) {
-    $name = $bank[$t->NAME];
-    $url = $bank[$t->URL];
-    $bankline = "<b>Bank:</b> $name <a href=\"$url\">$url</a><br/>\n";
-  }
+  if ($reporterror) $error = $err;
 }
 
 function contact_namestr($contact) {

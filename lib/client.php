@@ -189,10 +189,8 @@ class client {
     $banks = $db->contents($t->ACCOUNT . "/$id/" . $t->BANK);
     $res = array();
     foreach ($banks as $bankid) {
-      $bank = array($t->BANKID => $bankid,
-                    $t->NAME => $this->bankprop($t->NAME, $bankid),
-                    $t->URL => $this->bankprop($t->URL, $bankid));
-      $res[$bankid] = $bank;
+      $bank = $this->getbank($bankid);
+      if ($bank) $res[$bankid] = $bank;
     }
 
     uasort($res, array('client', 'comparebanks'));
@@ -200,11 +198,31 @@ class client {
     return $res;
   }
 
-  // Add a bank with the given URL to the database.
+  // Returns  array($t->BANKID => $bankid,
+  //                $t->NAME => $name,
+  //                $t->URL => $url)
+  // or false if it doesn't find the $bankid
+  function getbank($bankid) {
+    $t = $this->t;
+
+    $req = $this->userbankprop($t->REQ, $bankid);
+    $bank = false;
+    if ($req && !($req === 0)) {
+      $bank = array($t->BANKID => $bankid,
+                    $t->NAME => $this->bankprop($t->NAME, $bankid),
+                    $t->URL => $this->bankprop($t->URL, $bankid));
+    }
+    return $bank;
+  }
+
+  // Add a bank with the given $url to the database.
   // No error, but does nothing, if the bank is already there.
+  // If the bank is NOT already there, registers with the given $name.
+  // If registration fails, removes the bank and you'll have to add it again
+  // after getting enough usage tokens at the bank to register.
   // Sets the client instance to use this bank until addbank() or setbank()
   // is called to change it.
-  function addbank($url) {
+  function addbank($url, $name) {
     $db = $this->db;
     $t = $this->t;
 
@@ -214,7 +232,7 @@ class client {
     $urlhash = sha1($url);
     $urlkey = $t->BANK . '/' . $t->BANKID;
     $bankid = $db->get("$urlkey/$urlhash");
-    if ($bankid) return $this->setbank($bankid);
+    if ($bankid) $this->setbank($bankid);
 
     $u = $this->u;
     $id = $this->id;
@@ -225,41 +243,51 @@ class client {
 
     $server = $this->server;
     $nserver = new serverproxy($url, $this);
-    $this->server = $nserver;
-    $msg = $this->sendmsg($t->BANKID, $pubkey);
-    $this->server = $server;
-    $args = $u->match_message($msg);
-    if (is_string($args)) return "Bank's bankid response error: $args";
-    $bankid = $args[$t->CUSTOMER];
-    if ($args[$t->REQUEST] != $t->REGISTER ||
-        $args[$t->BANKID] != $bankid) {
-      return "Bank not responding properly at $url";
-    }
-    $pubkey = $args[$t->PUBKEY];
-    $name = $args[$t->NAME];
-    if ($ssl->pubkey_id($pubkey) != $bankid) {
-      return "Bank's id doesn't match its public key";
-    }
-    $ourl = $this->bankprop($t->URL, $bankid);
-    if ($ourl) {
-      // Need a way for a bank to change URL. Or not.
-      $this->server = new serverproxy($ourl, $this);
-      $this->bankid = $bankid;
-      return;
-    } else {
+    if (!$this->bankid) {
       $this->server = $nserver;
+      $msg = $this->sendmsg($t->BANKID, $pubkey);
+      $this->server = $server;
+      $args = $u->match_message($msg);
+      if (is_string($args)) return "Bank's bankid response error: $args";
+      $bankid = $args[$t->CUSTOMER];
+      if ($args[$t->REQUEST] != $t->REGISTER ||
+          $args[$t->BANKID] != $bankid) {
+        return "Bank not responding properly at $url";
+      }
+      $pubkey = $args[$t->PUBKEY];
+      $name = $args[$t->NAME];
+      if ($ssl->pubkey_id($pubkey) != $bankid) {
+        return "Bank's id doesn't match its public key";
+      }
+      $ourl = $this->bankprop($t->URL, $bankid);
+      if ($ourl) {
+        // Need a way for a bank to change URL. Or not.
+        $this->server = new serverproxy($ourl, $this);
+      } else {
+        $this->server = $nserver;
 
-      // Initialize the bank in the database
-      $this->bankid = $bankid;
-      $db->put("$urlkey/$urlhash", $bankid);
-      $db->put($this->bankkey($t->URL), $url);
-      $db->put($this->bankkey($t->NAME), $name);
-      $db->put($this->pubkeykey($bankid), trim($pubkey) . "\n");
+        // Initialize the bank in the database
+        $db->put("$urlkey/$urlhash", $bankid);
+        $db->put($this->bankkey($t->URL), $url);
+        $db->put($this->bankkey($t->NAME), $name);
+        $db->put($this->pubkeykey($bankid), trim($pubkey) . "\n");
+      }
     }
+
+    // Make the bank current
+    $this->bankid = $bankid;
 
     // Mark the user as knowing about this bank
     // Also mark this account as not yet being synced with bank
     $db->put($this->userreqkey(), -1);
+
+    $err = $this->register($name);
+    if ($err) {
+      $this->server = $server;
+      $this->bankid = false;
+      $db->put($this->userreqkey(), '');
+      return $err;
+    }
 
     return false;
   }
@@ -277,24 +305,32 @@ class client {
     $this->bankid = $bankid;
 
     $url = $this->bankprop($t->URL);
-    if (!$url) return "Bank not known: $bankid";
+    if (!$url) {
+      $this->bankid = false;
+      return "Bank not known: $bankid";
+    }
     $server = new serverproxy($url, $this);
     $this->server = $server;
 
     $req = $this->userbankprop($t->REQ);
-    if (!$req) {
+    if ($req === '') {
       $db->put($this->userreqkey(), -1);
     }
 
     if ($check) {
       $msg = $this->sendmsg($t->BANKID, $this->pubkey);
       $args = $u->match_message($msg);
-      if (is_string($args)) return "Bank's bankid response error: $args";
+      if (is_string($args)) {
+        $this->bankid = false;
+        return "Bank's bankid response error: $args";
+      }
       if ($bankid != $args[$t->CUSTOMER]) {
+        $this->bankid = false;
         return "bankid changed since we last contacted this bank";
       }
       if ($args[$t->REQUEST] != $t->REGISTER ||
           $args[$t->BANKID] != $bankid) {
+        $this->bankid = false;
         return "Bank's bankid message wrong: $msg";
       }
     }
@@ -2323,6 +2359,9 @@ class client {
     return is_string($x) && strlen($x) == 40 && @pack("H*", $x);
   }
 
+  // Add a string to the debug output.
+  // Does NOT add a newline.
+  // Use var_export($val, true) to dump arrays
   function debugmsg($x) {
     $showfun = $this->showprocess;
     if ($showfun) @$showfun($x);
@@ -2343,7 +2382,6 @@ class serverproxy {
   function post($url, $post_variables=array()) {
     $content = http_build_query($post_variables);
     $content_length = strlen($content);
-    //echo "len: $content_length<br>\n$content<br/>\n";
     $options = array
       ('http'=>array('method' => 'POST',
                      'header' =>

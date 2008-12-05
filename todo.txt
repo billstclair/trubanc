@@ -1,10 +1,16 @@
-A way to transfer contacts between clients, likely as a big URL.
+A way to transfer contacts between client DBs, likely as a big URL.
 
 spend to nobody with an acct selection or fill-in transfers to that acct.
 
-Need a canonical URL for a bank. If somebody adds or removed a trailing slash in the same client instance, the second one will complain that it sees the same bank ID for a different URL. Same with capitalization.
-
 -----
+
+Use titles on asset names in the UI to distinguish different assets with the same name. Need to print ID and owner. Probably need to mark certain assets as known in the "Assets" screen.
+
+Optimize server traffic.
+
+Keep-Alive to the server.
+
+Canonicalize the bank URL at the bank. That way you don't get the spelling of the first user to use it in a client.
 
 Email notification. Info must be encrypted in the server database. And it's obviously optional. User specifies message to send and options about transaction details, e.g. amount, asset, spender, bank url.
 
