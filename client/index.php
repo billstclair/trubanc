@@ -745,8 +745,9 @@ EOT;
         else {
           $assetname = hsc($item[$t->ASSETNAME]);
           $amount = hsc($item[$t->FORMATTEDAMOUNT]);
-          $note = hsc($item[$t->NOTE]);
-          if (!$note) $note = '&nbsp;';
+          $itemnote = hsc($item[$t->NOTE]);
+          if (!$itemnote) $itemnote = '&nbsp;';
+          else $itemnote = str_replace("\n", "<br/>\n", $itemnote);
           $selname = "spend$spendcnt";
           $notename = "spendnote$spendcnt";
           $acctselname = "acct$spendcnt";
@@ -784,7 +785,7 @@ $timecode
 <td>$namestr</td>
 <td align="right" style="border-right-width: 0;">$amount</td>
 <td style="border-left-width: 0;">$assetname</td>
-<td>$note</td>
+<td>$itemnote</td>
 <td>$selcode</td>
 <td><textarea name="$notename" cols="20" rows="2"></textarea></td>
 $acctcode
@@ -796,14 +797,24 @@ EOT;
       $nonspendcnt = 0;
       foreach ($nonspends as $item) {
         $request = $item[$t->REQUEST];
+        $fromid = $item[$t->ID];
         $reqstr = ($request == $t->SPENDACCEPT) ? "Accept" : "Reject";
         $time = $item[$t->TIME];
+        $contact = $client->getcontact($fromid);
+        if ($contact) {
+          $namestr = contact_namestr($contact);
+          if ($namestr != $fromid) {
+            $namestr = "<span title=\"$fromid\">$namestr<span>";
+          }
+        } else $namestr = hsc($fromid);
         $assetname = hsc($item[$t->ASSETNAME]);
         $amount = hsc($item[$t->FORMATTEDAMOUNT]);
-        $note = hsc($item[$t->NOTE]);
-        if (!$note) $note = '&nbsp;';
+        $itemnote = hsc($item[$t->NOTE]);
+        if (!$itemnote) $itemnote = '&nbsp;';
+        else $itemnote = $itemnote = str_replace("\n", "<br/>\n", $itemnote);
         $reply = hsc($item['reply']);
         if (!$reply) $reply = '&nbsp;';
+        else $reply = str_replace("\n", "<br/>\n", $reply);
         $selname = "nonspend$nonspendcnt";
         if (!$contact[$t->CONTACT]) {
           $namestr .= <<<EOT
@@ -828,7 +839,7 @@ $timecode
 <td>$namestr</td>
 <td align="right" style="border-right-width: 0;">$amount</td>
 <td style="border-left-width: 0;">$assetname</td>
-<td>$note</td>
+<td>$itemnote</td>
 <td>$selcode</td>
 <td>$reply</td>
 </tr>
@@ -1194,7 +1205,8 @@ EOT;
       $name = hsc($contact[$t->NAME]);
       $nickname = hsc($contact[$t->NICKNAME]);
       $note = hsc($contact[$t->NOTE]);
-      $note = str_replace("\n", "<br/>\n", $note);
+      if (!$note) $note = "&nbsp;";
+      else $note = str_replace("\n", "<br/>\n", $note);
       $body .= <<<EOT
 <tr>
 <td>$name</td>
