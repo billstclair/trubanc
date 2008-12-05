@@ -120,7 +120,7 @@ press the "Create account" button.
 <p>
 The
 <a href="demo/banks.html">
-Banks page</a> will be your first landing spot after creating a new
+Banks screen</a> will be your first landing spot after creating a new
 account. Until you've registered at a bank, you can't do much. It
 costs "usage tokens" to join a bank. Somebody has to give them or sell
 them to you. The bank at this site charges 10 usage tokens to create
@@ -143,7 +143,7 @@ knows your ID and has an account will see it. There is currently no
 way to change it, but I may add that, if there's demand. Press the
 "Add Bank" button, and you should be taken to the
 <a href="balance.html">
-Balance page</a>.
+Balance screen</a>.
 </p>
 
 <span class="summary-header">Summary</span>
@@ -160,6 +160,90 @@ other than your ID</li>
 
 <h2>Receiving Assets</h2>
 
+<p>
+The
+<a href="demo/balance.html">Balance screen</a> is where you spend most
+of your quality Trubanc time. It lets you see spends from others that
+you haven't yet acknowledged, spends from yourself that the recipient
+has acknowledged and you haven't yet completed, and your current
+balances in all the assets you possess. It also has a "Show raw
+balance" link, which brings up the
+<a href="demo/rawbalance.html">
+raw balance screen</a>. This shows the low-level encodings of the
+signed and countersigned messages in your inbox, outbox, and
+balances. Unless you're a Trubanc developer, you probably won't need
+to look at this much.
+</p>
+
+<p>
+After you add a new bank, you'll see at least two spends. One will be
+from your sponsor, of enough usage tokens to cover the registration
+fee. And the other will be a negative spend from the bank for that
+registration fee. In Trubanc, the bank can't simply change your
+balance behind your back. All balances and spends are signed by you
+and countersigned by the bank. So in order to change your balance, you
+must explicity make or accept spends. If someone spends assets to you
+that you don't want, e.g. to purchase something that you no longer
+sell, you can choose to reject that spend.
+</p>
+
+<p>
+A Trubanc transaction has three steps:
+</p>
+<ol>
+<li>A makes a spend to B.</li>
+<li>B accepts or rejects the spend.</li>
+<li>A closes the transaction.</li>
+</ol>
+
+<p>
+The "<b>=== Inbox ===</b>" section of the balance screen has six
+columns:
+<ol>
+<li><b>Request:</b> this is "Spend" for spends other people made to you, or
+  "Accept" or "Reject" for acknowledgements of spends you made to
+  others.</li>
+<li><b>From:</b> This contains the name or ID of the other person. If
+  you've given him a nickname on the
+<a href="demo/contacts.html">Contacts screen</a>, that will appear. If
+he also has an account name, that will appear in parentheses. If the
+other person is not amongst your contacts, an "Add contact" checkbox
+will allow you to add him.</li>
+<li><b>Amount:</b> The amount that was spent in this transaction</li>
+<li><b>Note:</b> The note in the original spend for this
+  transaction. This is your note for acknowledgement lines.</li>
+<li><b>Action:</b> the action you want to perform on this line when
+  you press the "Process Inbox" button.</li>
+<li><b>Reply:</b> you may type a reply here for spends, and you'll see
+  the other person's reply here for acknowledgements of your spends.</li>
+</ol>
+
+<p>
+To accept or reject or skip a spend, select what you want to do for
+each "Action" column. To prevent the server database from filling up,
+you're not allowed to do a new spend until you've cleared your inbox,
+but you can keep some spends around until then by skipping them.
+</p>
+
+<p>
+To remove a spend acknowledgement from your inbox, check the "Remove"
+box in its "Action" column.
+</p>
+
+<p>
+Click the "Process Inbox" button to perform the corresponding "Action"
+to each row.
+</p>
+
+<span class="summary-header">Summary</span>
+<ul id="summary">
+<li>In the "Action" column, select an action for each spend and unclick
+  the "Remove" boxes for acknowledgements you wish to keep.</li>
+<li>Type a "Reply" for each accepted or rejected spend that needs
+  one.</li>
+<li>Click the "Process Inbox" button</li>
+</ul>
+
 <h2>Adding Contacts</h2>
 
 <h2>Spending Assets</h2>
@@ -167,6 +251,25 @@ other than your ID</li>
 <h2>Closing a Transaction</h2>
 
 <h2>Preventing Spam</h2>
+
+<p>
+Since a spend requires two files, an outbox entry for the spender and
+an inbox entry for the recipient, the spender is charged two usage
+tokens to make the spend. That allows the bank to charge for disk
+space. If the recipient accepts the spend, the spender will get those
+usage tokens back when he closes the transaction. If the recipient
+rejects the spend, he, not the spender, gets the usage tokens.
+</p>
+
+<p>
+A zero spend, with an attached note is very similar to an email. If it
+were free, spammers would be able to fill your Trubanc inbox with
+garbage. Since rejecting that spam message will cost the spammer two
+tokens, it will cost him money to keep doing it. This should
+discourage spam. I'll eventually add a feature where you can choose to
+give back the usage tokens with a rejected spend. Until then, you'll
+need to explicitly spend them back, except to spammers.
+</p>
 
 <h2>Issuing Assets</h2>
 
