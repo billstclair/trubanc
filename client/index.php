@@ -375,7 +375,7 @@ function do_spend() {
   }
   if ($id == $recipient) $error = "Spends to yourself not yet supported";
   if (!$error) {
-    if (!$amount) $error = 'Spend amount missing';
+    if (!($amount || ($amount === '0'))) $error = 'Spend amount missing';
     elseif (!$recipient) $error = 'Recipient missing';
     elseif (!$client->is_id($recipient)) $error = "Recipient ID malformed";
   }
