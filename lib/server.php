@@ -201,7 +201,7 @@ class server {
       $regmsg = $this->bankmsg($t->ATREGISTER, $regmsg);
       $db->put($t->PUBKEY . "/$bankid", $pubkey);
       $db->put($t->PUBKEYSIG . "/$bankid", $regmsg);
-      $token_name = "Asset Tokens";
+      $token_name = "Usage Tokens";
       if ($this->bankname) $token_name = "$bankname $token_name";
       $tokenid = $u->assetid($bankid, 0, 0, $token_name);
       $this->tokenid = $tokenid;

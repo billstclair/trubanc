@@ -1,5 +1,6 @@
 <html>
 <head>
+<link rel="stylesheet" type="text/css" href="css/docstyle.css">
 <title>A Trubanc Web Client</title>
 </head>
 <body>
@@ -40,6 +41,12 @@ though, please use this site to become accustomed to Trubanc, and to
 help me test it.
 </p>
 
+<span class="summary-header">Note</span>
+<p id="summary">
+If you just want to learn the Trubanc web client by doing, follow the
+directions in the gray boxes titled "Summary".
+</p>
+
 <h2>Opening an Account</h2>
 
 <p>
@@ -55,17 +62,16 @@ Trubanc uses
 <a href="http://www.pgpi.org/doc/pgpintro/">
 public key</a>
 <a href="http://en.wikipedia.org/wiki/Public-key_cryptography">
-cryptography</a> to identify you in all communication with
-the server, and to ensure that the server you reach over the internet
-today is the same one you reached yesterday. With Trubanc, your
-private key, stored, encrypted with your passphrase, on the machine
-that hosts the client, <i>is</i> your identity. Guard it well. And if
-you're connecting to a real Trubanc server, install the client on your
-own machine. Don't use a public web client, like the one on this
-site. Protect your passphrase like your gold. If somebody gets it,
-and your encrypted passphrase, they are <i>you</i> as far as a Trubanc
-server is concerned. But without it, <i>nobody</i> can impersonate
-you.
+cryptography</a> to identify you in all communication with the server,
+and to ensure that the server you reach over the internet today is the
+same one you reached yesterday. With Trubanc, your private key,
+stored, encrypted with your passphrase, on the machine that hosts the
+client, <i>is</i> your identity. Guard it well. And if you're
+connecting to a real Trubanc server, install the client on your own
+machine. Don't use a public web client, like the one on this
+site. Protect your passphrase like your gold. If somebody gets it, and
+your passphrase, they are <i>you</i> as far as a Trubanc server is
+concerned. But without it, <i>nobody</i> can impersonate you.
 </p>
 
 <p>
@@ -98,6 +104,17 @@ you'll only be using on this site to play with the interface. Finally,
 press the "Create account" button.
 </p>
 
+<span class="summary-header">Summary</span>
+<ul id="summary">
+<li>Ask billstclair at gmail dot com for an invitation token</li>
+<li>Pick a passphrase</li>
+<li>Go to
+<a href="client/">trubanc.com/client</a></li>
+<li>Enter your "Passphrase" and "Verification"</li>
+<li>Enter the "Invitation token"</li>
+<li>Press the "Create account" button</li>
+</ul>
+
 <h2>Adding a Bank</h2>
 
 <p>
@@ -128,6 +145,18 @@ way to change it, but I may add that, if there's demand. Press the
 <a href="balance.html">
 Balance page</a>.
 </p>
+
+<span class="summary-header">Summary</span>
+<ul id="summary">
+<li>Send "Your ID" to billstclair at gmail dot com, and ask for usage
+tokens and fake GoldGrams</li>
+<li>Go to the
+<a href="client/?cmd=banks">Banks page</a></li>
+<li>Enter "http://trubanc.com" as the "Bank URL"</li>
+<li>Enter an "Account Name", if you want to identify yourself with
+other than your ID</li>
+<li>Press the "Add Bank" button</li>
+</ul>
 
 <h2>Receiving Assets</h2>
 
