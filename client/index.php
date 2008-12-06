@@ -1017,6 +1017,7 @@ to transfer from.
 <p>Entering a "Nickname" will add the "Recipient ID" to your contacts
 list with that nickname, or change the nickname of the selected
 "Recipient".
+</p>
 
 EOT;
     }

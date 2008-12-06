@@ -230,7 +230,7 @@ class client {
 
     // Hash the URL to ensure its name will work as a file name
     $urlhash = sha1($url);
-    $urlkey = $t->BANK . '/' . $t->BANKID;
+    $urlkey = $this->bankkey(false, $bankid);
     $bankid = $db->get("$urlkey/$urlhash");
     if ($bankid) $this->setbank($bankid);
 
@@ -243,12 +243,13 @@ class client {
 
     $server = $this->server;
     $nserver = new serverproxy($url, $this);
-    if (!$this->bankid) {
+    if (!$bankid) {
+      $this->bankid = false;
       $this->server = $nserver;
       $msg = $this->sendmsg($t->BANKID, $pubkey);
       $this->server = $server;
       $args = $u->match_message($msg);
-      if (is_string($args)) return "Bank's bankid response error: $args";
+      if (is_string($args)) return "addbank: Bank's bankid response error: $args";
       $bankid = $args[$t->CUSTOMER];
       if ($args[$t->REQUEST] != $t->REGISTER ||
           $args[$t->BANKID] != $bankid) {
@@ -257,8 +258,9 @@ class client {
       $pubkey = $args[$t->PUBKEY];
       $name = $args[$t->NAME];
       if ($ssl->pubkey_id($pubkey) != $bankid) {
-        return "Bank's id doesn't match its public key";
+        return "addbank: Bank's id doesn't match its public key";
       }
+      $this->bankid = $bankid;
       $ourl = $this->bankprop($t->URL, $bankid);
       if ($ourl) {
         // Need a way for a bank to change URL. Or not.
@@ -322,7 +324,7 @@ class client {
       $args = $u->match_message($msg);
       if (is_string($args)) {
         $this->bankid = false;
-        return "Bank's bankid response error: $args";
+        return "setbank: Bank's bankid response error: $args";
       }
       if ($bankid != $args[$t->CUSTOMER]) {
         $this->bankid = false;
