@@ -249,6 +249,38 @@ Balance screen</a>.
 
 <h2>Adding Contacts</h2>
 
+<p>
+The Trubanc server keeps track of customers by their ID, the SHA1 hash of
+their public keys. Remembering 40-character hex strings tends to be
+hard for most of us humans, though, so the web client allows you to
+associate nicknames with your contacts. The
+<a href="demo/contacts.html">
+Contacts screen</a> shows you contacts that you have added in the past
+and allows you to add new ones. This is so simple that I'll just put
+it in the summary. You can also add a contact from the "Inbox" section
+of the
+<a href="demo/balance.html">
+Balance screen</a>, by checking "Add contact" in the "From"
+column. This will add a new contact with a blank nickname and
+notes. You'll probably want to visit the Contacts screen to add those,
+especially if the customer has no Account Name.
+</p>
+
+<span class="summary-header">Summary</span>
+<ul id="summary">
+<li>Go to the
+<a href="demo/contacts.html">
+Contacts screen</a>.
+<li>Paste your contact's "ID".<li>
+<li>If you want, type a "Nickname".</li>
+<li>If you want, type some "Notes".</li>
+<li>Press the "Add/Change Contact" button.</li>
+<li>If the ID is new, a contact will be added. If it already exists,
+  the Nickname and Notes of the existing contact will be updated, if
+  non-blank. To remove a nickname or note, type a single space in that
+  field.</li>
+</ul>
+
 <h2>Spending Assets</h2>
 
 <h2>Closing a Transaction</h2>

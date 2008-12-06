@@ -441,10 +441,10 @@ function do_processinbox() {
       $dir[$t->REQUEST] = ($spend == 'accept') ? $t->SPENDACCEPT : $t->SPENDREJECT;
       $directions[] = $dir;
     }
-    $addspend = mqpost("addspend$i");
+    $nickname = mqpost("addspend$i");
     $spendid = mqpost("spendid$i");
-    if ($addspend && $spendid) {
-      $client->addcontact($spendid);
+    if ($nickname && $spendid) {
+      $client->addcontact($spendid, $nickname);
     }
   }
 
@@ -455,10 +455,10 @@ function do_processinbox() {
       $dir = array($t->TIME => $time);
       $directions[] = $dir;
     }
-    $addspend = mqpost("addnonspend$i");
+    $nickname = mqpost("addnonspend$i");
     $spendid = mqpost("nonspendid$i");
-    if ($addspend && $spendid) {
-      $client->addcontact($spendid);
+    if ($nickname && $spendid) {
+      $client->addcontact($spendid, $nickname);
     }
   }
 
@@ -770,9 +770,9 @@ EOT;
           if (!$contact[$t->CONTACT]) {
             $namestr .= <<<EOT
 <br/>
-<span style="text-align: center;">Add contact
 <input type="hidden" name="spendid$spendcnt" value="$fromid"/>
-<input type="checkbox" name="addspend$spendcnt"/></span>
+Nickname:
+<input type="text" name="addspend$spendcnt" size="10"/></span>
 EOT;
           }
           $timecode = <<<EOT
@@ -835,9 +835,9 @@ EOT;
         if (!$contact[$t->CONTACT]) {
           $namestr .= <<<EOT
 <br/>
-<span style="text-align: center;">Add contact
 <input type="hidden" name="nonspendid$nonspendcnt" value="$fromid"/>
-<input type="checkbox" name="addnonspend$nonspendcnt"/></span>
+Nickname:
+<input type="text" name="addnonspend$spendcnt" size="10"/></span>
 EOT;
           }
         $timecode = <<<EOT
