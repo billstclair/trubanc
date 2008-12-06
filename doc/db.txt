@@ -44,6 +44,8 @@ $dbdir/
         -- This makes an assetid impossible to forge, though there
         -- can be multiple assets with the same name. Customer beware.
         -- Note that because the assetid is unique, it can cross bank boundaries.
+  coupon
+    <coupon>=(<bankid>,@coupon,<coupon>,(<id>,spend,<bankid>,<time#>,coupon,<assetid>,<amount>,note:<note>))
   account/
     <id>/
       time=<time#>  -- 0 when no outstanding transaction, or the
@@ -57,9 +59,9 @@ $dbdir/
           <assetid>=(<bankid>,@balance,(<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>))
       outboxhash=(<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time#>,<count>,<hash>))
       outbox/
-        <time2#>=(<bankid>,@spend,(<id>,spend,<bankid>,<time2#>,<id2>,<assetid2>,<amount2>,note:<note2>,acct:<acct2>)).
+        <time2#>=(<bankid>,@spend,(<id>,spend,<bankid>,<time2#>,<id2>,<assetid2>,<amount2>,note:<note2>)).
                  (<bankid>,@tranfee,(<id>,tranfee,<bankid>,<time2#>,<tokenid>,<amount2fee>))
-        <time3#>=(<bankid>,@spend,(<id>,spend,<bankid>,<time3#>,<id3>,<assetid3>,<amount3>,note:<note3>,acct:<acct3>)).
+        <time3#>=(<bankid>,@spend,(<id>,spend,<bankid>,<time3#>,<id3>,<assetid3>,<amount3>,note:<note3>)).
                  (<bankid>,@tranfee,(<id>,tranfee,<bankid>,<time3#>,<tokenid>,<amount3fee>))
       inbox/
         <time5#>=(<bankid>,inbox,<time5#>,(<id2>,spend|accept,<bankid>,<time2#>,<id>,note:<note22>))
@@ -67,7 +69,7 @@ $dbdir/
         <time7#>=(<bankid>,inbox,<time7#>,(<id4>,spend,<bankid>,<time4#>,<id>,<assetid4>,<amount4>,note:<note4>)).
                  (<bankid>,@tranfee,(<id>,tranfee,<bankid>,<time4#>,<tokenid>,<amount4fee>))
       transaction/
-        (<bankid>,@spend,(<id>,spend,<time#>,<id2>,<bankid>,<assetid>,<amount>,note:<note>,acct:<acct>))...
+        (<bankid>,@spend,(<id>,spend,<time#>,<id2>,<bankid>,<assetid>,<amount>,note:<note>))...
           or
         (<bankid,@processinbox,(<id>,processinbox,<bankid>,<time11#>,<time7#>|<time8#>|<time9#>)...
 
@@ -245,7 +247,7 @@ Spend
   the balances match (after subtracting the spend amount fees), and
   that the hashes match what the customer sent. If they match, bank
   computes the item list below, stores it in the database in the file
-  /account/<id>/transaction, and returns:
+  /account/<id>/outbox, and returns:
 
 (<bankid>,@spend,(<id>,spend,<time#>,<id2>,<bankid>,<assetid>,<amount>,note:<note>,acct:<acct>)).
   (<bankid>,@tranfee,(<id>,tranfee,<bankid>,<time#>,<tokenid>,<amount2fee>)).
@@ -546,6 +548,59 @@ Get balance
   Otherwise, bank returns:
 
 (<bankid>,failed,(<id>,getbalance,<bankid>,<req#>,acct:<acct>,assetid:<assetid>),errcode:<errcode>,reason:<reason>)
+
+
+Coupons
+-------
+  Customer sends:
+
+(<id>,spend,<bankid>,<time#>,coupon,<assetid>,<amount>,note:<note>))
+  (<id>,tranfee,<bankid>,<time#>,<tokenid>,<amount2fee>).
+  (<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>).
+  (<id>,balance,<bankid>,<time#>,<assetid2>,<amount2>,acct:<acct2>).
+  ...
+  (<id>,balance,<bankid>,<time#>,<assetidN>,<amountN>,acct:<acctN>).
+  (<id>,outboxhash,<bankid>,<time#>,<outboxcount>,<outboxhash>).
+  (<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>)
+
+  Bank checks that the <time#> is equal to /account/<id>/time, that
+  the balances match (after subtracting the spend amount fees), and
+  that the hashes match what the customer sent. If they match, bank
+  computes the item list below, stores it in the database in the file
+  /account/<id>/outbox, and returns:
+
+(<bankid>,@spend,(<id>,spend,<time#>,spend,<bankid>,<assetid>,<amount>,note:<note>,acct:<acct>)).
+  (<bankid>,couponenvelope,<id>,<encrypted-coupon>).
+  (<bankid>,@tranfee,(<id>,tranfee,<bankid>,<time#>,<tokenid>,<amount2fee>)).
+  (<bankid>,@balance,(<id>,balance,<time#>,<bankid>,<assetid>,<amount>,acct:<acct>)).
+  (<bankid>,@balance,(<id>,balance,<time#>,<bankid>,assetid2>,<amount2>,acct:<acct2>)).
+  ...
+  (<bankid>,@balance,(<id>,balance,<time#>,<bankid>,<assetidN>,<amountN>,acct:<acctN>)).
+  (<bankid,@outboxhash,(<id>,outboxhash,<bankid>,<time#>,<outboxcount>,<outboxhash>)).
+  (<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>))
+
+  Where <encrypted-coupon> is the following encrypted with the public
+  key for <id>:
+
+(<bankid>,coupon,<coupon>,<assetid>,<amount>,note:<note>)
+
+  This is an alternative form of the "spend" command. It creates a
+  bearer coupon. Intead of putting an entry in the inbox of the
+  recipient, it stores it in the "coupon" area of the database. It
+  returns the coupon to the spender, encrypted with his public key.
+
+
+Redeeming Coupons
+-----------------
+  Customer sends:
+
+(<id>,couponenvelope,<bankid>,<encrytped-coupon>)
+
+  Where <encrypted-coupon> is as returned above from the coupon spend,
+  encrypted to the bank's public key.
+
+(<bankid>,coupon,<coupon>,<assetid>,<amount>,note:<note>)
+
 
 
 Switching Asset Issuance
