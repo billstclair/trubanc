@@ -275,18 +275,29 @@ function do_contact() {
 
   $addcontact = $_POST['addcontact'];
   $deletecontacts = $_POST['deletecontacts'];
+  $chkcnt = mqpost('chkcnt');
 
   if ($addcontact) {
     $id = $_POST['id'];
     $nickname = $_POST['nickname'];
     $notes = $_POST['notes'];
-    $err = $client->addcontact($id, $nickname, $notes);
+    if (!$id) {
+      for ($i=0; $i<$chkcnt; $i++) {
+        $chki = mqpost("chk$i");
+        if ($chki) {
+          $id = mqpost("id$i");
+          break;
+        }
+      }
+    }
+    $err = '';
+    if ($id) $err = $client->addcontact($id, $nickname, $notes);
+    else $error = "You must specify an ID, either explicitly or by checking an existing contact";
     if ($err) {
       $error = "Can't add contact: $err";
       draw_contacts($id, $nickname, $notes);
     } else draw_contacts();
   } elseif ($deletecontacts) {
-    $chkcnt = mqpost('chkcnt');
     for ($i=0; $i<$chkcnt; $i++) {
       $chki = mqpost("chk$i");
       if ($chki) {
@@ -359,11 +370,13 @@ function do_spend() {
 
   $id = $client->id;
 
-  $amount = mq($_POST['amount']);
-  $recipient = mq($_POST['recipient']);
-  $recipientid = mq($_POST['recipientid']);
-  $allowunregistered = mq($_POST['allowunregistered']);
-  $note = mq($_POST['note']);
+
+  $amount = mqpost('amount');
+  $recipient = mqpost('recipient');
+  $recipientid = mqpost('recipientid');
+  $allowunregistered = mqpost('allowunregistered');
+  $note = mqpost('note');
+  $nickname = mqpost('nickname');
 
   $error = false;
   if (!$recipient) {
@@ -382,6 +395,12 @@ function do_spend() {
   if ($error) {
     draw_balance($amount, $recipient, $note);
   } else {
+    // Add contact if nickname specified
+    if ($nickname) {
+      $client->addcontact($recipient, $nickname);
+    }
+
+    // Find the spent asset
     $found = false;
     foreach ($_POST as $key => $value) {
       $prefix = 'spentasset';
@@ -395,8 +414,8 @@ function do_spend() {
         } else {
           $acctidx = $acctdotasset[0];
           $assetidx = $acctdotasset[1];
-          $acct = mq($_POST["acct$acctidx"]);
-          $assetid = mq($_POST["assetid$acctidx|$assetidx"]);
+          $acct = mqpost("acct$acctidx");
+          $assetid = mqpost("assetid$acctidx|$assetidx");
           if (!$acct || !$assetid) {
             $error = "Bug: blank acct or assetid";
             draw_balance($amount, $recipient, $note);
@@ -441,7 +460,7 @@ function do_processinbox() {
       $dir[$t->REQUEST] = ($spend == 'accept') ? $t->SPENDACCEPT : $t->SPENDREJECT;
       $directions[] = $dir;
     }
-    $nickname = mqpost("addspend$i");
+    $nickname = mqpost("spendnick$i");
     $spendid = mqpost("spendid$i");
     if ($nickname && $spendid) {
       $client->addcontact($spendid, $nickname);
@@ -455,7 +474,7 @@ function do_processinbox() {
       $dir = array($t->TIME => $time);
       $directions[] = $dir;
     }
-    $nickname = mqpost("addnonspend$i");
+    $nickname = mqpost("nonspendnick$i");
     $spendid = mqpost("nonspendid$i");
     if ($nickname && $spendid) {
       $client->addcontact($spendid, $nickname);
@@ -619,38 +638,42 @@ function setbank($reporterror=false) {
   if ($reporterror) $error = $err;
 }
 
-function contact_namestr($contact) {
-  global $client;
-
-  $t = $client->t;
-
-  $name = hsc($contact[$t->NAME]);
-  $nickname = hsc($contact[$t->NICKNAME]);
-  $recipid = hsc($contact[$t->ID]);
-  if ($nickname) {
+function namestr($nickname, $name, $id) {
+ if ($nickname) {
     if ($name) {
       if ($name != $nickname) $namestr = "$nickname ($name)";
       else $namestr = $name;
     } else $namestr = $nickname;
   } elseif ($name) $namestr = "($name)";
-  else $namestr = "$recipid";
+  else $namestr = "$id";
   return "$namestr";
 }
 
+function contact_namestr($contact) {
+  global $client;
+
+  $t = $client->t;
+
+  $nickname = hsc($contact[$t->NICKNAME]);
+  $name = hsc($contact[$t->NAME]);
+  $recipid = hsc($contact[$t->ID]);
+  return namestr($nickname, $name, $recipid);
+}
+
 function draw_balance($spend_amount=false, $recipient=false, $note=false) {
-  global $client, $banks, $bank;
+  global $client;
   global $error;
   global $onload, $body;
   
   $t = $client->t;
 
+  $bankid = $client->bankid();
+  $banks = $client->getbanks();
+
   setmenu('balance');
 
   $saveerror = $error;
   $error = false;
-
-  $bankid = '';
-  if ($bank) $bankid = $bank[$t->BANKID];
 
   $bankopts = '';
   foreach ($banks as $bid => $b) {
@@ -772,7 +795,7 @@ EOT;
 <br/>
 <input type="hidden" name="spendid$spendcnt" value="$fromid"/>
 Nickname:
-<input type="text" name="addspend$spendcnt" size="10"/></span>
+<input type="text" name="spendnick$spendcnt" size="10"/></span>
 EOT;
           }
           $timecode = <<<EOT
@@ -837,7 +860,7 @@ EOT;
 <br/>
 <input type="hidden" name="nonspendid$nonspendcnt" value="$fromid"/>
 Nickname:
-<input type="text" name="addnonspend$spendcnt" size="10"/></span>
+<input type="text" name="nonspendnick$spendcnt" size="10"/></span>
 EOT;
           }
         $timecode = <<<EOT
@@ -873,7 +896,6 @@ $inboxcode
 <br/>
 <input type="submit" name="submit" value="Process Inbox"/>
 </form>
-<br/>
 
 EOT;
     }
@@ -954,14 +976,6 @@ EOT;
       if (!$found) $recipientid = $recipient;
       $openspend = '<form method="post" action="./" autocomplete="off">
 <input type="hidden" name="cmd" value="spend"/>
-To make a spend, fill in the "Spend amount", choose a "Recipient" or
-enter a "Recipient ID, enter (optionally) a "Note", and click the
-"Spend" button next to the asset you wish to spend.<br>
-To transfer balances to another acct, enter the "Spend Amount",
-select or fill-in the "Transfer to" acct name (letters, numbers, and
-spaces only), and click the "Spend" button next to the asset you want
-to transfer from.
-<br/><br/>
 
 ';
       $spendcode = <<<EOT
@@ -974,20 +988,37 @@ to transfer from.
 <td><b>Recipient:</b></td>
 <td>$recipopts</td>
 </tr><tr>
+<td><b>Note:</b></td>
+<td><textarea name="note" cols="40" rows="10">$note</textarea></td>
+</tr><tr>
 <td><b>Recipient ID:</b></td>
 <td><input type="text" name="recipientid" size="40" value="$recipientid"/>
 <input type="checkbox" name="allowunregistered">Allow unregistered</checkbox></td>
-
 </tr><tr>
-<td><b>Note:</b></td>
-<td><textarea name="note" cols="40" rows="10">$note</textarea></td>
+<td><b>Nickname:</b></td>
+<td><input type="text" name="nickname" size="30" value="$nickname"/></td>
 </tr>
 </table>
-<br/>
-
 EOT;
       $onload = "document.forms[0].amount.focus()";
-      $closespend = "</form>\n";
+      $closespend = <<<EOT
+</form>
+<p>
+To make a spend, fill in the "Spend amount", choose a "Recipient" or
+enter a "Recipient ID, enter (optionally) a "Note", and click the
+"Spend" button next to the asset you wish to spend.
+</p>
+<p>
+To transfer balances to another acct, enter the "Spend Amount",
+select or fill-in the "Transfer to" acct name (letters, numbers, and
+spaces only), and click the "Spend" button next to the asset you want
+to transfer from.
+</p>
+<p>Entering a "Nickname" will add the "Recipient ID" to your contacts
+list with that nickname, or change the nickname of the selected
+"Recipient".
+
+EOT;
     }
   }
 
@@ -1093,7 +1124,7 @@ EOT;
 </tr>
 EOT;
       }
-      $body .= "</table>\n";
+      $body .= "</table><br/>\n";
     }
   }
 }
@@ -1101,12 +1132,13 @@ EOT;
 function draw_banks() {
   global $onload, $body;
   global $error;
-  global $client, $banks, $bank;
+  global $client;
 
   $t = $client->t;
 
-  $onload = "document.forms[0].bankurl.focus()";
+  $banks = $client->getbanks();
 
+  $onload = "document.forms[0].bankurl.focus()";
   setmenu('banks');
 
   $body .= <<<EOT
@@ -1209,8 +1241,9 @@ EOT;
 <input type="hidden" name="chkcnt" value="' . $cnt . '"/>
 <table border="1">
 <tr>
-<th>Name</th>
 <th>Nickname</th>
+<th>Name</th>
+<th>Display</th>
 <th>ID</th>
 <th>Notes</th>
 <th>x</th>
@@ -1218,15 +1251,20 @@ EOT;
     $idx = 0;
     foreach ($contacts as $contact) {
       $id = hsc($contact[$t->ID]);
-      $name = hsc($contact[$t->NAME]);
-      $nickname = hsc($contact[$t->NICKNAME]);
+      $name = trim(hsc($contact[$t->NAME]));
+      $nickname = trim(hsc($contact[$t->NICKNAME]));
+      $display = namestr($nickname, $name, $id);
+      if (!$name) $name = '&nbsp;';
+      if (!$nickname) $nickname = '&nbsp;';
+      
       $note = hsc($contact[$t->NOTE]);
       if (!$note) $note = "&nbsp;";
       else $note = str_replace("\n", "<br/>\n", $note);
       $body .= <<<EOT
 <tr>
-<td>$name</td>
 <td>$nickname</td>
+<td>$name</td>
+<td>$display</td>
 <td>$id</td>
 <td>$note</td>
 <td>

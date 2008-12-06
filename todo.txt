@@ -6,6 +6,8 @@ spend to nobody with an acct selection or fill-in transfers to that acct.
 
 Encrypt message contents with recipients public key, so bank can't read them.
 
+Allow adding non-registered IDs to contact list in web client.
+
 Use titles on asset names in the UI to distinguish different assets with the same name. Need to print ID and owner. Probably need to mark certain assets as known in the "Assets" screen.
 
 Optimize server traffic.

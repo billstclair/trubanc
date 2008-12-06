@@ -410,7 +410,7 @@ class client {
   }
 
   // General comparison function on array element
-  function comparearrays($a1, $a2, $keys, $comparer='strcmp') {
+  function comparearrays($a1, $a2, $keys, $comparer='strcasecmp') {
     foreach ($keys as $key) {
       $res = $comparer($a1[$key], $a2[$key]);
       if ($res != 0) return $res;
@@ -423,7 +423,7 @@ class client {
     $t = $this->t;
 
     return $this->comparearrays
-      ($t1, $t2, array($t->NICKNAME, $t->NAME, $t->ID));
+      ($c1, $c2, array($t->NICKNAME, $t->NAME, $t->ID));
   }
 
   function getcontacts_internal() {
