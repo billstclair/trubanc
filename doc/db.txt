@@ -234,7 +234,7 @@ Spend
   for the fees to be taken from. The bank figures out if it can make
   it work.
 
-(<id>,spend,<bankid>,<time#>,<id2>,<assetid>,<amount>,note:<note>>).
+(<id>,spend,<bankid>,<time#>,<id2>,<assetid>,<amount>,note:<note>).
   (<id>,tranfee,<bankid>,<time#>,<tokenid>,<amount2fee>).
   (<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>).
   (<id>,balance,<bankid>,<time#>,<assetid2>,<amount2>,acct:<acct2>).
@@ -249,7 +249,7 @@ Spend
   computes the item list below, stores it in the database in the file
   /account/<id>/outbox, and returns:
 
-(<bankid>,@spend,(<id>,spend,<time#>,<id2>,<bankid>,<assetid>,<amount>,note:<note>,acct:<acct>)).
+(<bankid>,@spend,(<id>,spend,<time#>,<id2>,<bankid>,<assetid>,<amount>,note:<note>)).
   (<bankid>,@tranfee,(<id>,tranfee,<bankid>,<time#>,<tokenid>,<amount2fee>)).
   (<bankid>,@balance,(<id>,balance,<time#>,<bankid>,<assetid>,<amount>,acct:<acct>)).
   (<bankid>,@balance,(<id>,balance,<time#>,<bankid>,assetid2>,<amount2>,acct:<acct2>)).
@@ -260,7 +260,7 @@ Spend
 
 If they don't match, bank returns:
 
-(<bankid>,failed,(<id>,spend,<bankid>,<time#>,<id2>,<assetid>,<amount>,note:<note>,acct:<acct>),errcode:<errcode>,reason:<reason>)
+(<bankid>,failed,(<id>,spend,<bankid>,<time#>,<id2>,<assetid>,<amount>,note:<note>),errcode:<errcode>,reason:<reason>)
 
   This is the first phase of the two-phase commit for spends.
 
@@ -579,15 +579,26 @@ Coupons
   (<bankid,@outboxhash,(<id>,outboxhash,<bankid>,<time#>,<outboxcount>,<outboxhash>)).
   (<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>))
 
-  Where <encrypted-coupon> is the following encrypted with the public
+  Where <encrypted-coupon> is the following, encrypted with the public
   key for <id>:
 
-(<bankid>,coupon,<coupon>,<assetid>,<amount>,note:<note>)
+(<bankid>,coupon,<bankurl>,<coupon>,<assetid>,<amount>,note:<note>)
+
+  Bank also stores, at coupon/<coupon> the following:
+
+(<bankid>,@coupon,<coupon>,(<id>,spend,<bankid>,<time#>,coupon,<assetid>,<amount>,note:<note>))
+
+  If the balances, balancehash, or outboxhash don't match, bank returns:
+
+(<bankid>,failed,(<id>,spend,<bankid>,<time#>,coupon,<assetid>,<amount>,note:<note>),errcode:<errcode>,reason:<reason>)
 
   This is an alternative form of the "spend" command. It creates a
   bearer coupon. Intead of putting an entry in the inbox of the
   recipient, it stores it in the "coupon" area of the database. It
   returns the coupon to the spender, encrypted with his public key.
+  He can then give it to whomever he pleases, and that person can
+  redeem it, with the couponenvelope request below. This is the normal
+  way to introduce someone to a Trubanc server.
 
 
 Redeeming Coupons
@@ -599,8 +610,23 @@ Redeeming Coupons
   Where <encrypted-coupon> is as returned above from the coupon spend,
   encrypted to the bank's public key.
 
-(<bankid>,coupon,<coupon>,<assetid>,<amount>,note:<note>)
+(<bankid>,coupon,<bankurl>,<coupon>,<assetid>,<amount>,note:<note>)
 
+  Bank checks at coupon/<coupon> to make sure the coupon hasn't yet
+  been spent, enters in the inbox of <id>, an entry that looks like a
+  spend from the bank for <assetid><amount>, enters in the inbox of
+  the original creator of the coupon an entry that looks like a
+  spendaccept from the bank for the spend that created the coupon, and
+  returns:
+
+(<bankid>,@couponenvelope,<id>,<encrypted-coupon>)
+
+  Where <encrypted-coupon> is the coupon above, encrypted to the
+  public key of <id>.
+
+  If the coupon has already been spent, bank returns:
+
+(<bankid>,failed,(<id>,couponenvelope,<bankid>,<encrytped-coupon>),errcode:<errcode>,reason:<reason>)
 
 
 Switching Asset Issuance
