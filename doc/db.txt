@@ -139,6 +139,19 @@ Create account
   Note that pubkeys bigger than 4096 bits won't be accepted. Really
   big keys are a good way to DOS attack the server.
 
+  Customer can append "couponenvelope" messages to the "register"
+  message to make an initial deposit. These messages may contain
+  the usage tokens necessary to fund the new account, plus other
+  assets:
+
+(<id>,register,<bankid>,<pubkey>,name=<name>).
+(<id>,couponenvelope,<bankid>,<encrytped-coupon>)...
+
+  Where <encrypted-coupon> is the following, encrypted to the bank's
+  public key.
+
+(<bankid>,coupon,<bankurl>,<coupon>,<assetid>,<amount>,note:<note>)
+
 
 Look up pubkey
 --------------
@@ -607,8 +620,8 @@ Redeeming Coupons
 
 (<id>,couponenvelope,<bankid>,<encrytped-coupon>)
 
-  Where <encrypted-coupon> is as returned above from the coupon spend,
-  encrypted to the bank's public key.
+  Where <encrypted-coupon> is the following, encrypted to the bank's
+  public key.
 
 (<bankid>,coupon,<bankurl>,<coupon>,<assetid>,<amount>,note:<note>)
 
