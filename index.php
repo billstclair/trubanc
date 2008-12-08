@@ -3,7 +3,7 @@
   // index.php
   // Trubanc main page
 
-// Define $dbdir, $bank_name, & $index_file
+// Define $dbdir, $bank_name, $index_file, $bankurl
 require_once "settings.php";
 
 function mq($x) {
@@ -28,7 +28,7 @@ if ($msg) {
 
   $db = new fsdb($dbdir);
   $ssl = new ssl();
-  $server = new server($db, $ssl, false, $bank_name);
+  $server = new server($db, $ssl, false, $bank_name, $bankurl);
   if ($debugdir && $debugfile) $server->setdebugdir($debugdir, $debugfile);
   if ($debug) {
     echo "msg: <pre>$msg</pre>\n";

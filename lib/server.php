@@ -10,13 +10,16 @@ require_once "parser.php";
 
 class server {
 
-  var $db;
-  var $ssl;
-  var $t;
-  var $parser;
-  var $u;
+  var $db;                      // fsdb instance
+  var $ssl;                     // ssl instance
+  var $t;                       // tokens instance
+  var $parser;                  // parser instance
+  var $u;                       // utility instance
+  var $random;                  // random instance
+
   var $pubkeydb;
   var $bankname;
+  var $bankurl;
   var $regfee;
   var $tranfee;
 
@@ -32,7 +35,7 @@ class server {
   // $db is an object that does put(key, value), get(key), and dir(key)
   // $ssl is an object that does the protocol of ssl.php
   // $bankname is used to initialize the bank name in a new database. Ignored otherwise.
-  function server($db, $ssl=false, $passphrase=false, $bankname='') {
+  function server($db, $ssl=false, $passphrase=false, $bankname='', $bankurl=false) {
     $this->db = $db;
     if (!$ssl) $ssl = new ssl();
     $this->ssl = $ssl;
@@ -41,6 +44,7 @@ class server {
     $this->parser = new parser($this->pubkeydb, $ssl);
     $this->u = new utility($this->t, $this->parser, $this);
     $this->bankname = $bankname;
+    $this->bankurl = $bankurl;
     $this->setupDB($passphrase);
   }
 
@@ -918,6 +922,31 @@ class server {
     }
     $res = $outbox_item;
     
+    // If it's a coupon requrest, generate the coupon
+    if ($id2 == $t->COUPON) {
+      $ssl = $this->ssl;
+      $random = $this->random;
+      if (!$random) {
+        require_once "LoomRandom.php";
+        $random = new LoomRandom();
+        $this->$random = $random;
+      }
+      $coupon_number = $random->random_id();
+      $bankurl = $this->bankurl;
+      if ($note) {
+        $coupon = $this->bankmsg($t->COUPON, $bankurl, $coupon_number, $assetid, $amount, $note);
+      } else {
+        $coupon = $this->bankmsg($t->COUPON, $bankurl, $coupon_number, $assetid, $amount);
+      }
+      $coupon_number_hash = sha1($coupon_number);
+      $db->put($t->COUPON . "/$coupon_number_hash", "$outbox_item");
+      $pubkey = $this->pubkeydb->get($id);
+      $coupon = $ssl->pubkey_encrypt($coupon, $pubkey);
+      $coupon = $this->bankmsg($t->COUPONENVELOPE, $id, $coupon);
+      $res .= ".$coupon";
+      $outbox_item .= ".$coupon";
+    }
+
     // I considered adding the transaction tokens to the bank
     // balances here, but am just leaving them in the outbox,
     // to be credited to this customer, if the spend is accepted,

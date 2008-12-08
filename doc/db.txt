@@ -45,7 +45,7 @@ $dbdir/
         -- can be multiple assets with the same name. Customer beware.
         -- Note that because the assetid is unique, it can cross bank boundaries.
   coupon
-    <coupon>=(<bankid>,@coupon,<coupon>,(<id>,spend,<bankid>,<time#>,coupon,<assetid>,<amount>,note:<note>))
+    <couponhash>=(<bankid>,@spend,(<id>,spend,<bankid>,<time#>,coupon,<assetid>,<amount>,note:<note>))
   account/
     <id>/
       time=<time#>  -- 0 when no outstanding transaction, or the
@@ -151,6 +151,12 @@ Create account
   public key.
 
 (<bankid>,coupon,<bankurl>,<coupon>,<assetid>,<amount>,note:<note>)
+
+  The bank will append the normal couponenvelope response to the
+  register response:
+
+(<bankid>,@register,(<id>,register,<bankid>,<pubkey>,name=<name>)).
+(<bankid>,@couponenvelope,(<id>,couponenvelope,<bankid>,<encrytped-coupon>))
 
 
 Look up pubkey
@@ -597,9 +603,21 @@ Coupons
 
 (<bankid>,coupon,<bankurl>,<coupon>,<assetid>,<amount>,note:<note>)
 
-  Bank also stores, at coupon/<coupon> the following:
+  <coupon> is the coupon number, a random ID.
 
-(<bankid>,@coupon,<coupon>,(<id>,spend,<bankid>,<time#>,coupon,<assetid>,<amount>,note:<note>))
+  Bank also stores, at coupon/<couponhash> (the hash of the <coupon>
+  number)  the following:
+
+(<bankid>,@spend,(<id>,spend,<bankid>,<time#>,coupon,<assetid>,<amount>,note:<note>))
+
+  Note that this makes it impossible for the bank alone to reproduce
+  the coupon, since there's no plain-text copy of the coupon number.
+  The only copy of the coupon number is in the customer's outbox,
+  encrypted to his public key. This doesn't really matter for the
+  current web server implementation, where the bank's private key is
+  stored in the database, but an eventual stand-alone servrer, that
+  requires the passphrase for the bank's private key at startup time,
+  could be fully secure, even if the database is revealed.
 
   If the balances, balancehash, or outboxhash don't match, bank returns:
 
@@ -632,7 +650,7 @@ Redeeming Coupons
   spendaccept from the bank for the spend that created the coupon, and
   returns:
 
-(<bankid>,@couponenvelope,<id>,<encrypted-coupon>)
+(<bankid>,@couponenvelope,(<id>,couponenvelope,<bankid>,<encrytped-coupon>))
 
   Where <encrypted-coupon> is the coupon above, encrypted to the
   public key of <id>.

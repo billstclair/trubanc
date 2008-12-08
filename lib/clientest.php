@@ -34,13 +34,13 @@ $err = $client->newuser($passphrase3, 512);
 if ($err) echo "$err\n";
 
 $err = $client->login($passphrase3);
-if ($err) die("$err\n");
+if ($err) die("Login feailed for user3. Dying: $err\n");
 
 $id3 = $client->id;
 echo "id: $id3\n";
 
 $err = $client->addbank($url);
-if ($err) die("$err\n");
+if ($err) echo("Addbank failed for user 3. $err\n");
 else {
   echo "bankid: " . $client->bankid . "\n";
   //echo "server:"; print_r($client->server);
@@ -52,7 +52,7 @@ if (is_string($banks)) echo "getbanks error: $banks\n";
 
 // This fails because the customer has no tokens.
 $err = $client->register('John Doe');
-if ($err) echo "$err\n";
+if ($err) echo "Registration failed for user 3. $err\n";
 
 // This is an example key from servertest.php.
 // I'm using it because that ID is in my server testing database.
@@ -75,23 +75,23 @@ openssl_free_key($pk);
 //echo $privkey;
 
 $err = $client->newuser($passphrase, $privkey);
-if ($err) echo "$err\n";
+if ($err) echo "newuser() failed for user 1. $err\n";
 
 $err = $client->login($passphrase);
-if ($err) echo "$err\n";
+if ($err) echo "Login failed for user 1. $err\n";
 
 $id = $client->id;
 echo "id: $id\n";
 
 $err = $client->addbank($url);
-if ($err) echo "$err\n";
+if ($err) echo "Addbank failed for user 1. $err\n";
 else {
   echo "bankid: " . $client->bankid . "\n";
 }
 
 // Succeeds this time, because this ID is already registered at the bank.
 $err = $client->register('George Jetson');
-if ($err) echo "$err\n";
+if ($err) echo "Register failed for user 1. $err\n";
 
 // Adding yourself as a contact won't happen, but it tests the code
 $err = $client->addcontact($id, "Me, myself, and I", "A little note to myself");
@@ -116,7 +116,7 @@ $pubkey2 = $ssl->privkey_to_pubkey($privkey2, $passphrase2);
 $id2 = $ssl->pubkey_id($pubkey2);
 
 $err = $client->newuser($passphrase2, $privkey2);
-if ($err) echo "$err\n";
+if ($err) echo "Newuser failed for user 2. $err\n";
 
 
 $users = array(1 => array('idx' => 1, 'id' => $id, 'name' => 'George Jetson',
@@ -126,7 +126,7 @@ $users = array(1 => array('idx' => 1, 'id' => $id, 'name' => 'George Jetson',
                3 => array('idx' => 3, 'id' => $id3, 'name' => 'John Doe',
                           'passphrase' => $passphrase3));
 
-$user = $users[2];
+$user = $users[1];
 $client->login($user['passphrase']);
 $banks = $client->getbanks();
 $bank = false;
@@ -181,6 +181,7 @@ while (true) {
       "contacts: list contacts known to the current user\n" .
       "balance: show balances for current user\n" .
       "spend <user#> <asset#> <amount> [<acct>]: Spend from current user to <user#>\n" .
+      "coupon <asset#> <amount> [<acct>]: Create a coupon\n" .
       "outbox: Show outbox\n" .
       "inbox [<time>...]: Show inbox, or process <time> items\n" .
       "register <user> <bankurl>: register a new account with the bank\n" .
@@ -189,7 +190,7 @@ while (true) {
   } elseif ($cmd == 'quit' || $cmd == 'q') {
     exit(0);
   } elseif ($cmd == 'show') {
-    $client->showproess = $client->showprocess ? false : 'echo';
+    $client->showprocess = $client->showprocess ? false : 'echo';
   } elseif ($cmd == 'users') {
     foreach($users as $user) {
       echo $user['idx'] . ': ' . $user['name'] . ', ' . $user['id'] . "\n";
@@ -344,6 +345,28 @@ while (true) {
           $err = $client->spend($userid, $assetid, $amt, $acct, $note);
           if ($err) echo "$err\n";
         }
+      }
+    }
+  } elseif ($cmd == 'coupon') {
+    $cnt = count($tokens);
+    if ($cnt < 3 || $cnt > 4) {
+      echo "Usage is: coupon <asset#> <amount> [<acct>]\n";
+    } else {
+      $assetidx = $tokens[1];
+      $amt = $tokens[2];
+      $acct = false;
+      if ($cnt == 4) $acct = $tokens[3];
+      $assets = $client->getassets();
+      $asset = $assets[$assetidx-1];
+      if (!$asset) echo "No such asset: $assetidx\n";
+      else {
+        $assetid = $asset[$t->ASSET];
+        $note = "Coupon for $amt";
+        $err = $client->spend($t->COUPON, $assetid, $amt, $acct, $note);
+        if ($err) echo "$err\n";
+        $coupon = $client->getcoupon();
+        if (!$coupon) echo "No coupon returned from spend\n";
+        else echo "Coupon: $coupon\n";
       }
     }
   } elseif ($cmd == 'outbox') {

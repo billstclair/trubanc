@@ -94,6 +94,7 @@ class utility {
                         $t->GETINBOX => array($t->BANKID, $t->REQ),
                         $t->PROCESSINBOX => array($t->BANKID,$t->TIME,$t->TIMELIST),
                         $t->GETTIME => array($t->BANKID, $t->TIME),
+                        $t->COUPONENVELOPE => ARRAY($t->ID, $t->ENCRYPTEDCOUPON),
 
                         // Bank signed messages
                         $t->FAILED => array($t->MSG, $t->ERRMSG),
@@ -103,6 +104,8 @@ class utility {
                         $t->TRANFEE => array($t->BANKID, $t->TIME, $t->ASSET, $t->AMOUNT),
                         $t->TIME => array($t->ID, $t->TIME),
                         $t->INBOX => array($t->TIME, $t->MSG),
+                        $t->REQ => array($t->ID, $t->REQ),
+                        $t->COUPON => array($t->BANKURL, $t->COUPON, $t->ASSET, $t->AMOUNT, $t->NOTE=>1),
                         $t->ATREGISTER => array($t->MSG),
                         $t->ATOUTBOXHASH => array($t->MSG),
                         $t->ATBALANCEHASH => array($t->MSG),
@@ -115,7 +118,8 @@ class utility {
                         $t->ATSPENDACCEPT => array($t->MSG),
                         $t->ATSPENDREJECT => array($t->MSG),
                         $t->ATGETOUTBOX => array($t->MSG),
-                        $t->REQ => array($t->ID, $t->REQ)
+                        $t->ATCOUPON => array($t->COUPON, $t->SPEND),
+                        $t->ATCOUPONENVELOPE => array($t->MSG)
                         );
       $this->patterns = $patterns;
     }

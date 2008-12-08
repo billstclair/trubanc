@@ -84,7 +84,7 @@ class ssl {
 
   // $pubkey is a public key string.
   // $message is a message to encrypt.
-  // Returns encrypted message.
+  // Returns encrypted message, base64 encoded
   function pubkey_encrypt($message, $pubkey) {
     $bits = $this->pubkey_bits($pubkey);
     $msglen = strlen($message);
@@ -95,15 +95,16 @@ class ssl {
       openssl_public_encrypt($msg, $enc, $pubkey);
       $res .= $enc;
     }
-    return $res;
+    return chunk_split(base64_encode($res), 64, "\n");
   }
 
   // $privkey is a loaded private key.
-  // $message is a message to decrypt.
+  // $message is a message to decrypt, base64 encoded
   // Returns decrypted message.
   function privkey_decrypt($message, $privkey) {
     $bits = $this->privkey_bits($privkey);
     $chars = $bits / 8;
+    $message = base64_decode($message);
     $msglen = strlen($message);
     $res = '';
     for ($i = 0; $i<$msglen; $i+=$chars) {

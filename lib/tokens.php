@@ -24,6 +24,7 @@ class tokens {
   var $OUTBOX = 'outbox';
   var $OUTBOXHASH = 'outboxhash';
   var $INBOX = 'inbox';
+  var $COUPON = 'coupon';
 
   // request names
   var $ID = 'id';
@@ -42,6 +43,7 @@ class tokens {
   var $GETASSET = 'getasset';
   var $GETOUTBOX = 'getoutbox';
   var $GETBALANCE = 'getbalance';
+  var $COUPONENVELOPE = 'couponenvelope';
 
   // Affirmations
   var $ATREGISTER = '@register';
@@ -56,6 +58,8 @@ class tokens {
   var $ATSPENDREJECT = '@spend|reject';
   var $ATGETOUTBOX = '@getoutbox';
   var $ATBALANCEHASH = '@balancehash';
+  var $ATCOUPON = '@coupon';
+  var $ATCOUPONENVELOPE = '@couponenvelope';
 
   // request parameter names
   var $CUSTOMER = 'customer';
@@ -74,6 +78,8 @@ class tokens {
   var $ERRMSG = 'errmsg';
   var $BALANCEHASH = 'balancehash';
   var $COUNT = 'count';
+  var $BANKURL = 'bankurl';
+  var $ENCRYPTEDCOUPON = 'encryptedcoupon';
 
   // Client database keys
   var $BANK = 'bank';
