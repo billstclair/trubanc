@@ -1607,7 +1607,7 @@ class client {
         }
         $assetid = $args[$t->ASSET];
         $amount = $args[$t->AMOUNT];
-        if ($assetid && $amount) {
+        if ($assetid) {
           $asset = $this->getasset($assetid);
           $item[$t->ASSET] = $assetid;
           $item[$t->AMOUNT] = $amount;
@@ -2463,7 +2463,7 @@ class serverproxy {
       $vars['debugfile'] = $debugfile;
     }
 
-    $client->debugmsg("===PROCESSING: $msg\n");
+    $client->debugmsg("===SENT: $msg\n");
 
     //$res = file_get_contents("$url?" . http_build_query($vars));
     $res = $this->post($url, $vars);
@@ -2472,7 +2472,7 @@ class serverproxy {
       $text = $db->get($debugfile);
       if ($text) {
         $db->put($debugfile, '');
-        $client->debugmsg("===SERVER SAYS: $text");
+        $client->debugmsg("===SERVER SAID: $text");
       }
     }
     $client->debugmsg("===RETURNED: $res\n");

@@ -7,7 +7,7 @@
 <img style="vertical-align: middle;" src="../trubanc-logo-50x47.jpg" alt="Trubanc" width="50" height="47"/>
 <b>Trubanc</b>
 </p>
-<form method="get" action="balance.html" autocomplete="off">
+<form method="post" action="./" autocomplete="off">
 <input type="hidden" name="cmd" value="login"/>
 <table>
 <tr>
@@ -17,37 +17,9 @@
 </tr><tr>
 <td></td>
 <td style="color: red">&nbsp;</td>
-</tr><tr>
-<td><b>Verification:</b></td>
-<td><input type="password" name="passphrase2" size="50"/>
-</tr><tr>
-<td><b>Invitation<br/>token:</b></td>
-<td><input type="text" name="tok" size="40"/></td>
-</tr><tr><td><b>Key size:</b></td>
-<td>
-<select name="keysize">
-<option value="512">512</option>
-<option value="1024">1024</option>
-<option value="2048">2048</option>
-<option value="3072" selected="selected">3072</option>
-<option value="4096">4096</option>
-</select>
-<input type="submit" name="newacct" value="Create account"/>
-<input type="submit" name="showkey" value="Show key"/></td>
-</tr><tr>
-<td></td>
-<td>
-To generate a new private key, leave the area below blank, enter a
-passphrase, the passphrase again to verify, a key size, and click the
-"Create account" button. To use an existing private key, paste the
-private key below, enter its passphrase above, and click the
-"Create account" button. To show your encrypted private key, enter
-its passphrase, and click the "Show key" button. Warning: if you
-forget your passphrase, <b>nobody can recover it, ever</b>.
-</td>
-</tr><tr>
-<td></td>
-<td><textarea name="privkey" cols="64" rows="42"></textarea></td>
+</tr>
 </table>
+<a href="register.html">Register a new account</a>
+</form>
 </body>
 </html>

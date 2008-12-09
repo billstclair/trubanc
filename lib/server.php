@@ -1034,6 +1034,8 @@ class server {
 
     $args = $this->unpack_bankmsg($outbox_item, $t->ATSPEND);
     if (is_string($args)) {
+      // Make sure the spender can cancel the coupon
+      $db->put($key, $outbox_item);
       return $this->failmsg($msg, "While unpacking coupon spend: $args");
     }
     $reqs = $args[$this->unpack_reqs_key];
