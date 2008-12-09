@@ -1040,12 +1040,12 @@ To make a spend, fill in the "Spend amount", choose a "Recipient" or
 enter a "Recipient ID, enter (optionally) a "Note", and click the
 "Spend" button next to the asset you wish to spend.
 </p>
-<p>
+<!--<p>
 To transfer balances to another acct, enter the "Spend Amount",
 select or fill-in the "Transfer to" acct name (letters, numbers, and
 spaces only), and click the "Spend" button next to the asset you want
 to transfer from.
-</p>
+</p>-->
 <p>Entering a "Nickname" will add the "Recipient ID" to your contacts
 list with that nickname, or change the nickname of the selected
 "Recipient".

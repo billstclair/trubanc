@@ -922,7 +922,7 @@ class server {
     }
     $res = $outbox_item;
     
-    // If it's a coupon requrest, generate the coupon
+    // If it's a coupon request, generate the coupon
     if ($id2 == $t->COUPON) {
       $ssl = $this->ssl;
       $random = $this->random;
@@ -989,6 +989,66 @@ class server {
 
     // We're done
     return $res;
+  }
+
+  // Redeem coupon
+  function do_couponenvelope($args, $reqs, $msg) {
+    $t = $this->t;
+    $db = $this->db;
+    
+    $id = $args[$t->CUSTOMER];
+    $lock = $db->lock($this->accttimekey($id));
+    $res = $this->do_couponenvelope_internal($args, $msg, $id);
+    $db->unlock($lock);
+    return $res;
+  }
+
+  function do_couponenvelope_internal($args, $msg, $id) {
+    $t->$this->t;
+    $db = $this->db;
+    $bankid = $this->bankid;
+
+    $encryptedto = $args[$t->ID];
+    if ($encryptedto != $bankid) {
+      return $this->failmsg($msg, "Coupon not encrypted to bank");
+    }
+    $coupon = $args[$t->ENCRYPTEDCOUPON];
+    $coupon = $this->ssl->privkey_decrypt($coupon, $this->privkey);
+    $args = $this->unpack_bankmsg($coupon, $t->COUPON);
+    if (is_string($args)) return $this->failmsg($msg, "Error parsing coupon: $args");
+    if ($bankid != $args[$t->CUSTOMER]) {
+      return $this->failmsg($msg, "Coupon not signed by bank");
+    }
+
+    $coupon_number_hash = sha1($args[$t->COUPON]);
+    $assetid = $args[$t->ASSET];
+    $amount = $args[$t->AMOUNT];
+
+    $key = $t->COUPON . "/$coupon_number_hash";
+    $lock = $db->lock($key);
+    $outbox_item = $db->get($key);
+    if ($outbox_item) $db->put($key, '');
+    $db->unlock($lock);
+
+    if (!$outbox_item) return $this->failmsg($msg, "Coupon already redeemed");
+
+    $args = $this->unpack_bankmsg($outbox_item, $t->ATSPEND);
+    if (is_string($args)) {
+      return $this->failmsg($msg, "While unpacking coupon spend: $args");
+    }
+    $reqs = $args[$this->unpack_reqs_key];
+    $spendreq = $args[$t->MSG];
+    $spendmsg = $parser->get_parsemsg($spendreq);
+    $feemsg = '';
+    if (count($reqs) > 1) {
+      $feereq = $reqs[1];
+      $feemsg = $parser->get_parsemsg($feereq);
+    }
+    $newtime = $this->gettime();
+    $inbox_item = $this->bankmsg($t->INBOX, $newtime, $spendmsg);
+    if ($feemsg) $inbox_item .= ".$feemsg";
+
+    $db->put($this->inboxkey($id) . "/$newtime", $inbox_item);
   }
 
   // Query inbox
