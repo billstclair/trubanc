@@ -42,11 +42,11 @@ echo "id: $id3\n";
 $err = $client->addbank($url);
 if ($err) echo("Addbank failed for user 3. $err\n");
 else {
-  echo "bankid: " . $client->bankid . "\n";
+  echo "User 3 bankid: " . $client->bankid . "\n";
   //echo "server:"; print_r($client->server);
 }
 
-$banks = $client->getbanks();
+$banks = $client->getbanks(true);
 if (is_string($banks)) echo "getbanks error: $banks\n";
 //print_r($banks);
 
@@ -86,7 +86,7 @@ echo "id: $id\n";
 $err = $client->addbank($url);
 if ($err) echo "Addbank failed for user 1. $err\n";
 else {
-  echo "bankid: " . $client->bankid . "\n";
+  echo "User 1 bankid: " . $client->bankid . "\n";
 }
 
 // Succeeds this time, because this ID is already registered at the bank.
@@ -126,12 +126,23 @@ $users = array(1 => array('idx' => 1, 'id' => $id, 'name' => 'George Jetson',
                3 => array('idx' => 3, 'id' => $id3, 'name' => 'John Doe',
                           'passphrase' => $passphrase3));
 
-$user = $users[1];
-$client->login($user['passphrase']);
-$banks = $client->getbanks();
-$bank = false;
-foreach ($banks as $bank) break;
-if ($bank) $client->setbank($bank[$t->BANKID]);
+$usernum = 1;
+$user = $users[$usernum];
+$err = $client->login($user['passphrase']);
+if ($err) echo "Error logging in as user $usernum: $err\n";
+else {
+  echo "Logged in as user $usernum\n";
+  $banks = $client->getbanks(true);
+  if (is_string($banks)) echo "Error getting banks: $banks\n";
+  elseif (count($banks) > 0) {
+    $bank = false;
+    foreach($banks as $bank) break;
+    $bankid = $bank[$t->BANKID];
+    $err = $client->setbank($bankid);
+    if ($err) echo "Error setting bank to $bankid for user $usernum: $err\n";
+    else "Set bank for user $usernum to $bankid\n";
+  } else echo "No bank for user $usernum\n";
+}
 
 // Command loop
 while (true) {
@@ -147,7 +158,7 @@ while (true) {
       }
     }
     $bankid = $client->current_bank();
-    $banks = $client->getbanks();
+    $banks = $client->getbanks(true);
     if ($bankid) {
       foreach ($banks as $bank) {
         if ($bank[$t->BANKID] == $bankid) {
@@ -190,7 +201,7 @@ while (true) {
   } elseif ($cmd == 'quit' || $cmd == 'q') {
     exit(0);
   } elseif ($cmd == 'show') {
-    $client->showprocess = $client->showprocess ? false : 'echo';
+    $client->showprocess = $client->showprocess ? false : 'echoit';
   } elseif ($cmd == 'users') {
     foreach($users as $user) {
       echo $user['idx'] . ': ' . $user['name'] . ', ' . $user['id'] . "\n";
@@ -224,7 +235,7 @@ while (true) {
           $hash = sha1($sessionid);
           echo "sessionid: $sessionid\n" .
                "     hash: $hash\n";
-          $banks = $client->getbanks();
+          $banks = $client->getbanks(true);
           $bank = false;
           foreach ($banks as $bank) break;
           if ($bank) $client->setbank($bank[$t->BANKID]);
@@ -234,7 +245,7 @@ while (true) {
     }
   } elseif ($cmd == 'banks') {
     $i = 1;
-    $banks = $client->getbanks();
+    $banks = $client->getbanks(true);
     foreach ($banks as $bank) {
       $bname = $bank[$t->NAME];
       $burl = $bank[$t->URL];
@@ -392,7 +403,10 @@ while (true) {
             $note = $item[$t->NOTE];
             if ($note) echo "  note: $note\n";
           } elseif ($request == $t->TRANFEE) {
-            echo "  tranfee: $formattedamount $assetname\n";  
+            echo "  tranfee: $formattedamount $assetname\n";
+          } elseif ($request == $t->COUPONENVELOPE) {
+            $coupon = $item[$t->COUPON];
+            echo "  coupon: $coupon\n";
           } else {
             echo "Unknown request: \"$request\"\n";
           }
@@ -401,77 +415,80 @@ while (true) {
     }
   } elseif ($cmd == 'inbox') {
     $inbox = $client->getinbox();
-    if (count($tokens) == 1) {
-      foreach ($inbox as $time => $items) {
-        echo "$time: ";
-        $first = true;
-        foreach ($items as $entry) {
-          $request = $entry[$t->REQUEST];
-          $fromid = $entry[$t->ID];
-          $msgtime = $entry[$t->MSGTIME];
-          $assetname = $entry[$t->ASSETNAME];
-          $formattedamount = $entry[$t->FORMATTEDAMOUNT];
-          $note = $entry[$t->NOTE];
+    if (is_string($inbox)) echo "getinbox error: $inbox\n";
+    else {
+      if (count($tokens) == 1) {
+        foreach ($inbox as $time => $items) {
+          echo "$time: ";
+          $first = true;
+          foreach ($items as $entry) {
+            $request = $entry[$t->REQUEST];
+            $fromid = $entry[$t->ID];
+            $msgtime = $entry[$t->MSGTIME];
+            $assetname = $entry[$t->ASSETNAME];
+            $formattedamount = $entry[$t->FORMATTEDAMOUNT];
+            $note = $entry[$t->NOTE];
 
-          $contact = $client->getcontact($fromid);
-          $name = $fromid;
-          if ($contact) $name = $contact[$t->NICKNAME];
-          if ($first) $first = false;
-          else echo "  ";
-          if ($request == $t->SPEND || $request == $t->TRANFEE) {
-            echo "$formattedamount $assetname from $name\n";
-            if ($request == $t->SPEND) {
-              echo "  msgtime: $msgtime\n";
+            $contact = $client->getcontact($fromid);
+            $name = $fromid;
+            if ($contact) $name = $contact[$t->NICKNAME];
+            if ($first) $first = false;
+            else echo "  ";
+            if ($request == $t->SPEND || $request == $t->TRANFEE) {
+              echo "$formattedamount $assetname from $name\n";
+              if ($request == $t->SPEND) {
+                echo "  msgtime: $msgtime\n";
+              }
+            } else {
+              // Need to look up outbox entries here
+              echo "$request from $name\n";
             }
-          } else {
-            // Need to look up outbox entries here
-            echo "$request from $name\n";
+            if ($note) echo "  note: $note\n";
           }
-          if ($note) echo "  note: $note\n";
         }
-      }
-      if (count($inbox) == 0) echo "Inbox is empty\n";
-    } else {
-      // processinbox
-      // Rest of line is times
-      $directions = array();
-      for ($i=1; $i<count($tokens); $i++) {
-        $time = $tokens[$i];
-        $in = $inbox[$time];
-        if (!$in) {
-          echo "Not a timestamp in the inbox: $time\n";
-          $directions = false;
-          break;
-        }
-        $dir = array();
-        $dir[$t->TIME] = $time;
-        $in = $in[0];
-        if ($in[$t->REQUEST] == $t->SPEND) {
-          echo "$time: Accept or Reject? ";
-          $line = trim(fgets(STDIN));
-          if ($line == 'a') {
-            $dir[$t->REQUEST] = $t->SPENDACCEPT;
-            echo "Account (main): ";
-            $acct = trim(fgets(STDIN));
-            if (!$acct) $acct = $t->MAIN;
-            $dir[$t->ACCT] = $acct;
-          }
-          elseif ($line == 'r') $dir[$t->REQUEST] = $t->SPENDREJECT;
-          else {
-            echo "Must enter 'a' or 'r'\n";
+        if (count($inbox) == 0) echo "Inbox is empty\n";
+      } else {
+        // processinbox
+        // Rest of line is times
+        $directions = array();
+        for ($i=1; $i<count($tokens); $i++) {
+          $time = $tokens[$i];
+          $in = $inbox[$time];
+          if (!$in) {
+            echo "Not a timestamp in the inbox: $time\n";
             $directions = false;
             break;
           }
-          echo "Note: ";
-          $note = trim(fgets(STDIN));
-          if ($note) $dir[$t->NOTE] = $note;
+          $dir = array();
+          $dir[$t->TIME] = $time;
+          $in = $in[0];
+          if ($in[$t->REQUEST] == $t->SPEND) {
+            echo "$time: Accept or Reject? ";
+            $line = trim(fgets(STDIN));
+            if ($line == 'a') {
+              $dir[$t->REQUEST] = $t->SPENDACCEPT;
+              echo "Account (main): ";
+              $acct = trim(fgets(STDIN));
+              if (!$acct) $acct = $t->MAIN;
+              $dir[$t->ACCT] = $acct;
+            }
+            elseif ($line == 'r') $dir[$t->REQUEST] = $t->SPENDREJECT;
+            else {
+              echo "Must enter 'a' or 'r'\n";
+              $directions = false;
+              break;
+            }
+            echo "Note: ";
+            $note = trim(fgets(STDIN));
+            if ($note) $dir[$t->NOTE] = $note;
+          }
+          $directions[] = $dir;
         }
-        $directions[] = $dir;
-      }
-      if ($directions) {
-        $res = $client->processinbox($directions);
-        if ($res) echo "Error: $res\n";
-        else echo "Inbox processeed successfully.\n";
+        if ($directions) {
+          $res = $client->processinbox($directions);
+          if ($res) echo "Error: $res\n";
+          else echo "Inbox processeed successfully.\n";
+        }
       }
     }
   } elseif ($cmd == 'sessionid') {
@@ -491,6 +508,10 @@ while (true) {
   } else {
     echo "Unknown command: $cmd\n";
   }
+}
+
+function echoit($msg) {
+  echo $msg;
 }
 
 /**** Old code ***

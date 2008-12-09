@@ -653,7 +653,7 @@ Redeeming Coupons
 (<bankid>,@couponenvelope,(<id>,couponenvelope,<bankid>,<encrytped-coupon>))
 
   Where <encrypted-coupon> is the coupon above, encrypted to the
-  public key of <id>.
+  bank's public key.
 
   If the coupon has already been spent, bank returns:
 

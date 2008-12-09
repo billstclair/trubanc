@@ -168,13 +168,7 @@ class client {
   function comparebanks($b1, $b2) {
     $t = $this->t;
 
-    if ($b1[$t->NAME] < $b2[$t->NAME]) return -1;
-    elseif ($b1[$t->NAME] > $b2[$t->NAME]) return 1;
-    else {
-      if ($b1[$t->URL] < $b2[$t->URL]) return -1;
-      elseif ($b1[$t->URL] > $b2[$t->URL]) return 1;
-      else return 0;
-    }
+    return $this->comparearrays($b1, $b2, array($t->NAME, $t->URL));
   }
 
   // Return all the banks known by the current user:
@@ -207,10 +201,10 @@ class client {
   //                $t->URL => $url)
   // or false if it doesn't find the $bankid
   // If $all is true, return the bank even if the current user isn't logged in
-  function getbank($bankid) {
+  function getbank($bankid, $all=false) {
     $t = $this->t;
 
-    $req = $this->userbankprop($t->REQ, $bankid, $all=false);
+    $req = $this->userbankprop($t->REQ, $bankid);
     $bank = false;
     if ($all || ($req && !($req === 0))) {
       $bank = array($t->BANKID => $bankid,
@@ -1586,11 +1580,14 @@ class client {
       foreach ($reqs as $req) {
         $args = $this->match_bankreq($req);
         if (is_string($args)) return $args;
-        $args = $args[$t->MSG];
-        if ($args[$t->TIME] != $time) {
-          return "Outbox message timestamp mismatch";
-        }
         $request = $args[$t->REQUEST];
+        if ($request != $t->COUPONENVELOPE) {
+          $args = $args[$t->MSG];
+          $request = $args[$t->REQUEST];
+          if ($args[$t->TIME] != $time) {
+            return "Outbox message timestamp mismatch";
+          }
+        }
         $item = array();
         $item[$t->REQUEST] = $request;
         $item[$t->TIME] = $time;
@@ -1599,18 +1596,26 @@ class client {
           $item[$t->NOTE] = $args[$t->NOTE];
         } elseif ($request == $t->TRANFEE) {
           // Nothing special to do here
+        } elseif ($request == $t->COUPONENVELOPE) {
+          $coupon = $args[$t->ENCRYPTEDCOUPON];
+          if ($coupon) {
+            $coupon = $this->ssl->privkey_decrypt($coupon, $this->privkey);
+            $item[$t->COUPON] = $coupon;
+          }
         } else {
           return "Bad request in outbox: $request";
         }
         $assetid = $args[$t->ASSET];
         $amount = $args[$t->AMOUNT];
-        $asset = $this->getasset($assetid);
-        $item[$t->ASSET] = $assetid;
-        $item[$t->AMOUNT] = $amount;
-        if (!is_string($asset)) {
-          $item[$t->ASSETNAME] = $asset[$t->ASSETNAME];
-          $item[$t->FORMATTEDAMOUNT] =
-            $this->format_asset_value($amount, $asset, false);
+        if ($assetid && $amount) {
+          $asset = $this->getasset($assetid);
+          $item[$t->ASSET] = $assetid;
+          $item[$t->AMOUNT] = $amount;
+          if (!is_string($asset)) {
+            $item[$t->ASSETNAME] = $asset[$t->ASSETNAME];
+            $item[$t->FORMATTEDAMOUNT] =
+              $this->format_asset_value($amount, $asset, false);
+          }
         }
         $items[] = $item;
       }
@@ -2115,8 +2120,9 @@ class client {
         if (is_string($args)) return "While matching getbalance: $args";
         $request = $args[$t->REQUEST];
         $msgargs = $args[$t->MSG];
-        if ($msgargs[$t->CUSTOMER] != $id) {
-          return "Bank wrapped somebody else's message: $msg";
+        $customer = $msgargs[$t->CUSTOMER];
+        if ($msgargs && $customer != $id) {
+          return "Bank wrapped somebody else's ($customer) message: $msg";
         }
         if ($request == $t->ATBALANCE) {
           if ($msgargs[$t->REQUEST] != $t->BALANCE) {
@@ -2139,19 +2145,24 @@ class client {
       if (!$reqs) return "While parsing getoutbox: " . $parser->errmsg;
       $outbox = array();
       $outboxhash = '';
+      $outboxtime = false;
       foreach ($reqs as $req) {
         $args = $this->match_bankreq($req);
         if (is_string($args)) return "While matching getoutbox: $args";
         $request = $args[$t->REQUEST];
         $msgargs = $args[$t->MSG];
-        if ($msgargs[$t->CUSTOMER] != $id) {
-          return "Bank wrapped somebody else's message: $msg";
+        $customer = $msgargs[$t->CUSTOMER];
+        if ($msgargs && $msgargs[$t->CUSTOMER] != $id) {
+          return "Bank wrapped somebody else's ($customer) message: $msg";
         }
-        if ($request == $t->ATSPEND) {
+        if ($request == $t->ATGETOUTBOX) {
+          $outboxtime = false;
+        } elseif ($request == $t->ATSPEND) {
           if ($msgargs[$t->REQUEST] != $t->SPEND) {
             return "Bank wrapped a non-spend request with @spend";
           }
           $time = $msgargs[$t->TIME];
+          $outbox_time = $time;
           $outbox[$time] = $parser->get_parsemsg($req);
         } elseif ($request == $t->ATTRANFEE) {
           if ($msgargs[$t->REQUEST] != $t->TRANFEE) {
@@ -2167,8 +2178,13 @@ class client {
             return "Bank wrapped a non-outbox request with @outboxhash";
           }
           $outboxhash = $parser->get_parsemsg($req);
-        } elseif ($request == $t->ATGETOUTBOX) {
-          // Nothing to do here          
+        } elseif ($request == $t->COUPONENVELOPE) {
+          if (!$outbox_time) return "Got a coupon envelope with no outboxtime";
+          $msg = $outbox[$outbox_time];
+          if (!$msg) return "No spend message for coupon envelope";
+          $msg = "$msg." . $parser->get_parsemsg($req);
+          $outbox[$outbox_time] = $msg;
+          $outbox_time = false;
         } else {
           return "While processing getoutbox: bad request: $request";
         }

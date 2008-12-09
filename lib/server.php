@@ -929,7 +929,7 @@ class server {
       if (!$random) {
         require_once "LoomRandom.php";
         $random = new LoomRandom();
-        $this->$random = $random;
+        $this->random = $random;
       }
       $coupon_number = $random->random_id();
       $bankurl = $this->bankurl;
