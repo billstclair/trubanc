@@ -81,7 +81,7 @@ if ($client->id) {
       $cmd = 'banks';
     }
   }
-} elseif ($cmd != 'login') $cmd = '';
+} elseif ($cmd != 'login' && $cmd != 'register') $cmd = '';
 
 if (!$cmd) draw_login();
 
@@ -94,6 +94,7 @@ elseif ($cmd == 'admin') do_admin();
 elseif ($cmd == 'spend') do_spend();
 elseif ($cmd == 'processinbox') do_processinbox();
 
+elseif ($cmd == 'register') draw_register();
 elseif ($cmd == 'balance') draw_balance();
 elseif ($cmd == 'rawbalance') draw_raw_balance();
 elseif ($cmd == 'contacts') draw_contacts();
@@ -491,18 +492,10 @@ function do_processinbox() {
 
 function draw_login($key=false) {
   global $title, $menu, $body, $onload;
-  global $keysize, $require_tokens;
   global $error;
 
-  $key = hsc($key);
-
-  if (!$keysize) $keysize = 3072;
-  $sel = ' selected="selected"';
-  $sel512 = ($keysize == 512) ? $sel : '';
-  $sel1024 = ($keysize == 1024) ? $sel : '';
-  $sel2048 = ($keysize == 2048) ? $sel : '';
-  $sel3072 = ($keysize == 3072) ? $sel : '';
-  $sel4096 = ($keysize == 4096) ? $sel : '';
+  $page = mqpost('page');
+  if ($page == 'register') return draw_register($key);
 
   $menu = '';
   $onload = "document.forms[0].passphrase.focus()";
@@ -514,6 +507,45 @@ function draw_login($key=false) {
 <td><b>Passphrase:</b></td>
 <td><input type="password" name="passphrase" size="50"/>
 <input type="submit" name="login" value="Login"/></td>
+</tr><tr>
+<td></td>
+<td style="color: red">$error&nbsp;</td>
+</tr>
+</table>
+<a href="./?cmd=register">Register a new account</a>
+</form>
+
+EOT;
+}
+
+function draw_register($key=false) {
+
+  global $title, $menu, $body, $onload;
+  global $keysize, $require_tokens;
+  global $error;
+
+  $key = hsc($key);
+
+  $menu = '';
+  $onload = "document.forms[0].passphrase.focus()";
+
+  if (!$keysize) $keysize = 3072;
+  $sel = ' selected="selected"';
+  $sel512 = ($keysize == 512) ? $sel : '';
+  $sel1024 = ($keysize == 1024) ? $sel : '';
+  $sel2048 = ($keysize == 2048) ? $sel : '';
+  $sel3072 = ($keysize == 3072) ? $sel : '';
+  $sel4096 = ($keysize == 4096) ? $sel : '';
+
+  $body = <<<EOT
+<form method="post" action="./" autocomplete="off">
+<input type="hidden" name="cmd" value="login"/>
+<table>
+<tr>
+<td><b>Passphrase:</b></td>
+<td><input type="password" name="passphrase" size="50"/>
+<input type="submit" name="login" value="Login"/></td>
+<input type="hidden" name="page" value="register"/>
 </tr><tr>
 <td></td>
 <td style="color: red">$error&nbsp;</td>
@@ -860,7 +892,7 @@ EOT;
 <br/>
 <input type="hidden" name="nonspendid$nonspendcnt" value="$fromid"/>
 Nickname:
-<input type="text" name="nonspendnick$spendcnt" size="10"/></span>
+<input type="text" name="nonspendnick$nonspendcnt" size="10"/></span>
 EOT;
           }
         $timecode = <<<EOT
