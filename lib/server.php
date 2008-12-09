@@ -1021,8 +1021,6 @@ class server {
     }
 
     $coupon_number_hash = sha1($args[$t->COUPON]);
-    $assetid = $args[$t->ASSET];
-    $amount = $args[$t->AMOUNT];
 
     $key = $t->COUPON . "/$coupon_number_hash";
     $lock = $db->lock($key);

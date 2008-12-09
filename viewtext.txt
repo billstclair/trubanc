@@ -1,13 +1,14 @@
 index.php|The web site index page and server web page
-settings.php|Settings for index.php
 index.inc|The HTML for the home page when not invoked as a server
 makekey.php|Utility for creating Trubanc-compatible public/private key pairs
+settings.php.tmpl|Template for server settings
 
 doc/idea.txt|My original idea
 doc/db.txt|Description of the server database and protocol
 doc/client.txt|Description of the client database
 todo.txt|Stuff to do
 plain-english.html|Source for <a href="plain-english.html">Trubanc in Plain English</a>
+client.html|Source for <a href="client.html">A Trubanc Web Client</a>
 
 lib/fsdb.php|The "File System Database" used by Trubanc
 lib/parser.php|Parser for the protocol strings
@@ -23,8 +24,9 @@ lib/client.php|The client API
 lib/clientest.php|Test code for the client API
 
 client/index.php|The web client
-client/settings.php|Settings for the web client
+client/settings.php.tmpl|Template for web client settings
 client/template.php|Web client page template
+client/debug.php|Toggles debug mode in the web client
 
 viewtext.php|The file that generated this listing
 viewtext.txt|The list of files viewtext.php will show you
