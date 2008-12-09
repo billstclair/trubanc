@@ -158,12 +158,12 @@ function do_login() {
 
   $t = $client->t;
 
-  $passphrase = mq($_POST['passphrase']);
-  $passphrase2 = mq($_POST['passphrase2']);
-  $keysize = mq($_POST['keysize']);
-  $login = mq($_POST['login']);
-  $newacct = mq($_POST['newacct']);
-  $showkey = mq($_POST['showkey']);
+  $passphrase = mqpost('passphrase');
+  $passphrase2 = mqpost('passphrase2');
+  $keysize = mqpost('keysize');
+  $login = mqpost('login');
+  $newacct = mqpost('newacct');
+  $showkey = mqpost('showkey');
 
   if ($showkey) {
     $key = $client->getprivkey($passphrase);
@@ -172,13 +172,13 @@ function do_login() {
   }
   if ($newacct) {
     $login = false;
-    $privkey = mq($_POST['privkey']);
+    $privkey = mqpost('privkey');
     if (!$privkey && $passphrase != $passphrase2) {
       $error = "Passphrase didn't match Verification";
       draw_login();
     } else {
       if ($require_tokens && ($_SERVER['HTTP_HOST'] != 'localhost')) {
-        $tok = mq($_POST['tok']);
+        $tok = mqpost('tok');
         $token = $client->token($tok);
         if (!$token) {
           $sprivkey = '';
@@ -252,16 +252,16 @@ function do_bank() {
 
   $error = false;
 
-  $newbank = mq($_POST['newbank']);
-  $selectbank = mq($_POST['selectbank']);
+  $newbank = mqpost('newbank');
+  $selectbank = mqpost('selectbank');
 
   if ($newbank) {
-    $bankurl = mq($_POST['bankurl']);
-    $name = mq($_POST['name']);
+    $bankurl = mqpost('bankurl');
+    $name = mqpost('name');
     $error = $client->addbank($bankurl, $name);
     if (!$error) $client->userpreference('bankid', $client->bankid);
   } elseif ($selectbank) {
-    $bankid = mq($_POST['bank']);
+    $bankid = mqpost('bank');
     if (!$bankid) $error = "You must choose a bank";
     else $client->userpreference('bankid', $bankid);
     setbank(true);
@@ -274,14 +274,14 @@ function do_contact() {
   global $client;
   global $error;
 
-  $addcontact = $_POST['addcontact'];
-  $deletecontacts = $_POST['deletecontacts'];
+  $addcontact = mqpost('addcontact');
+  $deletecontacts = mqpost('deletecontacts');
   $chkcnt = mqpost('chkcnt');
 
   if ($addcontact) {
-    $id = $_POST['id'];
-    $nickname = $_POST['nickname'];
-    $notes = $_POST['notes'];
+    $id = mqpost('id');
+    $nickname = mqpost('nickname');
+    $notes = mqpost('notes');
     if (!$id) {
       for ($i=0; $i<$chkcnt; $i++) {
         $chki = mqpost("chk$i");
@@ -318,7 +318,7 @@ function do_asset() {
 
   $error = false;
 
-  $newasset = mq($_POST['newasset']);
+  $newasset = mqpost('newasset');
 
   if ($newasset) {
     $scale = mqpost('scale');
@@ -340,14 +340,14 @@ function do_asset() {
 function do_admin() {
   global $client;
 
-  $createtoken = $_POST['createtoken'];
-  $removetoken = $_POST['removetoken'];
-  $cancel = $_POST['cancel'];
+  $createtoken = mqpost('createtoken');
+  $removetoken = mqpost('removetoken');
+  $cancel = mqpost('cancel');
 
   if ($createtoken) {
-    $name = mq($_POST['name']);
-    $count = mq($_POST['count']);
-    $tokens = mq($_POST['tokens']);
+    $name = mqpost('name');
+    $count = mqpost('count');
+    $tokens = mqpost('tokens');
     $res = '';
     for ($i=0; $i<$count; $i++) {
       $tok = $client->newsessionid();
@@ -357,7 +357,7 @@ function do_admin() {
     }
     draw_admin($name, $res);
   } elseif ($removetoken) {
-    $tok = mq($_POST['tok']);
+    $tok = mqpost('tok');
     $client->token($tok, '');
     draw_admin();
   } elseif ($cancel) {
