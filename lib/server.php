@@ -612,6 +612,8 @@ class server {
   function do_register($args, $reqs, $msg) {
     $t = $this->t;
     $db = $this->db;
+    $u = $this->u;
+
     // $t->REGISTER => array($t->BANKID,$t->PUBKEY,$t->NAME=>1)
     $id = $args[$t->CUSTOMER];
     $pubkey = $args[$t->PUBKEY];
@@ -624,6 +626,25 @@ class server {
     if ($this->ssl->pubkey_bits($pubkey) > 4096) {
       return $this->failmsg($msg, "Key sizes larger than 4096 not allowed");
     }
+
+    // Process included coupons
+    $reqargslist = array();
+    for ($i=1; $i<count($reqs); $i++) {
+      $req = $req[$i];
+      $reqargs = $u->match_pattern($req);
+      $reqid = $reqargs[$t->CUSTOMER];
+      $request = $reqargs[$t->REQUEST];
+      if ($reqid != $id) return $this->failmsg("Coupon signed by other id");
+      if ($request != $t->COUPONENVELOPE) {
+        return $this->failmsg("Non-coupon request: $request");
+      }
+      $reqargslist[] = $reqargs;
+    }
+    foreach ($reqargslist as $reqargs) {
+      $err = $this->do_couponenvelope_raw($reqargs, $id);
+      if ($err) return $this->failmsg($msg, $err);
+    }
+
     $regfee = $this->regfee;
     $tokenid = $this->tokenid;
     $success = false;
@@ -1008,20 +1029,30 @@ class server {
 
   function do_couponenvelope_internal($args, $msg, $id) {
     $t = $this->t;
+
+    $res = $this->do_couponenvelope_raw($args, $id);
+    if (is_string($res)) return $this->failmsg($msg, $res);
+    return $this->bankmsg($t->ATCOUPONENVELOPE, $msg);
+  }
+
+  // Called by do_register to process coupons there
+  // Returns an error string or false
+  function do_couponenvelope_raw($args, $id) {
+    $t = $this->t;
     $db = $this->db;
     $bankid = $this->bankid;
     $parser = $this->parser;
 
     $encryptedto = $args[$t->ID];
     if ($encryptedto != $bankid) {
-      return $this->failmsg($msg, "Coupon not encrypted to bank");
+      return "Coupon not encrypted to bank";
     }
     $coupon = $args[$t->ENCRYPTEDCOUPON];
     $coupon = $this->ssl->privkey_decrypt($coupon, $this->privkey);
     $args = $this->unpack_bankmsg($coupon, $t->COUPON);
-    if (is_string($args)) return $this->failmsg($msg, "Error parsing coupon: $args");
+    if (is_string($args)) return "Error parsing coupon: $args";
     if ($bankid != $args[$t->CUSTOMER]) {
-      return $this->failmsg($msg, "Coupon not signed by bank");
+      return "Coupon not signed by bank";
     }
 
     $coupon_number_hash = sha1($args[$t->COUPON]);
@@ -1032,13 +1063,13 @@ class server {
     if ($outbox_item) $db->put($key, '');
     $db->unlock($lock);
 
-    if (!$outbox_item) return $this->failmsg($msg, "Coupon already redeemed");
+    if (!$outbox_item) return "Coupon already redeemed";
 
     $args = $this->unpack_bankmsg($outbox_item, $t->ATSPEND);
     if (is_string($args)) {
       // Make sure the spender can cancel the coupon
       $db->put($key, $outbox_item);
-      return $this->failmsg($msg, "While unpacking coupon spend: $args");
+      return "While unpacking coupon spend: $args";
     }
     $reqs = $args[$this->unpack_reqs_key];
     $spendreq = $args[$t->MSG];
@@ -1054,7 +1085,7 @@ class server {
 
     $key = $this->inboxkey($id) . "/$newtime";
     $db->put($key, $inbox_item);
-    return $this->bankmsg($t->ATCOUPONENVELOPE, $msg);
+    return false;
   }
 
   // Query inbox
