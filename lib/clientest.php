@@ -194,6 +194,7 @@ while (true) {
       "spend <user#> <asset#> <amount> [<acct>]: Spend from current user to <user#>\n" .
       "coupon <asset#> <amount> [<acct>]: Create a coupon\n" .
       "outbox: Show outbox\n" .
+      "redeem <time#>: redeem the coupon in the <time#> outbox item\n" .
       "inbox [<time>...]: Show inbox, or process <time> items\n" .
       "register <user> <bankurl>: register a new account with the bank\n" .
       "sessionid: create a new session id and print it\n" .
@@ -378,6 +379,30 @@ while (true) {
         $coupon = $client->getcoupon();
         if (!$coupon) echo "No coupon returned from spend\n";
         else echo "Coupon: $coupon\n";
+      }
+    }
+  } elseif ($cmd == 'redeem') {
+    $cnt = count($tokens);
+    if ($cnt != 2) echo "Usage is: redeem <time#>\n";
+    else {
+      $outbox = $client->getoutbox();
+      $time = $tokens[1];
+      $items = $outbox[$time];
+      if (!$items) echo "No outbox item for time: $time\n";
+      else {
+        $found = false;
+        foreach ($items as $item) {
+          if ($item[$t->REQUEST] == $t->COUPONENVELOPE) {
+            $found = true;
+            $coupon = $item[$t->COUPON];
+            echo "Coupon: $coupon\n";
+            $err = $client->redeem($coupon);
+            if ($err) echo "$err\n";
+          }
+        }
+        if (!$found) {
+          echo "No coupon in outbox entry: $time\n";
+        }
       }
     }
   } elseif ($cmd == 'outbox') {

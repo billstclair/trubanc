@@ -991,7 +991,10 @@ class server {
     return $res;
   }
 
-  // Redeem coupon
+  // Redeem coupon by moving it from coupon/<coupon> to the customer inbox.
+  // This isn't the right way to do this.
+  // It really wants to be like processinbox, with new balances.
+  // You have to do it this way for a new registration, though.
   function do_couponenvelope($args, $reqs, $msg) {
     $t = $this->t;
     $db = $this->db;
@@ -1004,9 +1007,10 @@ class server {
   }
 
   function do_couponenvelope_internal($args, $msg, $id) {
-    $t->$this->t;
+    $t = $this->t;
     $db = $this->db;
     $bankid = $this->bankid;
+    $parser = $this->parser;
 
     $encryptedto = $args[$t->ID];
     if ($encryptedto != $bankid) {
@@ -1048,7 +1052,9 @@ class server {
     $inbox_item = $this->bankmsg($t->INBOX, $newtime, $spendmsg);
     if ($feemsg) $inbox_item .= ".$feemsg";
 
-    $db->put($this->inboxkey($id) . "/$newtime", $inbox_item);
+    $key = $this->inboxkey($id) . "/$newtime";
+    $db->put($key, $inbox_item);
+    return $this->bankmsg($t->ATCOUPONENVELOPE, $msg);
   }
 
   // Query inbox
@@ -1080,7 +1086,8 @@ class server {
         $args = $u->match_pattern($args[$t->MSG]);
       }
       if (!$args || is_string($args) ||
-          $args[$t->ID] != $id) {
+          ($args[$t->ID] != $id &&
+           $args[$t->ID] != $t->COUPON)) {
         return $this->failmsg($msg, "Inbox corrupt");
       }
     }
@@ -1141,7 +1148,7 @@ class server {
       $item = $db->get("$inboxkey/$inboxtime");
       if (!$item) return $this->failmsg($msg, "Inbox entry not found: $inboxtime");
       $itemargs = $this->unpack_bankmsg($item, $t->INBOX, true);
-      if ($itemargs[$t->ID] != $id) {
+      if ($itemargs[$t->ID] != $id && $itemargs[$t->ID] != $t->COUPON) {
         return $this->failmsg($msg, "Inbox corrupt. Item found for other customer");
       }
       $request = $itemargs[$t->REQUEST];
@@ -1770,6 +1777,7 @@ class server {
                      $t->GETTIME => array($t->BANKID,$t->REQ),
                      $t->GETFEES => array($t->BANKID,$t->REQ,$t->OPERATION=>1),
                      $t->SPEND => $patterns[$t->SPEND],
+                     $t->COUPONENVELOPE => $patterns[$t->COUPONENVELOPE],
                      $t->GETINBOX => $patterns[$t->GETINBOX],
                      $t->PROCESSINBOX => $patterns[$t->PROCESSINBOX],
                      $t->GETASSET => array($t->BANKID,$t->REQ,$t->ASSET),

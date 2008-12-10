@@ -1544,13 +1544,16 @@ class client {
   //         ...)
   //
   // $time is the timestamp of the outbox entry
-  // $request is $t->SPEND or $t->TRANFEE
+  // $request is $t->SPEND, $t->TRANFEE, or $t->COUPONENVELOPE
   // $recipientid is the recipient for spend, or omitted for tranfee
   // $assetid is the ID of the asset transferred
   // $assetname is the name of $assetid
   // $amount is the amount transferred
   // $formattedamount is $amount formatted for output
   // $note is the transfer note, omitted for tranfee
+  //
+  // If $request is $t->COUPONENVELOPE, then $t->COUPON indexes the coupon itself,
+  // as text, and the rest of the fields are unpopulated.
   function getoutbox() {
     $db = $this->db;
 
@@ -1622,6 +1625,31 @@ class client {
       $res[$time] = $items;
     }
     return $res;
+  }
+
+  // Redeem a coupon
+  // If successful, add an inbox entry for the coupon spend and return false.
+  // If fails, return error message.
+  // Needs an option to process the coupon, intead of just adding it to
+  // the inbox.
+  function redeem($coupon) {
+    $t = $this->t;
+    $bankid = $this->bankid;
+    $ssl = $this->ssl;
+
+    $pubkey = $this->pubkeydb->get($bankid);
+    if (!$pubkey) return "Can't get bank public key";
+    
+    $coupon = $ssl->pubkey_encrypt($coupon, $pubkey);
+    $msg = $this->sendmsg($t->COUPONENVELOPE, $bankid, $coupon);
+    $args = $this->unpack_bankmsg($msg);
+    if (is_string($args)) return "redeem: $args";
+    $request = $args[$t->REQUEST];
+    if ($request == $t->FAILED) return "redeem: " . $args[$t->ERRMSG];
+    elseif ($request != $t->ATCOUPONENVELOPE) {
+      return "redeem: unexpected return type from server: $request";
+    }
+    return false;
   }
 
   // End of API methods
@@ -2465,7 +2493,6 @@ class serverproxy {
 
     $client->debugmsg("===SENT: $msg\n");
 
-    //$res = file_get_contents("$url?" . http_build_query($vars));
     $res = $this->post($url, $vars);
 
     if ($debugfile) {
