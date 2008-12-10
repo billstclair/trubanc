@@ -61,7 +61,9 @@ class client {
   // If $privkey is a string, use that as the private key.
   // If it is an integer, default 3072, create a new private key with that many bits
   // User is logged in when this returns successfully.
-  function newuser($passphrase, $privkey=3072) {
+  // If $coupon is included, submit it to the bank before creating
+  // the account, and error if the bank errors on the coupon.
+  function newuser($passphrase, $privkey=3072, $coupon=false) {
     $db = $this->db;
     $t = $this->t;
     $ssl = $this->ssl;
@@ -1295,7 +1297,7 @@ class client {
         $inbox[$last_time] .= ".$bankmsg";
       } elseif ($request == $t->TIME) {
         $times[] = $args[$t->TIME];
-      } else {
+      } elseif ($request != $t->COUPONNUMBERHASH) {
         return "Unknown request in getinbox return: $request";
       }
     }

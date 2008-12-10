@@ -106,6 +106,7 @@ class utility {
                         $t->INBOX => array($t->TIME, $t->MSG),
                         $t->REQ => array($t->ID, $t->REQ),
                         $t->COUPON => array($t->BANKURL, $t->COUPON, $t->ASSET, $t->AMOUNT, $t->NOTE=>1),
+                        $t->COUPONNUMBERHASH => array($t->COUPON),
                         $t->ATREGISTER => array($t->MSG),
                         $t->ATOUTBOXHASH => array($t->MSG),
                         $t->ATBALANCEHASH => array($t->MSG),

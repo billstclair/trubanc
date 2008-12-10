@@ -169,11 +169,13 @@ function do_login() {
     $key = $client->getprivkey($passphrase);
     if (!$key) $error = "No key for passphrase";
     draw_login($key);
-  }
-  if ($newacct) {
+  } elseif ($newacct) {
     $login = false;
     $privkey = mqpost('privkey');
-    if (!$privkey && $passphrase != $passphrase2) {
+    if (!$passphrase) {
+      $error = "Passphrase may not be blank";
+      draw_login();
+    } elseif (!$privkey && $passphrase != $passphrase2) {
       $error = "Passphrase didn't match Verification";
       draw_login();
     } else {
@@ -1075,7 +1077,7 @@ $spendcode
 </table>
 $closespend
 EOT;
-  $body = "$error<br>$bankcode$inboxcode$fullspend";
+  $body = "$error<br/>$bankcode$inboxcode$fullspend";
 }
 
 function draw_raw_balance() {
@@ -1175,7 +1177,7 @@ function draw_banks() {
   setmenu('banks');
 
   $body .= <<<EOT
-<span style="color: red;">$error</span><br>
+<span style="color: red;">$error</span><br/>
 <form method="post" action="./" autocomplete="off">
 <input type="hidden" name="cmd" value="bank"/>
 <table>
@@ -1183,7 +1185,7 @@ function draw_banks() {
 <td><b>Bank URL:</b></td>
 <td><input type="text" name="bankurl" size="40"/>
 </tr><tr>
-<td><b>Account Name<br>(optional):</b></td>
+<td><b>Account Name<br/>(optional):</b></td>
 <td><input type="text" name="name" size="40"/></td>
 </tr><tr>
 <td></td>
@@ -1334,7 +1336,7 @@ function draw_assets($scale=false, $precision=false, $assetname=false) {
   $assetname = hsc($assetname);
 
   $body .= <<<EOT
-<span style="color: red;">$error</span><br>
+<span style="color: red;">$error</span><br/>
 <form method="post" action="./" autocomplete="off">
 <input type="hidden" name="cmd" value="asset"/>
 <table>

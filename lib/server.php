@@ -262,9 +262,12 @@ class server {
     $msg = '(';
     $skip = false;
     foreach ($args as $k => $v) {
-      if (is_int($k) && !$skip) {
-        if ($msg != '(') $msg .= ',';
-        $msg .= $u->escape($v);
+      if (is_int($k)) {
+        if ($skip) $skip = false;
+        else {
+          if ($msg != '(') $msg .= ',';
+          $msg .= $u->escape($v);
+        }
       } elseif ($k == $t->MSG) {
         $skip = true;
         $msg .= ",$v";
@@ -1042,6 +1045,7 @@ class server {
     $db = $this->db;
     $bankid = $this->bankid;
     $parser = $this->parser;
+    $u = $this->u;
 
     $encryptedto = $args[$t->ID];
     if ($encryptedto != $bankid) {
@@ -1063,7 +1067,28 @@ class server {
     if ($outbox_item) $db->put($key, '');
     $db->unlock($lock);
 
-    if (!$outbox_item) return "Coupon already redeemed";
+    if (!$outbox_item) {
+      $key = $this->inboxkey($id);
+      $inbox = $db->contents($key);
+      foreach ($inbox as $time) {
+        $item = $db->get("$key/$time");
+        if (strstr($item, ',' . $t->COUPON . ',')) {
+          $reqs = $parser->parse($item);
+          if ($reqs && count($reqs) > 1) {
+            $req = $reqs[1];
+            $msg = $u->match_pattern($req);
+            if (!is_string($msg)) {
+              if ($coupon_number_hash == $msg[$t->COUPON]) {
+                // Customer already redeemded this coupon.
+                // Success if he tries to do it again.
+                return false;
+              }
+            }
+          }
+        }
+      }
+      return "Coupon already redeemed";
+    }
 
     $args = $this->unpack_bankmsg($outbox_item, $t->ATSPEND);
     if (is_string($args)) {
@@ -1081,6 +1106,8 @@ class server {
     }
     $newtime = $this->gettime();
     $inbox_item = $this->bankmsg($t->INBOX, $newtime, $spendmsg);
+    $cnhmsg = $this->bankmsg($t->COUPONNUMBERHASH, $coupon_number_hash);
+    $inbox_item .= $cnhmsg;
     if ($feemsg) $inbox_item .= ".$feemsg";
 
     $key = $this->inboxkey($id) . "/$newtime";
@@ -1116,11 +1143,13 @@ class server {
       if ($args && !is_string($args)) {
         $args = $u->match_pattern($args[$t->MSG]);
       }
-      if (!$args || is_string($args) ||
-          ($args[$t->ID] != $id &&
-           $args[$t->ID] != $t->COUPON)) {
-        return $this->failmsg($msg, "Inbox corrupt");
+      $err = false;
+      if (!$args) $err = 'Inbox parse error';
+      elseif (is_string($args)) $err = "Inbox match error: $args";
+      elseif ($args[$t->ID] != $id && $args[$t->ID] != $t->COUPON) {
+        $err = "Inbox entry for wrong ID: " . $args[$t->ID];
       }
+      if ($err) return $this->failmsg($msg, $err);
     }
     // Append the timestamps, if there are any inbox entries
     if (count($inbox) > 0) {
@@ -1187,7 +1216,8 @@ class server {
         $itemtime = $itemargs[$t->TIME];
         $spends[$itemtime] = array($inboxtime, $itemargs);
         $itemreqs = $itemargs[$this->unpack_reqs_key];
-        $feereq = $itemreqs[1];
+        $itemcnt = count($itemreqs);
+        $feereq = ($itemcnt > 1) ? $itemreqs[$itemcnt-1] : false;
         if ($feereq) {
           $feeargs = $u->match_pattern($feereq);
           if ($feeargs && $feeargs[$t->REQUEST] == $t->ATTRANFEE) {
