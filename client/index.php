@@ -55,7 +55,7 @@ $default_menuitems = array('balance' => 'Balance',
                            'logout' => 'Logout');
 
 // Initialize (global) inputs to template.php
-$title = "Trubanc Web Client";
+$title = "Trubanc Client";
 $bankline = '';
 
 $error = false;
@@ -110,6 +110,12 @@ else draw_login();
 if ($debug) $debug = "<b>=== Debug log ===</b><br/><pre>$debug</pre>\n";
 include "template.php";
 return;
+
+function settitle($subtitle) {
+  global $title;
+
+  $title = "$subtitle - Trubanc Client";
+}
 
 function menuitem($cmd, $text, $highlight) {
   $res = "<a href=\"./?cmd=$cmd\">";
@@ -714,6 +720,7 @@ function draw_balance($spend_amount=false, $recipient=false, $note=false) {
   $bankid = $client->bankid();
   $banks = $client->getbanks();
 
+  settitle('Balance');
   setmenu('balance');
 
   $saveerror = $error;
@@ -1151,6 +1158,7 @@ function draw_coupon($time = false) {
   
   $t = $client->t;
 
+  settitle('Coupon');
   setmenu('balance');
 
   $outbox = $client->getoutbox();
@@ -1194,6 +1202,7 @@ function draw_raw_balance() {
   global $body;
   global $client;
 
+  settitle('Raw Balance');
   setmenu('balance');
 
   if ($client) {
@@ -1284,6 +1293,7 @@ function draw_banks() {
   $banks = $client->getbanks();
 
   $onload = "document.forms[0].bankurl.focus()";
+  settitle('Banks');
   setmenu('banks');
 
   $body .= <<<EOT
@@ -1349,6 +1359,7 @@ function draw_contacts($id=false, $nickname=false, $notes=false) {
   $t = $client->t;
 
   $onload = "document.forms[0].id.focus()";
+  settitle('Contacts');
   setmenu('contacts');
 
   $id = hsc($id);
@@ -1439,6 +1450,7 @@ function draw_assets($scale=false, $precision=false, $assetname=false) {
 
   $onload = "document.forms[0].scale.focus()";
 
+  settitle('Assets');
   setmenu('assets');
 
   $scale = hsc($scale);
@@ -1513,6 +1525,7 @@ function draw_admin($name=false, $tokens=false) {
   global $error;
   global $client;
 
+  settitle('Admin');
   setmenu('admin');
 
   $onload = "document.forms[0].name.focus()";
