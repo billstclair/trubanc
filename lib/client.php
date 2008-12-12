@@ -220,25 +220,45 @@ class client {
     return $bank;
   }
 
+  // Returns true if $url might be a properly-fored URL
+  function isurl($url) {
+    return (is_string($url) &&
+            (substr($url, 0, 5) == "http:" ||
+             substr($url, 0, 6) == "https:"));
+  }
+
+  // Parse a coupon into bankid & url
+  // Return an error string or false
+  function parsecoupon($coupon, &$bankid, &$url) {
+    $t = $this->t;
+    $db = $this->db;
+    $parser = $this->parser;
+
+    if (!is_string($coupon)) return 'Coupon not a string';
+    $parse = $parser->tokenize($coupon);
+    $items = array();
+    foreach ($parse as $item) $items[] = $item;
+    if ($items[0] != '(') return "Message doesnt start with left paren";
+    $bankid = $items[1];
+    if (!$this->is_id($bankid)) return "Coupon bankid not an id";
+    if ($items[2] != ',') return "Coupon missing comma 1";
+    if ($items[3] != $t->COUPON) return "Coupon isn't a coupon message";
+    if ($items[4] != ',') return "Coupon missing comma 2";
+    $url = $items[5];
+    if (!$this->isurl($url)) return "Coupon url isn't a url: $url";
+    return false;
+  }
+
   // Verify that a message might be a valid coupon
   // Check that it is actually signed by the bank that it
   // claims to be from.
   // Sets the $bankid & $url args to the bankid & URL in the coupon.
-  function verifycoupon($coupon, &$bankid, &$url) {
+  function verifycoupon($coupon, $bankid, $url) {
     $t = $this->t;
-    $db = $this->db;
 
-    // Coupon is (<bankid>,coupon,<bankurl>,<coupon#>,<assetid>,<amount>)
-    if (!is_string($coupon)) return "Coupon not a string";
-    if (substr($coupon, 0, 1) != ')') return "Message doesnt start with left paren";
-    $items = explode(',', $coupon);
-    if (count($items) < 6) return "Too few items in coupon";
-    if ($items[1] != $t->COUPON) return "Coupon isn't a coupon message";
-    $bankid = $items[0];
-    $url = $items[2];
     $err = $this->verifybank($url, $bankid);
-    if ($err) return $err;
-    $args = $this->unpack_bankmsg($msg, $t->COUPON);
+    if ($err) return "verifycoupon: $err";
+    $args = $this->unpack_bankmsg($coupon, $t->COUPON, $bankid);
     if (is_string($args)) return $args;
     return false;
   }
@@ -250,6 +270,8 @@ class client {
   function verifybank($url, &$id) {
     $t = $this->t;
     $db = $this->db;
+
+    if (!$this->isurl($url)) return "URL isn't a URL: $url";
 
     // Hash the URL to ensure its name will work as a file name
     $urlhash = sha1($url);
@@ -263,16 +285,19 @@ class client {
       $ssl = $this->ssl;
       $parser = $this->parser;
 
-      $msg = '(0,' . $this->BANKID . ',0):0';
+      $msg = '(0,' . $t->BANKID . ',0):0';
       $server = new serverproxy($url, $this);
       $msg = $server->process($msg);
+      $savebankid = $this->bankid;
+      $this->bankid = $bankid;
       $args = $u->match_message($msg);
+      $this->bankid = $savebankid;
       if (is_string($args)) {
         return "verifybank: Bank's bankid response error: $args";
       }
       $bankid = $args[$t->CUSTOMER];
       if ($args[$t->REQUEST] != $t->REGISTER) {
-        return "Bank didn't return 'register' message to 'bankid' request";
+        return "Bank URL unresponsive or not a Trubanc server";
       }
       if ($bankid != $args[$t->BANKID]) {
         return "Bank's register message malformed";
@@ -300,26 +325,33 @@ class client {
   }
 
   // Add a bank with the given $url to the database.
+  // $url can be a coupon to redeem that with registration.
   // No error, but does nothing, if the bank is already there.
   // If the bank is NOT already there, registers with the given $name and $coupons.
   // If registration fails, removes the bank and you'll have to add it again
   // after getting enough usage tokens at the bank to register.
   // Sets the client instance to use this bank until addbank() or setbank()
   // is called to change it.
-  function addbank($url, $name='', $coupons=false) {
+  function addbank($url, $name='') {
     $db = $this->db;
     $t = $this->t;
 
     if (!$this->current_user()) return "Not logged in";
 
     $bankid = false;
-    $err = $this->verifybank($url, $bankid);
-    if ($err) return $err;
-    $this->debugmsg("addbank, bankid: $bankid\n");
+    $realurl = false;
+    $coupon = false;
+    $err = $this->parsecoupon($url, $bankid, $realurl);
+    if ($err) {
+      $err = $this->verifybank($url, $bankid);
+      if ($err) return $err;
+    } else {
+      $err = $this->verifycoupon($url, $bankid, $realurl);
+      if ($err) return "$err";
+      $coupon = $url;
+    }
     $err = $this->setbank($bankid, false);
     if (!$err) return false;
-
-    $this->debugmsg("addbank, setbank was unsuccessful\n");
 
     $oldbankid = $this->bankid;
     $oldserver = $this->server;
@@ -328,7 +360,7 @@ class client {
     $url = $this->bankprop($t->URL, $bankid);
     if (!$url) return "URL not stored for verified bank";
     $this->server = new serverproxy($url, $this);
-    $err = $this->register($name, $coupons);
+    $err = $this->register($name, $coupon);
     if ($err) {
       $db->put($this->userreqkey($bankid), '');
       $this->bankid = false;
@@ -356,7 +388,6 @@ class client {
     }
 
     $req = $this->userbankprop($t->REQ, $bankid);
-    $this->debugmsg("setbank, $req: '$req'\n");
     if ($req === '' || $req === false) {
       return "User not registered at bank";
     }
@@ -424,7 +455,7 @@ class client {
       // Bank doesn't know us. Register with bank.
       $msg = $this->custmsg($t->REGISTER, $bankid, $this->pubkey($id), $name);
       if ($coupons) {
-        if (isstring($coupons)) $coupons = array($coupons);
+        if (is_string($coupons)) $coupons = array($coupons);
         $pubkey = $this->pubkeydb->get($bankid);
         if (!$pubkey) return "Can't get bank public key";
         foreach ($coupons as $coupon) {
@@ -1753,14 +1784,14 @@ class client {
   // Unpack a bank message
   // Return a string if parse error or fail from bank
   // This is called via the $unpacker arg to utility->dirhash & balancehash
-  function unpack_bankmsg($msg, $request=false) {
+  function unpack_bankmsg($msg, $request=false, $bankid=false) {
     $parser = $this->parser;
 
     $reqs = $parser->parse($msg);
     if (!$reqs) return "Parse error: " . $parser->errmsg;
 
     $req = $reqs[0];
-    $args = $this->match_bankreq($req, $request);
+    $args = $this->match_bankreq($req, $request, $bankid);
     if (!is_string($args)) {
       $args[$this->unpack_reqs_key] = $reqs; // save parse results
     }
@@ -1768,10 +1799,10 @@ class client {
   }
 
   // Unpack a bank message that has already been parsed
-  function match_bankreq($req, $request=false) {
+  function match_bankreq($req, $request=false, $bankid=false) {
     $t = $this->t;
     $u = $this->u;
-    $bankid = $this->bankid;
+    if (!$bankid) $bankid = $this->bankid;
 
     $args = $u->match_pattern($req);
     if (is_string($args)) return "While matching: $args";
@@ -2526,7 +2557,7 @@ class serverproxy {
                      "Content-length: $content_length\r\n",
                      'content' => $content));
     $context = stream_context_create($options);
-    return file_get_contents($url, false, $context);
+    return @file_get_contents($url, false, $context);
   }
 
   function process($msg) {

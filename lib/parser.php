@@ -25,7 +25,7 @@ class parser {
     $this->keydb = $keydb;
     if (!$ssl) $ssl = new ssl();
     $this->ssl = $ssl;
-    $keydict = array();         // validated keys
+    $this->keydict = array();         // validated keys
   }
 
   // Return an array or false if the parse could not be done,
@@ -144,7 +144,10 @@ class parser {
               $pubkey = ($dict[1] == 'register') ? $dict[3] : $dict[2];
               $pubkeyid = $this->ssl->pubkey_id($pubkey);
               if ($id != $pubkeyid) $pubkey = false;
-              else $keydict[$id]= $pubkey;
+              else {
+                $keydict[$id]= $pubkey;
+                $this->keydict = $keydict;
+              }
             }
             if (!$pubkey) {
               $keydb = $this->keydb;
@@ -155,6 +158,7 @@ class parser {
                   return false;
                 }
                 $keydict[$id] = $pubkey;
+                $this->keydict = $keydict;
               }
             }
             if (!$pubkey) {

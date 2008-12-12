@@ -1302,7 +1302,7 @@ function draw_banks() {
 <input type="hidden" name="cmd" value="bank"/>
 <table>
 <tr>
-<td><b>Bank URL:</b></td>
+<td><b>Bank URL<br/>or Coupon:</b></td>
 <td><input type="text" name="bankurl" size="40"/>
 </tr><tr>
 <td><b>Account Name<br/>(optional):</b></td>

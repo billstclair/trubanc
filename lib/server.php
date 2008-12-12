@@ -633,13 +633,12 @@ class server {
     // Process included coupons
     $reqargslist = array();
     for ($i=1; $i<count($reqs); $i++) {
-      $req = $req[$i];
+      $req = $reqs[$i];
       $reqargs = $u->match_pattern($req);
       $reqid = $reqargs[$t->CUSTOMER];
       $request = $reqargs[$t->REQUEST];
-      if ($reqid != $id) return $this->failmsg("Coupon signed by other id");
       if ($request != $t->COUPONENVELOPE) {
-        return $this->failmsg("Non-coupon request with register: $request");
+        return $this->failmsg($msg, "Non-coupon request with register: $request");
       }
       $reqargslist[] = $reqargs;
     }
