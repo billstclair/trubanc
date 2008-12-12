@@ -101,6 +101,7 @@ elseif ($cmd == 'contacts') draw_contacts();
 elseif ($cmd == 'banks') draw_banks();
 elseif ($cmd == 'assets') draw_assets();
 elseif ($cmd == 'admins') draw_admin();
+elseif ($cmd == 'coupon') draw_coupon();
 elseif ($session) draw_balance();
 
 else draw_login();
@@ -371,11 +372,13 @@ function do_spend() {
   global $error;
   global $client;
 
+  $t = $client->t;
   $id = $client->id;
 
 
   $amount = mqpost('amount');
   $recipient = mqpost('recipient');
+  $mintcoupon = mqpost('mintcoupon');
   $recipientid = mqpost('recipientid');
   $allowunregistered = mqpost('allowunregistered');
   $note = mqpost('note');
@@ -389,11 +392,16 @@ function do_spend() {
       $error = 'Recipient ID not registered at bank';
     }
   }
+  if (!$recipient) {
+    if ($mintcoupon) $recipient = $t->COUPON;
+  } elseif ($mintcoupon) $error = "To mint a coupon don't specify a recipient";
   if ($id == $recipient) $error = "Spends to yourself not yet supported";
   if (!$error) {
     if (!($amount || ($amount === '0'))) $error = 'Spend amount missing';
     elseif (!$recipient) $error = 'Recipient missing';
-    elseif (!$client->is_id($recipient)) $error = "Recipient ID malformed";
+    elseif ($recipient != $t->COUPON && !$client->is_id($recipient)) {
+      $error = "Recipient ID malformed";
+    }
   }
   if ($error) {
     draw_balance($amount, $recipient, $note);
@@ -427,6 +435,8 @@ function do_spend() {
             if ($err) {
               $error = "Error from spend: $err";
               draw_balance($amount, $recipient, $note);
+            } elseif ($mintcoupon) {
+              draw_coupon($client->lastspendtime);
             } else {
               draw_balance();
             }
@@ -934,6 +944,57 @@ $inboxcode
 EOT;
     }
 
+    // Prepare outbox display
+    $outboxcode = '';
+    foreach ($outbox as $time => $items) {
+      $timestr = hsc($time);
+      foreach ($items as $item) {
+        $request = $item[$t->REQUEST];
+        if ($request == $t->SPEND) {
+          $recip = $item[$t->ID];
+          if (!$outboxcode) $outboxcode = <<<EOT
+<table border="1">
+<caption><b>=== Outbox ===</b></caption>
+<tr>
+<th>Time</th>
+<th>Recipient</th>
+<th colspan="2">Amount</th>
+<th>Note</th>
+</tr>
+EOT;
+          $assetname = hsc($item[$t->ASSETNAME]);
+          $amount = hsc($item[$t->FORMATTEDAMOUNT]);
+          $not = hsc($item[$t->NOTE]);
+          if (!$not) $not = '&nbsp;';
+          if ($recip == $t->COUPON) {
+            $recip = hsc($recip);
+            $timearg = urlencode($time);
+            $namestr = <<<EOT
+<a href="./?cmd=coupon&time=$timearg">$recip</a>
+EOT;
+          } else {
+            $contact = $client->getcontact($recip);
+            if ($contact) {
+              $namestr = contact_namestr($contact);
+              if ($namestr != $recipient) {
+                $namestr = "<span title=\"$recipient\">$namestr<span>";
+              }
+            } else $namestr = hsc($recip);
+          }
+          $outboxcode .= <<<EOT
+<tr>
+<td>$timestr</td>
+<td>$namestr</td>
+<td align="right" style="border-right-width: 0;">$amount</td>
+<td style="border-left-width: 0;">$assetname</td>
+<td>$not</td>
+</tr>
+EOT;
+        }
+      }
+    }
+    if ($outboxcode) $outboxcode .= "</table><br/>\n";
+
     $balance = $client->getbalance();
     if (is_string($balance)) $error = $balance;
     elseif (count($balance) > 0) {
@@ -1006,8 +1067,10 @@ EOT;
 EOT;
       }
       $recipopts .= "</select>\n";
+      $selectmint = '';
+      if ($recipient == $t->COUPON) $selectmint = ' checked="checked"';
       $recipientid = '';
-      if (!$found) $recipientid = $recipient;
+      if (!$found && $recipient != $t->COUPON) $recipientid = $recipient;
       $openspend = '<form method="post" action="./" autocomplete="off">
 <input type="hidden" name="cmd" value="spend"/>
 
@@ -1020,14 +1083,15 @@ EOT;
 <td><input type="text" name="amount" size="20" value="$spend_amount" style="text-align: right;"/>
 </tr><tr>
 <td><b>Recipient:</b></td>
-<td>$recipopts</td>
+<td>$recipopts
+<input type="checkbox" name="mintcoupon"$selectmint>Mint coupon</input></td>
 </tr><tr>
 <td><b>Note:</b></td>
 <td><textarea name="note" cols="40" rows="10">$note</textarea></td>
 </tr><tr>
 <td><b>Recipient ID:</b></td>
 <td><input type="text" name="recipientid" size="40" value="$recipientid"/>
-<input type="checkbox" name="allowunregistered">Allow unregistered</checkbox></td>
+<input type="checkbox" name="allowunregistered">Allow unregistered</input></td>
 </tr><tr>
 <td><b>Nickname:</b></td>
 <td><input type="text" name="nickname" size="30" value="$nickname"/></td>
@@ -1077,7 +1141,53 @@ $spendcode
 </table>
 $closespend
 EOT;
-  $body = "$error<br/>$bankcode$inboxcode$fullspend";
+  $body = "$error<br/>$bankcode$inboxcode$fullspend$outboxcode";
+}
+
+function draw_coupon($time = false) {
+  global $client;
+  global $error;
+  global $onload, $body;
+  
+  $t = $client->t;
+
+  setmenu('balance');
+
+  $outbox = $client->getoutbox();
+  if (!$time) $time = mq($_REQUEST['time']);
+  $items = $outbox[$time];
+  $timestr = hsc($time);
+  if ($items) {
+    foreach ($items as $item) {
+      $request = $item[$t->REQUEST];
+      if ($request == $t->SPEND) {
+        $assetname = hsc($item[$t->ASSETNAME]);
+        $formattedamount = hsc($item[$t->FORMATTEDAMOUNT]);
+        $note = hsc($item[$t->NOTE]);
+        if ($note) $note = "<b>Note:</b> $note<br/>\n";
+      } elseif ($request == $t->COUPONENVELOPE) {
+        $coupon = hsc(trim($item[$t->COUPON]));
+        $body = <<<EOT
+<br/>
+<b>Coupon for outbox entry $timestr</b>
+<br/>
+<b>Amount:</b> $formattedamount $assetname
+<br/>
+$note<br/>
+<textarea name="coupon" cols="90" rows="12" readonly="readonly">
+$coupon
+</textarea>
+<p>
+You can redeem this coupon on the
+<a href="./?cmd=banks">Banks</a> screen. It will appear as a spend from yourself.
+</p>
+EOT;
+        return;
+      }
+    }
+  }
+  echo "Couldn't find coupon: $timestr<br/>\n";
+  draw_balance();
 }
 
 function draw_raw_balance() {
