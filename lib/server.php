@@ -639,7 +639,7 @@ class server {
       $request = $reqargs[$t->REQUEST];
       if ($reqid != $id) return $this->failmsg("Coupon signed by other id");
       if ($request != $t->COUPONENVELOPE) {
-        return $this->failmsg("Non-coupon request: $request");
+        return $this->failmsg("Non-coupon request with register: $request");
       }
       $reqargslist[] = $reqargs;
     }

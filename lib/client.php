@@ -74,6 +74,7 @@ class client {
         return "Passphrase already has an associated private key";
     }
     if (is_numeric($privkey)) {
+      // $privkey is size in bits for new private key
       $privkey = $ssl->make_privkey($privkey, $passphrase);
     }
     $privkeystr = $privkey;
@@ -218,12 +219,12 @@ class client {
 
   // Add a bank with the given $url to the database.
   // No error, but does nothing, if the bank is already there.
-  // If the bank is NOT already there, registers with the given $name.
+  // If the bank is NOT already there, registers with the given $name and $coupons.
   // If registration fails, removes the bank and you'll have to add it again
   // after getting enough usage tokens at the bank to register.
   // Sets the client instance to use this bank until addbank() or setbank()
   // is called to change it.
-  function addbank($url, $name='') {
+  function addbank($url, $name='', $coupons=false) {
     $db = $this->db;
     $t = $this->t;
 
@@ -284,7 +285,7 @@ class client {
     // Also mark this account as not yet being synced with bank
     $db->put($this->userreqkey(), -1);
 
-    $err = $this->register($name);
+    $err = $this->register($name, $coupons);
     if ($err) {
       $this->server = $server;
       $this->bankid = false;
@@ -353,7 +354,10 @@ class client {
 
   // Register at the current bank.
   // No error if already registered
-  function register($name='') {
+  // If not registered, and $coupons is a string or array of strings,
+  // assumes the string(s) are coupons, encrypts and signs them,
+  // and sends them to the bank with the registration request.
+  function register($name='', $coupons=false) {
     $t = $this->t;
     $u = $this->u;
     $db = $this->db;
@@ -373,7 +377,17 @@ class client {
     $args = $this->unpack_bankmsg($msg, $t->ATREGISTER);
     if (is_string($args)) {
       // Bank doesn't know us. Register with bank.
-      $msg = $this->sendmsg($t->REGISTER, $bankid, $this->pubkey($id), $name);
+      $msg = $this->custmsg($t->REGISTER, $bankid, $this->pubkey($id), $name);
+      if ($coupons) {
+        if (isstring($coupons)) $coupons = array($coupons);
+        $pubkey = $this->pubkeydb->get($bankid);
+        if (!$pubkey) return "Can't get bank public key";
+        foreach ($coupons as $coupon) {
+          $coupon = $ssl->pubkey_encrypt($coupon, $pubkey);
+          $msg .= '.' . $this->custmsg($t->COUPONENVELOPE, $bankid, $coupon);
+        }
+      }
+      $msg = $this->process($msg);
       $args = $this->unpack_bankmsg($msg, $t->ATREGISTER);
     }
     if (is_string($args)) return "Registration failed: $args";
