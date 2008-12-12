@@ -217,6 +217,85 @@ class client {
     return $bank;
   }
 
+  // Verify that a message might be a valid coupon
+  // Check that it is actually signed by the bank that it
+  // claims to be from.
+  // Sets the $bankid & $url args to the bankid & URL in the coupon.
+  function verifycoupon($coupon, &$bankid, &$url) {
+    $t = $this->t;
+    $db = $this->db;
+
+    // Coupon is (<bankid>,coupon,<bankurl>,<coupon#>,<assetid>,<amount>)
+    if (!is_string($coupon)) return "Coupon not a string";
+    if (substr($coupon, 0, 1) != ')') return "Message doesnt start with left paren";
+    $items = explode(',', $coupon);
+    if (count($items) < 6) return "Too few items in coupon";
+    if ($items[1] != $t->COUPON) return "Coupon isn't a coupon message";
+    $bankid = $items[0];
+    $url = $items[2];
+    $err = $this->verifybank($url, $bankid);
+    if ($err) return $err;
+    $args = $this->unpack_bankmsg($msg, $t->COUPON);
+    if (is_string($args)) return $args;
+    return false;
+  }
+
+  // Verify that a bank matches its URL.
+  // Add the bank to our database if it's not there already
+  // Set $id arg to $bankid, if false, or
+  // compare it to the bankid returned from URL.
+  function verifybank($url, &$id) {
+    $t = $this->t;
+    $db = $this->db;
+
+    // Hash the URL to ensure its name will work as a file name
+    $urlhash = sha1($url);
+    $urlkey = $t->BANK . '/' . $t->BANKID;
+    $bankid = $db->get("$urlkey/$urlhash");
+    if ($bankid) {
+      if ($id && $id != $bankid) return "verifybank: id <> bankid";
+      if (!$id) $id = $bankid;
+    } else {
+      $u = $this->u;
+      $ssl = $this->ssl;
+      $parser = $this->parser;
+
+      $msg = '(0,' . $this->BANKID . ',0):0';
+      $server = new serverproxy($url, $this);
+      $msg = $server->process($msg);
+      $args = $u->match_message($msg);
+      if (is_string($args)) {
+        return "verifybank: Bank's bankid response error: $args";
+      }
+      $bankid = $args[$t->CUSTOMER];
+      if ($args[$t->REQUEST] != $t->REGISTER) {
+        return "Bank didn't return 'register' message to 'bankid' request";
+      }
+      if ($bankid != $args[$t->BANKID]) {
+        return "Bank's register message malformed";
+      }
+      if (!$id) $id = $bankid;
+      elseif ($bankid != $id) return "Bankid different than expected";
+      $pubkey = $args[$t->PUBKEY];
+      $name = $args[$t->NAME];
+      if ($ssl->pubkey_id($pubkey) != $bankid) {
+        return "verifybank: Bank's id doesn't match its public key";
+      }
+      if ($id && $id != $bankid) return "verifybank: id <> bankid";
+      if (!$id) $id = $bankid;
+      $ourl = $this->bankprop($t->URL, $bankid);
+      if (!$ourl) {
+        // Initialize the bank in the database
+        $db->put("$urlkey/$urlhash", $bankid);
+        $db->put($this->bankkey($t->URL, $bankid), $url);
+        $db->put($this->bankkey($t->NAME, $bankid), $name);
+        $db->put($this->pubkeykey($bankid), trim($pubkey) . "\n");
+      }
+    }
+
+    return false;
+  }
+
   // Add a bank with the given $url to the database.
   // No error, but does nothing, if the bank is already there.
   // If the bank is NOT already there, registers with the given $name and $coupons.
@@ -230,66 +309,28 @@ class client {
 
     if (!$this->current_user()) return "Not logged in";
 
-    // Hash the URL to ensure its name will work as a file name
-    $urlhash = sha1($url);
-    $urlkey = $t->BANK . '/' . $t->BANKID;
-    $bankid = $db->get("$urlkey/$urlhash");
-    if ($bankid) $this->setbank($bankid);
+    $bankid = false;
+    $err = $this->verifybank($url, $bankid);
+    if ($err) return $err;
+    $this->debugmsg("addbank, bankid: $bankid\n");
+    $err = $this->setbank($bankid, false);
+    if (!$err) return false;
 
-    $u = $this->u;
-    $id = $this->id;
-    $privkey = $this->privkey;
-    $pubkey = $this->pubkey;
-    $ssl = $this->ssl;
-    $parser = $this->parser;
+    $this->debugmsg("addbank, setbank was unsuccessful\n");
 
-    $server = $this->server;
-    $nserver = new serverproxy($url, $this);
-    if (!$bankid) {
-      $this->bankid = false;
-      $this->server = $nserver;
-      $msg = $this->sendmsg($t->BANKID, $pubkey);
-      $this->server = $server;
-      $args = $u->match_message($msg);
-      if (is_string($args)) return "addbank: Bank's bankid response error: $args";
-      $bankid = $args[$t->CUSTOMER];
-      if ($args[$t->REQUEST] != $t->REGISTER ||
-          $args[$t->BANKID] != $bankid) {
-        return "Bank not responding properly at $url";
-      }
-      $pubkey = $args[$t->PUBKEY];
-      $name = $args[$t->NAME];
-      if ($ssl->pubkey_id($pubkey) != $bankid) {
-        return "addbank: Bank's id doesn't match its public key";
-      }
-      $this->bankid = $bankid;
-      $ourl = $this->bankprop($t->URL, $bankid);
-      if ($ourl) {
-        // Need a way for a bank to change URL. Or not.
-        $this->server = new serverproxy($ourl, $this);
-      } else {
-        $this->server = $nserver;
+    $oldbankid = $this->bankid;
+    $oldserver = $this->server;
 
-        // Initialize the bank in the database
-        $db->put("$urlkey/$urlhash", $bankid);
-        $db->put($this->bankkey($t->URL), $url);
-        $db->put($this->bankkey($t->NAME), $name);
-        $db->put($this->pubkeykey($bankid), trim($pubkey) . "\n");
-      }
-    }
-
-    // Make the bank current
     $this->bankid = $bankid;
-
-    // Mark the user as knowing about this bank
-    // Also mark this account as not yet being synced with bank
-    $db->put($this->userreqkey(), -1);
-
+    $url = $this->bankprop($t->URL, $bankid);
+    if (!$url) return "URL not stored for verified bank";
+    $this->server = new serverproxy($url, $this);
     $err = $this->register($name, $coupons);
     if ($err) {
-      $this->server = $server;
+      $db->put($this->userreqkey($bankid), '');
       $this->bankid = false;
-      $db->put($this->userreqkey(), '');
+      $this->bankid = $oldbankid;
+      $this->server = $oldserver;
       return $err;
     }
 
@@ -306,20 +347,20 @@ class client {
 
     if (!$this->current_user()) return "Not logged in";
 
-    $this->bankid = $bankid;
-
-    $url = $this->bankprop($t->URL);
+    $url = $this->bankprop($t->URL, $bankid);
     if (!$url) {
-      $this->bankid = false;
       return "Bank not known: $bankid";
     }
+
+    $req = $this->userbankprop($t->REQ, $bankid);
+    $this->debugmsg("setbank, $req: '$req'\n");
+    if ($req === '' || $req === false) {
+      return "User not registered at bank";
+    }
+
+    $this->bankid = $bankid;
     $server = new serverproxy($url, $this);
     $this->server = $server;
-
-    $req = $this->userbankprop($t->REQ);
-    if ($req === '') {
-      $db->put($this->userreqkey(), -1);
-    }
 
     if ($check) {
       $msg = $this->sendmsg($t->BANKID, $this->pubkey);
@@ -364,6 +405,7 @@ class client {
     $id = $this->id;
     $bankid = $this->bankid;
     $ssl = $this->ssl;
+    $server = $this->server;
 
     if (!$this->current_bank()) return "In register(): Bank not set";
 
@@ -387,7 +429,7 @@ class client {
           $msg .= '.' . $this->custmsg($t->COUPONENVELOPE, $bankid, $coupon);
         }
       }
-      $msg = $this->process($msg);
+      $msg = $server->process($msg);
       $args = $this->unpack_bankmsg($msg, $t->ATREGISTER);
     }
     if (is_string($args)) return "Registration failed: $args";
@@ -1817,10 +1859,10 @@ class client {
     return $prop ? "$key/$prop" : $key;
   }
 
-  function userbankprop($prop) {
+  function userbankprop($prop, $bankid=false) {
     $db = $this->db;
 
-    return $db->get($this->userbankkey($prop));
+    return $db->get($this->userbankkey($prop, $bankid));
   }
 
   function userreqkey($bankid=false) {

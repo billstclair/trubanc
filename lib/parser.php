@@ -131,40 +131,42 @@ class parser {
           $value = false;
         } elseif ($state == 'sig') {
           $id = $dict ? $dict[0] : false;
-          if (!$id) {
-            $this->errmsg = "Signature without ID at $pos";
-            return false;
-          }
-          $keydict = $this->keydict;
-          $pubkey = $keydict[$id];
-          if (!$pubkey && ($dict[1] == 'register' || $dict[1] == 'bankid')) {
-            // May be the first time we've seen this ID.
-            // If it's a key definition message, we've got all we need.
-            $pubkey = ($dict[1] == 'register') ? $dict[3] : $dict[2];
-            $pubkeyid = $this->ssl->pubkey_id($pubkey);
-            if ($id != $pubkeyid) $pubkey = false;
-            else $keydict[$id]= $pubkey;
-          }
-          if (!$pubkey) {
-            $keydb = $this->keydb;
-            $pubkey = $keydb->get($id);
-            if ($pubkey) {
-              if ($id != $this->ssl->pubkey_id($pubkey)) {
-                $this->errmsg = "Pubkey doesn't match id: $id";
-                return false;
-              }
-              $keydict[$id] = $pubkey;
+          if (!($id === '0' && $dict[1] == 'bankid')) {
+            if (!$id) {
+              $this->errmsg = "Signature without ID at $pos";
+              return false;
             }
-          }
-          if (!$pubkey) {
-            // The client will need to look up and cache the pubkey from the server here.
-            $this->errmsg = "No key for id: $id at $pos";
-            return false;
-          }
-          $ssl = $this->ssl;
-          if (!($ssl->verify($msg, $tok, $pubkey))) {
-            $this->errmsg = "Signature verification failed at $pos";
-            return false;
+            $keydict = $this->keydict;
+            $pubkey = $keydict[$id];
+            if (!$pubkey && ($dict[1] == 'register' || $dict[1] == 'bankid')) {
+              // May be the first time we've seen this ID.
+              // If it's a key definition message, we've got all we need.
+              $pubkey = ($dict[1] == 'register') ? $dict[3] : $dict[2];
+              $pubkeyid = $this->ssl->pubkey_id($pubkey);
+              if ($id != $pubkeyid) $pubkey = false;
+              else $keydict[$id]= $pubkey;
+            }
+            if (!$pubkey) {
+              $keydb = $this->keydb;
+              $pubkey = $keydb->get($id);
+              if ($pubkey) {
+                if ($id != $this->ssl->pubkey_id($pubkey)) {
+                  $this->errmsg = "Pubkey doesn't match id: $id";
+                  return false;
+                }
+                $keydict[$id] = $pubkey;
+              }
+            }
+            if (!$pubkey) {
+              // The client will need to look up and cache the pubkey from the server here.
+              $this->errmsg = "No key for id: $id at $pos";
+              return false;
+            }
+            $ssl = $this->ssl;
+            if (!($ssl->verify($msg, $tok, $pubkey))) {
+              $this->errmsg = "Signature verification failed at $pos";
+              return false;
+            }
           }
           $dict[$this->msgkey] = substr($str, $start, $pos + strlen($tok) - $start);
           if (count($stack) > 0) {
