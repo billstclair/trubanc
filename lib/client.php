@@ -210,9 +210,9 @@ class client {
   function getbank($bankid, $all=false) {
     $t = $this->t;
 
-    $req = $this->userbankprop($t->REQ, $bankid);
+    $req = $this->userreq($bankid);
     $bank = false;
-    if ($all || ($req && !($req === 0))) {
+    if ($all || !($req === false || $req === '')) {
       $bank = array($t->BANKID => $bankid,
                     $t->NAME => $this->bankprop($t->NAME, $bankid),
                     $t->URL => $this->bankprop($t->URL, $bankid));
@@ -227,8 +227,9 @@ class client {
              substr($url, 0, 6) == "https:"));
   }
 
-  // Parse a coupon into bankid & url
-  // Return an error string or false
+  // Parse a coupon into bankid & url.
+  // Return an error string or false.
+  // Sets the $bankid & $url args to the bankid & URL in the coupon.
   function parsecoupon($coupon, &$bankid, &$url) {
     $t = $this->t;
     $db = $this->db;
@@ -238,7 +239,7 @@ class client {
     $parse = $parser->tokenize($coupon);
     $items = array();
     foreach ($parse as $item) $items[] = $item;
-    if ($items[0] != '(') return "Message doesnt start with left paren";
+    if ($items[0] != '(') return "Message doesn't start with left paren";
     $bankid = $items[1];
     if (!$this->is_id($bankid)) return "Coupon bankid not an id";
     if ($items[2] != ',') return "Coupon missing comma 1";
@@ -249,17 +250,35 @@ class client {
     return false;
   }
 
-  // Verify that a message might be a valid coupon
+  // Verify that a message is a valid coupon.
   // Check that it is actually signed by the bank that it
   // claims to be from.
-  // Sets the $bankid & $url args to the bankid & URL in the coupon.
+  // Ask the bank whether a coupon of that number exists.
   function verifycoupon($coupon, $bankid, $url) {
     $t = $this->t;
+    $parser = $this->parser;
 
     $err = $this->verifybank($url, $bankid);
     if ($err) return "verifycoupon: $err";
     $args = $this->unpack_bankmsg($coupon, $t->COUPON, $bankid);
     if (is_string($args)) return $args;
+
+    $coupon_number = $args[$t->COUPON];
+    if (!$this->is_coupon_number($coupon_number)) {
+      return "Malformed coupon number: $coupon_number";
+    }
+    $msg = "(0," . $t->BANKID . ",0,$coupon_number):0";
+    $server = new serverproxy($url, $this);
+    $msg = $server->process($msg);
+
+    $reqs = $parser->parse($msg);
+    if (!$reqs) return "verifycoupon: " . $parser->errmsg;
+    if (count($reqs) != 2) return "verifycoupon: expected 2 messages from bank";
+    $args = $this->match_bankreq($reqs[0], $t->REGISTER, $bankid);
+    if (is_string($args)) return "verifycoupon: $args";
+    $args = $this->match_bankreq($reqs[1], $t->COUPONNUMBERHASH, $bankid);
+    if (is_string($args)) return "$args";
+
     return false;
   }
 
@@ -271,7 +290,7 @@ class client {
     $t = $this->t;
     $db = $this->db;
 
-    if (!$this->isurl($url)) return "URL isn't a URL: $url";
+    if (!$this->isurl($url)) return "Not a URL: $url";
 
     // Hash the URL to ensure its name will work as a file name
     $urlhash = sha1($url);
@@ -332,7 +351,8 @@ class client {
   // after getting enough usage tokens at the bank to register.
   // Sets the client instance to use this bank until addbank() or setbank()
   // is called to change it.
-  function addbank($url, $name='') {
+  // If $couponok is true, does not verify a coupon with the bank before using it.
+  function addbank($url, $name='', $couponok=false) {
     $db = $this->db;
     $t = $this->t;
 
@@ -346,12 +366,20 @@ class client {
       $err = $this->verifybank($url, $bankid);
       if ($err) return $err;
     } else {
-      $err = $this->verifycoupon($url, $bankid, $realurl);
-      if ($err) return "$err";
+      if (!$couponok) {
+        $err = $this->verifycoupon($url, $bankid, $realurl);
+        if ($err) return "$err";
+      }
       $coupon = $url;
     }
     $err = $this->setbank($bankid, false);
-    if (!$err) return false;
+    if (!$err) {
+      // User already has an account at this bank.
+      // Redeem the coupon
+      $err = false;
+      if ($coupon) $err =$this->redeem($coupon);
+      return $err;
+    }
 
     $oldbankid = $this->bankid;
     $oldserver = $this->server;
@@ -360,7 +388,7 @@ class client {
     $url = $this->bankprop($t->URL, $bankid);
     if (!$url) return "URL not stored for verified bank";
     $this->server = new serverproxy($url, $this);
-    $err = $this->register($name, $coupon);
+    $err = $this->register($name, $coupon, $bankid);
     if ($err) {
       $db->put($this->userreqkey($bankid), '');
       $this->bankid = false;
@@ -432,24 +460,32 @@ class client {
   // If not registered, and $coupons is a string or array of strings,
   // assumes the string(s) are coupons, encrypts and signs them,
   // and sends them to the bank with the registration request.
-  function register($name='', $coupons=false) {
+  function register($name='', $coupons=false, $bankid=false) {
     $t = $this->t;
     $u = $this->u;
     $db = $this->db;
     $id = $this->id;
-    $bankid = $this->bankid;
     $ssl = $this->ssl;
-    $server = $this->server;
+
+    if (!$bankid) {
+      $bankid = $this->bankid;
+      $server = $this->server;
+    } else {
+      $url = $this->bankprop($t->URL);
+      if (!$url) return "In register: Unknown bankid";
+      $server = new serverproxy($url, $this);
+    }
 
     if (!$this->current_bank()) return "In register(): Bank not set";
 
     // If already registered and we know it, nothing to do
-    if ($db->get($this->userbankkey($t->PUBKEYSIG) . "/$id")) return false;
+    if ($db->get($this->userbankkey($t->PUBKEYSIG, $bankid) . "/$id")) return false;
 
     // See if bank already knows us
     // Resist the urge to change this to a call to
     // get_pubkey_from_server. Trust me.
-    $msg = $this->sendmsg($t->ID, $bankid, $id);
+    $msg = $this->custmsg($t->ID, $bankid, $id);
+    $msg = $server->process($msg);
     $args = $this->unpack_bankmsg($msg, $t->ATREGISTER);
     if (is_string($args)) {
       // Bank doesn't know us. Register with bank.
@@ -465,8 +501,8 @@ class client {
       }
       $msg = $server->process($msg);
       $args = $this->unpack_bankmsg($msg, $t->ATREGISTER);
+      if (is_string($args)) return "Registration failed: $args";
     }
-    if (is_string($args)) return "Registration failed: $args";
 
     // Didn't fail. Notice registration here
     $args = $args[$t->MSG];
@@ -698,7 +734,7 @@ class client {
   }
 
   // Return the assets for which the customer has balances
-  // array(<getasset() result>)
+  // array($assetid => <getasset() result>, ...)
   function getassets() {
     $db = $this->db;
     $t = $this->t;
@@ -720,7 +756,7 @@ class client {
       }
     }
 
-    usort($res, array("client", "compareassets"));
+    uasort($res, array("client", "compareassets"));
     return $res;
   }
 
@@ -1168,7 +1204,7 @@ class client {
     $spendargs = $this->match_bankreq($reqs[0], $t->ATSPEND);
     if (is_string($spendargs)) {
       $args = $this->match_bankreq($reqs[0]);
-      if (is_string($args)) return "Error from spend request: $args";
+      if (is_string($args)) return $args;
       $request = $args[$t->REQUEST];
       if ($request = $t->FAILED) return "Spend request failed: " . $args[$t->ERRMSG];
       return "Spend request returned unknown message type: " . $request;
@@ -1809,7 +1845,7 @@ class client {
     if ($args[$t->CUSTOMER] != $bankid) return "Return message not from bank";
     if ($args[$t->REQUEST] == $t->FAILED) return $args[$t->ERRMSG];
     if ($request && $args[$t->REQUEST] != $request) {
-      return "Wrong return type from bank: $msg";
+      return "Wrong return type from bank; sb: $request, was: " . $args[$t->REQUEST];
     }
     if ($args[$t->MSG]) {
       $msgargs = $u->match_pattern($args[$t->MSG]);
@@ -2524,6 +2560,11 @@ class client {
   // Predicate. True if arg looks like an ID
   function is_id($x) {
     return is_string($x) && strlen($x) == 40 && @pack("H*", $x);
+  }
+
+  // Predicate. True if arg looks like an coupon
+  function is_coupon_number($x) {
+    return is_string($x) && strlen($x) == 32 && @pack("H*", $x);
   }
 
   // Add a string to the debug output.

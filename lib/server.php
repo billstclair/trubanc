@@ -585,18 +585,34 @@ class server {
   /*** Request processing ***/
  
   // Look up the bank's public key
-  function do_bankid($args, $reqs, $msg) {
+  function do_bankid($args, $reqs, $inmsg) {
     $t = $this->t;
     $db = $this->db;
     $parser = $this->parser;
 
     $bankid = $this->bankid;
+    $coupon = $args[$t->COUPON];
+
     // $t->BANKID => array($t->PUBKEY)
     $msg = $db->get($t->PUBKEYSIG . "/$bankid");
     $args = $this->unpack_bankmsg($msg, $t->ATREGISTER);
     if (is_string($args)) return $this->failmsg($msg, "Bank's pubkey is hosed");
     $req = $args[$t->MSG];
-    return $parser->get_parsemsg($req);
+    $res = $parser->get_parsemsg($req);
+
+    if ($coupon) {
+      // Validate a coupon number
+      $coupon_number_hash = sha1($coupon);
+      $key = $t->COUPON . "/$coupon_number_hash";
+      if ($db->get($key)) {
+        $msg = $this->bankmsg($t->COUPONNUMBERHASH, $coupon_number_hash);
+      } else {
+        $msg = $this->failmsg($inmsg, "Coupon already redeemed");
+      }
+      $res .= ".$msg";
+    }
+
+    return $res;
   }
 
   // Lookup a public key
@@ -620,7 +636,7 @@ class server {
     // $t->REGISTER => array($t->BANKID,$t->PUBKEY,$t->NAME=>1)
     $id = $args[$t->CUSTOMER];
     $pubkey = $args[$t->PUBKEY];
-    if ($this->pubkeydb->get($id)) {
+    if ($db->get($this->acctlastkey($id))) {
       return $this->failmsg($msg, "Already registered");
     }
     if ($this->ssl->pubkey_id($pubkey) != $id) {
@@ -673,6 +689,7 @@ class server {
     }
     $bankid = $this->bankid;
     $db->put($t->PUBKEY . "/$id", $pubkey);
+    $msg = $this->parser->get_parsemsg($reqs[0]);
     $res = $this->bankmsg($t->ATREGISTER, $msg);
     $db->put($t->PUBKEYSIG . "/$id", $res);
     $time = $this->gettime();
@@ -777,7 +794,7 @@ class server {
     foreach ($inbox as $inmsg) {
       $inmsg_args = $this->unpack_bankmsg($inmsg);
       if (bccomp($inmsg_args[$t->TIME], $time) <= 0) {
-        return $this->failmsg($msg, "An inbox item is older than the spend timestamp");
+        return $this->failmsg($msg, "Please process your inbox before doing a spend");
       }
     }
 
@@ -1830,7 +1847,7 @@ class server {
 
     if (!$this->commands) {
       $patterns = $u->patterns();
-      $names = array($t->BANKID => array($t->PUBKEY),
+      $names = array($t->BANKID => array($t->PUBKEY, $t->COUPON=>1),
                      $t->ID => array($t->BANKID,$t->ID),
                      $t->REGISTER => $patterns[$t->REGISTER],
                      $t->GETREQ => array($t->BANKID),

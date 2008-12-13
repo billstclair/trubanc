@@ -3,7 +3,7 @@
   // client/index.php
   // A Trubanc web client
 
-// Define $dbdir, $default_server, $require_tokens, $server_dbdir
+// Define $dbdir, $require_coupon
 require_once "settings.php";
 
 require_once "../lib/fsdb.php";
@@ -51,7 +51,7 @@ $default_menuitems = array('balance' => 'Balance',
                            'contacts' => 'Contacts',
                            'banks' => 'Banks',
                            'assets' => 'Assets',
-                           'admins' => 'Admin',
+                           //'admins' => 'Admin',
                            'logout' => 'Logout');
 
 // Initialize (global) inputs to template.php
@@ -159,7 +159,7 @@ function do_logout() {
 // Here from the login page when the user presses one of the buttons
 function do_login() {
   global $title, $body, $onload;
-  global $keysize, $require_tokens, $server_dbdir;
+  global $keysize, $require_coupon;
   global $error;
   global $client, $ssl;
 
@@ -167,6 +167,8 @@ function do_login() {
 
   $passphrase = mqpost('passphrase');
   $passphrase2 = mqpost('passphrase2');
+  $coupon = mqpost('coupon');
+  $name = mqpost('name');
   $keysize = mqpost('keysize');
   $login = mqpost('login');
   $newacct = mqpost('newacct');
@@ -181,28 +183,9 @@ function do_login() {
     $privkey = mqpost('privkey');
     if (!$passphrase) {
       $error = "Passphrase may not be blank";
-      draw_login();
     } elseif (!$privkey && $passphrase != $passphrase2) {
       $error = "Passphrase didn't match Verification";
-      draw_login();
     } else {
-      if ($require_tokens && ($_SERVER['HTTP_HOST'] != 'localhost')) {
-        $tok = mqpost('tok');
-        $token = $client->token($tok);
-        if (!$token) {
-          $sprivkey = '';
-          // If the user knows the server private key, let him in.
-          if ($server_dbdir) {
-            $sdb = new fsdb($server_dbdir);
-            $sprivkey = $sdb->get($t->PRIVKEY);
-          }
-          if ((trim($sprivkey) == trim($privkey)) || (!$privkey)) {
-            $error = "You must get an invitation token from the owner of this web site";
-            draw_login();
-            return;
-          }
-        }
-      }
       if ($privkey) {
         // Support adding a passphrase to a private key without one
         $pk = $ssl->load_private_key($privkey);
@@ -216,22 +199,21 @@ function do_login() {
           openssl_free_key($pk);
         }
       } else $privkey = $keysize;
-      $err = $client->newuser($passphrase, $privkey);
-      if ($err) {
-        $error = $err;
-        draw_login();
-      } else {
-        if ($require_tokens) {
-          // It would be nice to give the user some usage tokens here
-          // and register him with the bank, but I need bearer
-          // certificates in the server to do that.
-          // The bank is a client, but we don't know its passphrase,
-          // and we don't want to.
-          // So just remove the token
-          $client->token($tok, '');
+
+      if ($coupon) {
+        if ($client->parsecoupon($coupon, $bankid, $url)) {
+          $error = "Invalid coupon";
+        } else {
+          $error = $client->verifycoupon($coupon, $bankid, $url);
         }
+      } elseif ($require_coupon) {
+        $error = "Bank coupon required for registration";
       }
-      $login = true;
+
+      if (!$error) {
+        $error = $client->newuser($passphrase, $privkey);
+        if (!$error) $login = true;
+      }
     }
   }
 
@@ -239,19 +221,25 @@ function do_login() {
     $session = $client->login_new_session($passphrase);
     if (is_string($session)) {
       $error = "Login error: $session";
-      draw_login();
     } else {
       $session = $session[0];
       if (!setcookie('session', $session)) {
         $error = "You must enable cookies to use this client";
-        draw_login();
       } else {
-        setbank();
-        if ($client->bankid) draw_balance();
-        else draw_banks();
+        if ($newacct) {
+          $error = $client->addbank($coupon, $name, true);
+        }
+        if (!$error) {
+          setbank();
+          if ($client->bankid) draw_balance();
+          else draw_banks();
+          return;
+        }
       }
     }
   }
+
+  draw_login();
 }
 
 // Here to change banks or add a new bank
@@ -264,8 +252,10 @@ function do_bank() {
   $newbank = mqpost('newbank');
   $selectbank = mqpost('selectbank');
 
+  $bankurl = '';
+  $name = '';
   if ($newbank) {
-    $bankurl = mqpost('bankurl');
+    $bankurl = trim(mqpost('bankurl'));
     $name = mqpost('name');
     $error = $client->addbank($bankurl, $name);
     if (!$error) $client->userpreference('bankid', $client->bankid);
@@ -275,7 +265,7 @@ function do_bank() {
     else $client->userpreference('bankid', $bankid);
     setbank(true);
   }
-  if ($error) draw_banks();
+  if ($error) draw_banks($bankurl, $name);
   else draw_balance();
 }
 
@@ -349,29 +339,6 @@ function do_asset() {
 function do_admin() {
   global $client;
 
-  $createtoken = mqpost('createtoken');
-  $removetoken = mqpost('removetoken');
-  $cancel = mqpost('cancel');
-
-  if ($createtoken) {
-    $name = mqpost('name');
-    $count = mqpost('count');
-    $tokens = mqpost('tokens');
-    $res = '';
-    for ($i=0; $i<$count; $i++) {
-      $tok = $client->newsessionid();
-      $client->token($tok, "$tokens|$name");
-      if ($res) $res .= ' ';
-      $res .= $tok;
-    }
-    draw_admin($name, $res);
-  } elseif ($removetoken) {
-    $tok = mqpost('tok');
-    $client->token($tok, '');
-    draw_admin();
-  } elseif ($cancel) {
-    draw_balance();
-  } else draw_admin();
 }
 
 function do_spend() {
@@ -437,9 +404,8 @@ function do_spend() {
             $error = "Bug: blank acct or assetid";
             draw_balance($amount, $recipient, $note);
           } else {
-            $err = $client->spend($recipient, $assetid, $amount, $acct, $note);
-            if ($err) {
-              $error = "Error from spend: $err";
+            $error = $client->spend($recipient, $assetid, $amount, $acct, $note);
+            if ($error) {
               draw_balance($amount, $recipient, $note);
             } elseif ($mintcoupon) {
               draw_coupon($client->lastspendtime);
@@ -571,18 +537,12 @@ function draw_register($key=false) {
 <td><b>Verification:</b></td>
 <td><input type="password" name="passphrase2" size="50"/>
 </tr><tr>
-
-EOT;
-
-  if ($require_tokens) {
-    $body .= <<<EOT
-<td><b>Invitation<br/>token:</b></td>
-<td><input type="text" name="tok" size="40"/></td>
+<td><b>Coupon:</b></td>
+<td><textarea name="coupon" cols="40" rows="2"></textarea></td>
 </tr><tr>
-EOT;
-  }
-
-  $body .= <<<EOT
+<td><b>Account Name<br/>(Optional):</b></td>
+<td><input type="text" name="name" size="40"/></td>
+</tr><tr>
 <td><b>Key size:</b></td>
 <td>
 <select name="keysize">
@@ -598,11 +558,12 @@ EOT;
 <td></td>
 <td>
 To generate a new private key, leave the area below blank, enter a
-passphrase, the passphrase again to verify, a key size, and click the
-"Create account" button. To use an existing private key, paste the
-private key below, enter its passphrase above, and click the
-"Create account" button. To show your encrypted private key, enter
-its passphrase, and click the "Show key" button. Warning: if you
+passphrase, the passphrase again to verify, a bank coupon, an optional
+account name, a key size, and click the "Create account" button. To
+use an existing private key, paste the private key below, enter its
+passphrase above, a bank coupon, an optional account name, and click
+the "Create account" button.  To show your encrypted private key,
+enter its passphrase, and click the "Show key" button. Warning: if you
 forget your passphrase, <b>nobody can recover it, ever</b>.
 </td>
 </tr><tr>
@@ -681,7 +642,6 @@ function setbank($reporterror=false) {
     } 
     if (!$bankid) {
       $err = "No known banks. Please add one.";
-      $error = $err;
     }
   }
 
@@ -806,6 +766,7 @@ EOT;
       }
       $nonspends = array();
       $spendcnt = 0;
+      $assets = $client->getassets();
       foreach ($inbox as $itemkey => $item) {
         $item = $item[0];
         $request = $item[$t->REQUEST];
@@ -833,7 +794,11 @@ EOT;
           $nonspends[] = $item;
         }
         else {
+          $assetid = $item[$t->ASSET];
           $assetname = hsc($item[$t->ASSETNAME]);
+          if (!$assets[$assetid]) {
+            $assetname .= ' <span style="color: red;"><i>(new)</i></span>';
+          }
           $amount = hsc($item[$t->FORMATTEDAMOUNT]);
           $itemnote = hsc($item[$t->NOTE]);
           if (!$itemnote) $itemnote = '&nbsp;';
@@ -1182,7 +1147,7 @@ function draw_coupon($time = false) {
 <b>Amount:</b> $formattedamount $assetname
 <br/>
 $note<br/>
-<textarea name="coupon" cols="90" rows="12" readonly="readonly">
+<textarea style="padding: 5px;" name="coupon" cols="90" rows="12" readonly="readonly">
 $coupon
 </textarea>
 <p>
@@ -1283,7 +1248,7 @@ EOT;
   }
 }
 
-function draw_banks() {
+function draw_banks($bankurl='', $name='') {
   global $onload, $body;
   global $error;
   global $client;
@@ -1303,10 +1268,10 @@ function draw_banks() {
 <table>
 <tr>
 <td><b>Bank URL<br/>or Coupon:</b></td>
-<td><input type="text" name="bankurl" size="40"/>
+<td><textarea name="bankurl" cols="40" rows="2">$bankurl</textarea>
 </tr><tr>
 <td><b>Account Name<br/>(optional):</b></td>
-<td><input type="text" name="name" size="40"/></td>
+<td><input type="text" name="name" size="40" value="$name"/></td>
 </tr><tr>
 <td></td>
 <td><input type="submit" name="newbank" value="Add Bank"/>
@@ -1342,11 +1307,11 @@ EOT;
 <td><input type="submit" name="selectbank" value="Choose"/></td>
 </tr>
 </form>
-</table>
 
 EOT;
       }
     }
+    $body .= "</table>\n";
   }
   
 }
@@ -1530,75 +1495,7 @@ function draw_admin($name=false, $tokens=false) {
 
   $onload = "document.forms[0].name.focus()";
 
-  $name = hsc($name);
-  $tokens = hsc($tokens);
-
-  $body = <<<EOT
-<br/>
-<form method="post" action="./" autocomplete="off">
-<input type="hidden" name="cmd" value="admin"/>
-<table>
-<tr>
-<td align="right"><b>Name:</b></td>
-<td><input type="text" name="name" width="30" value="$name"/></td>
-</tr><tr>
-<td align="right"><b>Count:</b></td>
-<td><input type="text" name="count" value="1"/>
-</tr><tr>
-<td><b>Usage tokens:</b></td>
-<td><input type="text" name="tokens" value="50"/>
-</tr><tr>
-<td></td>
-<td><input type="submit" name="createtoken" value="Create account token(s)"/>
-<input type="submit" name="cancel" value="Cancel"/></td>
-</tr>
-</table>
-
-EOT;
-  if ($tokens) {
-    $body .= <<<EOT
-<br/>
-<table>
-<tr>
-<th>Tokens:</th>
-<td><textarea readonly="readonly" id="tokens" rows="10" cols="40">$tokens</textarea></td>
-</tr>
-</table>
-</span>
-
-EOT;
-  } else {
-    $tokens = $client->gettokens();
-    if (count($tokens) > 0) {
-      $body .= '<table border="1">
-<tr>
-<th>Name</th>
-<th>Usage Tokens</th>
-<th>Token</th>
-<th>Remove</th>
-</tr>';
-      foreach ($tokens as $tok => $token) {
-        $tok = hsc($tok);
-        $token = explode('|', $token);
-        $tokcnt = hsc($token[0]);
-        $name = hsc($token[1]);
-        $body .= <<<EOT
-<form method="post" action="./" autocomplete="off">
-<input type="hidden" name="cmd" value="admin"/>
-<input type="hidden" name="tok" value="$tok"/>
-<tr>
-<td>$name</td>
-<td align="right">$tokcnt</td>
-<td>$tok</td>
-<td><input type="submit" name="removetoken" value="Remove"/></td>
-</tr>
-</form>
-
-EOT;
-      }
-      $body .= "</table>\n";
-    }
-  }
+  $body = 'No admin stuff yet';
 }
 
 // Copyright 2008 Bill St. Clair
