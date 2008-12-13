@@ -10,7 +10,7 @@
 <b>Bank:</b> Trubanc <a href="http://trubanc.com">http://trubanc.com</a><br/>
 <b>Account name:</b> Bill St. Clair<br/>
 <b>Your ID:</b> 2e62b557d302c2248e8b985500ef7e1fb9d74295<br/>
-<br><form method="post" action="./" autocomplete="off">
+<br><form method="get" action="balance.html" autocomplete="off">
 <input type="hidden" name="cmd" value="processinbox"/>
 <input type="hidden" name="spendcnt" value="1"/>
 <input type="hidden" name="nonspendcnt" value="1"/>
@@ -27,10 +27,11 @@
 <input type="hidden" name="spendtime0" value="138">
 <tr>
 <td>Spend</td>
-<td><span title="06ab285d8e849cb9d9896825b6e43d83568cd675">(Trubanc)<span><br/>
-<span style="text-align: center;">Add contact
+<td><span title="06ab285d8e849cb9d9896825b6e43d83568cd675">(Trubanc)</span>
+<br/>
 <input type="hidden" name="spendid0" value="06ab285d8e849cb9d9896825b6e43d83568cd675"/>
-<input type="checkbox" name="addspend0"/></span></td>
+Nickname:
+<input type="text" name="spendnick0" size="10"/></td>
 <td align="right" style="border-right-width: 0;">1000</td>
 <td style="border-left-width: 0;">Trubanc Usage Tokens</td>
 <td>Here are those tokens you requested.</td>
@@ -62,12 +63,9 @@ Please send me two pounds of that fine coffee you sell.</td>
 <br/>
 <input type="submit" name="submit" value="Process Inbox"/>
 </form>
-<br/>
-<form method="post" action="./" autocomplete="off">
+
+<form method="get" action="balance.html" autocomplete="off">
 <input type="hidden" name="cmd" value="spend"/>
-To make a spend, fill in the "Spend amount", choose a "Recipient" or
-enter a "Recipient ID, enter (optionally) a "Note", and click the
-"Spend" button next to the asset you wish to spend.<br><br/>
 
 <table>
 <tr>
@@ -108,21 +106,63 @@ enter a "Recipient ID, enter (optionally) a "Note", and click the
 <option value="315f8775fbc748d2fdac3dd5be7147916692715c">Patrick</option>
 <option value="304f9f53aef2b910937c3fc1289c982d6340d71d">Daniel</option>
 </select>
-</td>
-</tr><tr>
-<td><b>Recipient ID:</b></td>
-<td><input type="text" name="recipientid" size="40" value=""/>
-<input type="checkbox" name="allowunregistered">Allow unregistered</checkbox></td>
 
+<input type="checkbox" name="mintcoupon">Mint coupon</input></td>
+</tr><tr>
 </tr><tr>
 <td><b>Note:</b></td>
 <td><textarea name="note" cols="40" rows="10"></textarea></td>
+</tr><tr>
+<td><b>Recipient ID:</b></td>
+<td><input type="text" name="recipientid" size="40" value=""/>
+<input type="checkbox" name="allowunregistered">Allow unregistered</input></td>
+</tr><tr>
+<td><b>Nickname:</b></td>
+<td><input type="text" name="nickname" size="30" value=""/></td>
 </tr>
 </table>
-<br/>
-
 </td>
 </table>
 </form>
+<p>
+To make a spend, fill in the "Spend amount", choose a "Recipient" or
+enter a "Recipient ID, enter (optionally) a "Note", and click the
+"Spend" button next to the asset you wish to spend.
+</p>
+<!--<p>
+To transfer balances to another acct, enter the "Spend Amount",
+select or fill-in the "Transfer to" acct name (letters, numbers, and
+spaces only), and click the "Spend" button next to the asset you want
+to transfer from.
+</p>-->
+<p>Entering a "Nickname" will add the "Recipient ID" to your contacts
+list with that nickname, or change the nickname of the selected
+"Recipient".
+</p>
+<table border="1">
+<caption><b>=== Outbox ===</b></caption>
+<tr>
+<th>Time</th>
+<th>Recipient</th>
+<th colspan="2">Amount</th>
+<th>Note</th>
+</tr><tr>
+<td>130</td>
+<td>Daniel</td>
+<td align="right" style="border-right-width: 0;">1.000</td>
+<td style="border-left-width: 0;">Bill Fake GoldGrams</td>
+<td>Hey guy. Hope you're well.
+
+<br/>
+
+<br/>
+Please send me two pounds of that fine coffee you sell.</td>
+</tr><tr>
+<td>228</td>
+<td><a href="./coupon.html">coupon</a></td>
+<td align="right" style="border-right-width: 0;">100</td>
+<td style="border-left-width: 0;">Trubanc Usage Tokens</td>
+<td>For you, George. Welcome to Trubanc!</td>
+</tr></table><br/>
 </body>
 </html>

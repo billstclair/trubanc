@@ -776,7 +776,7 @@ EOT;
         if ($contact) {
           $namestr = contact_namestr($contact);
           if ($namestr != $fromid) {
-            $namestr = "<span title=\"$fromid\">$namestr<span>";
+            $namestr = "<span title=\"$fromid\">$namestr</span>";
           }
         } else $namestr = hsc($fromid);
 
@@ -811,7 +811,7 @@ EOT;
 <br/>
 <input type="hidden" name="spendid$spendcnt" value="$fromid"/>
 Nickname:
-<input type="text" name="spendnick$spendcnt" size="10"/></span>
+<input type="text" name="spendnick$spendcnt" size="10"/>
 EOT;
           }
           $timecode = <<<EOT
@@ -859,7 +859,7 @@ EOT;
         if ($contact) {
           $namestr = contact_namestr($contact);
           if ($namestr != $fromid) {
-            $namestr = "<span title=\"$fromid\">$namestr<span>";
+            $namestr = "<span title=\"$fromid\">$namestr</span>";
           }
         } else $namestr = hsc($fromid);
         $assetname = hsc($item[$t->ASSETNAME]);
@@ -876,7 +876,7 @@ EOT;
 <br/>
 <input type="hidden" name="nonspendid$nonspendcnt" value="$fromid"/>
 Nickname:
-<input type="text" name="nonspendnick$nonspendcnt" size="10"/></span>
+<input type="text" name="nonspendnick$nonspendcnt" size="10"/>
 EOT;
           }
         $timecode = <<<EOT

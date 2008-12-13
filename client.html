@@ -89,15 +89,19 @@ thing.
 </p>
 
 <p>
-In order to protect this web site from spammers, you'll also need to
-enter an "Invitation token". This is a 40-character string that I'll
-send to you if you ask. Email billstclair at gmail dot com. Or Skype
-billstclair.
+In order to protect Trubanc clients and servers from spammers, you'll
+also need to enter a "Coupon". A Trubanc coupon is a portable store of
+value. Coupons are usually used to give usage tokens to people who
+want to open new accounts, but they can be minted in any asset
+type. You can mint your own on the
+<a href="demo/balance.html">
+balance screen</a>, but usually you'll get one from a friend, or
+purchase it from the people who run the bank.
 </p>
 
 <p>
 Enter your passphrase twice, once in the "Passphrase" field, and again
-in the "Verification" field. Enter the "Invitation token". Pick a "Key
+in the "Verification" field. Paste your "Coupon". Pick a "Key
 size". RSA Labs
 <a href="http://www.rsa.com/rsalabs/node.asp?id=2004">thinks</a> that
 a key size of 3072 bits should be secure until beyond the year
@@ -116,51 +120,8 @@ press the "Create account" button.
 <li>Click the "Register a new account" link to go to the registration
   screen.
 <li>Enter your "Passphrase" and "Verification"</li>
-<li>Enter the "Invitation token"</li>
+<li>Paste the "Coupon"</li>
 <li>Press the "Create account" button</li>
-</ul>
-
-<h2>Adding a Bank</h2>
-
-<p>
-The
-<a href="demo/banks.html">
-Banks screen</a> will be your first landing spot after creating a new
-account. Until you've registered at a bank, you can't do much. It
-costs "usage tokens" to join a bank. Somebody has to give them or sell
-them to you. The bank at this site charges 10 usage tokens to create
-an account, and 1 token for each server file your account uses. In
-order to get some tokens, you'll have to ask me to fund your
-account. Use the contact info above to send me the long string of hex
-digits (0-9 and a-f) that you see after "Your ID". I'll gift you 100
-usage tokens ("Trubanc Asset Tokens") and 10 "Bill Fake GoldGrams", so
-you can play. I'll be creating bearer certificates pretty soon, which
-will take the place of the invitation token and of this second
-contact. You'll be able to forge them for your friends, if you have
-enough usage tokens.
-</p>
-
-<p>
-After I've notified you that I've funded your account, enter
-"http://trubanc.com" as the "Bank URL", and, if you want, an "Account
-Name". That name will be part of your ID at the bank. Anybody who
-knows your ID and has an account will see it. There is currently no
-way to change it, but I may add that, if there's demand. Press the
-"Add Bank" button, and you should be taken to the
-<a href="demo/balance.html">
-Balance screen</a>.
-</p>
-
-<span class="summary-header">Summary</span>
-<ul id="summary">
-<li>Send "Your ID" to billstclair at gmail dot com, and ask for usage
-tokens and fake GoldGrams</li>
-<li>Go to the
-<a href="client/?cmd=banks">Banks screen</a></li>
-<li>Enter "http://trubanc.com" as the "Bank URL"</li>
-<li>Enter an "Account Name", if you want to identify yourself with
-other than your ID</li>
-<li>Press the "Add Bank" button</li>
 </ul>
 
 <h2>Receiving Assets</h2>
@@ -182,9 +143,9 @@ to look at this much.
 
 <p>
 After you add a new bank, you'll see at least two spends. One will be
-from your sponsor, of enough usage tokens to cover the registration
-fee. And the other will be a negative spend from the bank for that
-registration fee. In Trubanc, the bank can't simply change your
+from the coupon from your sponsor, of enough usage tokens to cover the
+registration fee. The other will be a negative spend from the bank for
+that registration fee. In Trubanc, the bank can't simply change your
 balance behind your back. All balances and spends are signed by you
 and countersigned by the bank. So in order to change your balance, you
 must explicity make or accept spends. If someone spends assets to you
@@ -212,11 +173,15 @@ columns:
   you've given him a nickname on the
 <a href="demo/contacts.html">Contacts screen</a>, that will appear. If
 he also has an account name, that will appear in parentheses. If the
-other person is not amongst your contacts, an "Add contact" checkbox
+other person is not amongst your contacts, a "Nickname" text box
 will allow you to add him.</li>
-<li><b>Amount:</b> The amount that was spent in this transaction</li>
+<li><b>Amount:</b> The amount that was spent in this transaction. If
+  you see "<span style="color: red;"><i>(new)</i></span>" after the
+  asset name, that means that you have never credited any amounts of
+  this asset type to your account. This can help you avoid accepting
+  counterfeit assets (same name, but different ID).</li>
 <li><b>Note:</b> The note in the original spend for this
-  transaction. This is your note for acknowledgement lines.</li>
+  transaction. For acknowledgement lines, this is your original spend note.</li>
 <li><b>Action:</b> the action you want to perform on this line when
   you press the "Process Inbox" button.</li>
 <li><b>Reply:</b> you may type a reply here for spends, and you'll see
@@ -231,8 +196,8 @@ but you can keep some spends around until then by skipping them.
 </p>
 
 <p>
-To remove a spend acknowledgement from your inbox, check the "Remove"
-box in its "Action" column.
+To remove a spend acknowledgement from your inbox, closing the
+transaction, check the "Remove" box in its "Action" column.
 </p>
 
 <p>
@@ -288,7 +253,30 @@ Contacts screen</a>.
 
 <h2>Spending Assets</h2>
 
-<h2>Closing a Transaction</h2>
+<h2>Adding a Bank</h2>
+
+<p>
+To create an account at a new bank, or add an existing bank account to
+a new client, use the
+<a href="demo/banks.html">
+Banks screen</a>. To create a new account, or to redeem it in an
+existing account, paste a coupon into the "Bank URL or Coupon". For a
+new account, if you want the account to be named, enter an "Account
+name". To add an existing account at another bank to a client that
+doesn't have it, enter the bank's URL as the "Bank URL or Coupon",
+instead of a coupon. Then press the "Add Bank" button.
+</p>
+
+<span class="summary-header">Summary</span>
+<ul id="summary">
+<li>Acquire a coupon with usage tokens for the new bank.
+<li>Go to the
+<a href="client/?cmd=banks">Banks screen</a>.</li>
+<li>Paste the coupon into "Bank URL or Coupon"</li>
+<li>Enter an "Account Name", if you want to identify yourself with
+other than your ID.</li>
+<li>Press the "Add Bank" button.</li>
+</ul>
 
 <h2>Preventing Spam</h2>
 
@@ -315,6 +303,10 @@ need to explicitly spend them back, except to spammers.
 <h2>Issuing Assets</h2>
 
 <h2>Multiple Sub-Accounts</h2>
+
+<p>To be done</p>
+
+<h2>Keeping History</h2>
 
 <p>To be done</p>
 
