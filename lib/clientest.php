@@ -192,6 +192,7 @@ while (true) {
       "contacts: list contacts known to the current user\n" .
       "balance: show balances for current user\n" .
       "spend <user#> <asset#> <amount> [<acct>]: Spend from current user to <user#>\n" .
+      "xfer <asset#> <amount> <toacct> [<fromacct>]: Transfer from <fromacct> to <toacct>" .
       "coupon <asset#> <amount> [<acct>]: Create a coupon\n" .
       "outbox: Show outbox\n" .
       "redeem <time#>: redeem the coupon in the <time#> outbox item\n" .
@@ -357,6 +358,30 @@ while (true) {
           $err = $client->spend($userid, $assetid, $amt, $acct, $note);
           if ($err) echo "$err\n";
         }
+      }
+    }
+  } elseif ($cmd == 'xfer') {
+    $cnt = count($tokens);
+    if ($cnt < 4 || $cnt > 5) {
+      echo "Usage is: xfer <asset#> <amount> <toacct> [<acct>]\n";
+    } else {
+      $assetidx = $tokens[1];
+      $amt = $tokens[2];
+      $toacct = $tokens[3];
+      $acct = $t->MAIN;
+      if ($cnt == 5) $acct = $tokens[4];
+      $acct = array($acct, $toacct);
+      $assets = $client->getassets();
+      $arr = array();
+      foreach($assets as $asset) $arr[] = $asset;
+      $asset = $arr[$assetidx-1];
+      if (!$asset) echo "No such asset: $assetidx\n";
+      else {
+        $userid = $client->id;
+        $assetid = $asset[$t->ASSET];
+        $note = "Spending $amt";
+        $err = $client->spend($userid, $assetid, $amt, $acct, $note);
+        if ($err) echo "$err\n";
       }
     }
   } elseif ($cmd == 'coupon') {

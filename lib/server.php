@@ -889,7 +889,7 @@ class server {
     $newneg = $state['newneg'];
 
     // tranfee must be included if there's a transaction fee
-    if ($tokens != 0 && !$feemsg) {
+    if ($tokens != 0 && !$feemsg && $id != $id2) {
       return $this->failmsg($msg, $t->TRANFEE . " missing");
     }
 

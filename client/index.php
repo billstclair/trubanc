@@ -356,6 +356,8 @@ function do_spend() {
   $allowunregistered = mqpost('allowunregistered');
   $note = mqpost('note');
   $nickname = mqpost('nickname');
+  $toacct = mqpost('toacct');
+  $tonewacct = mqpost('tonewacct');
 
   $error = false;
   if (!$recipient) {
@@ -377,7 +379,7 @@ function do_spend() {
     }
   }
   if ($error) {
-    draw_balance($amount, $recipient, $note);
+    draw_balance($amount, $recipient, $note, $toacct, $tonewacct);
   } else {
     // Add contact if nickname specified
     if ($nickname) {
@@ -394,7 +396,7 @@ function do_spend() {
         $acctdotasset = explode('|', $acctdotasset);
         if (count($acctdotasset) != 2) {
           $error = "Bug: don't understand spentasset";
-          draw_balance($amount, $recipient, $note);
+          draw_balance($amount, $recipient, $note, $toacct, $tonewacct);
         } else {
           $acctidx = $acctdotasset[0];
           $assetidx = $acctdotasset[1];
@@ -402,11 +404,11 @@ function do_spend() {
           $assetid = mqpost("assetid$acctidx|$assetidx");
           if (!$acct || !$assetid) {
             $error = "Bug: blank acct or assetid";
-            draw_balance($amount, $recipient, $note);
+            draw_balance($amount, $recipient, $note, $toacct, $tonewacct);
           } else {
             $error = $client->spend($recipient, $assetid, $amount, $acct, $note);
             if ($error) {
-              draw_balance($amount, $recipient, $note);
+              draw_balance($amount, $recipient, $note, $toacct, $tonewacct);
             } elseif ($mintcoupon) {
               draw_coupon($client->lastspendtime);
             } else {
@@ -420,7 +422,7 @@ function do_spend() {
     }
     if (!$found) {
       $error = "Bug: can't find acct/asset to spend";
-      draw_balance($amount, $recipient, $note);
+      draw_balance($amount, $recipient, $note, $toacct, $tonewacct);
     }
   }
 }
@@ -439,10 +441,12 @@ function do_processinbox() {
     $time = mqpost("spendtime$i");
     $spend = mqpost("spend$i");
     $note = mqpost("spendnote$i");
+    $acct = mqpost("acct$i");
     if ($spend == 'accept' || $spend == 'reject') {
       $dir = array($t->TIME => $time);
       if ($note) $dir[$t->NOTE] = $note;
       $dir[$t->REQUEST] = ($spend == 'accept') ? $t->SPENDACCEPT : $t->SPENDREJECT;
+      if ($acct) $dir[$t->ACCT] = $acct;
       $directions[] = $dir;
     }
     $nickname = mqpost("spendnick$i");
@@ -510,6 +514,7 @@ function draw_register($key=false) {
 
   $key = hsc($key);
 
+  settitle('Register');
   $menu = '';
   $onload = "document.forms[0].passphrase.focus()";
 
@@ -670,7 +675,8 @@ function contact_namestr($contact) {
   return namestr($nickname, $name, $recipid);
 }
 
-function draw_balance($spend_amount=false, $recipient=false, $note=false) {
+function draw_balance($spend_amount=false, $recipient=false, $note=false,
+                      $toacct=false, $tonewacct=false) {
   global $client;
   global $error;
   global $onload, $body;
@@ -724,9 +730,25 @@ EOT;
     // Print inbox, if there is one
     $inbox = $client->getinbox();
     $outbox = $client->getoutbox();
+    $accts = $client->getaccts();
+
+    $acctoptions = '';
+    if (count($accts) > 1) {
+      $first = true;
+      foreach ($accts as $acct) {
+        $acct = hsc($acct);
+        $acctoptions .= <<<EOT
+          <option value="$acct">$acct</option>
+
+EOT;
+      }
+    }
+
     if (is_string($inbox)) $error = "Error getting inbox: $inbox";
     elseif (count($inbox) == 0) $inboxcode .= "<b>=== Inbox empty ===</b><br/><br/>\n";
     else {
+      if ($acctoptions) $acctheader = "\n<th>To Acct</th>";
+
       $inboxcode .= <<<EOT
 <table border="1">
 <caption><b>=== Inbox ===</b></caption>
@@ -736,7 +758,7 @@ EOT;
 <th colspan="2">Amount</th>
 <th>Note</th>
 <th>Action</th>
-<th>Reply</th>
+<th>Reply</th>$acctheader
 </tr>
 
 EOT;
@@ -746,19 +768,6 @@ EOT;
 <option value="ignore">Ignore</option>
 
 EOT;
-
-      $acctoptions = '';
-      $accts = $client->getaccts();
-      if (count($accts) > 1) {
-        $first = true;
-        foreach ($accts as $acct) {
-          $selected = $first ? ' selected="selected"' : '';
-          $acctoptions .= <<<EOT
-<option value="$acct"$selected>$acct</option>
-
-EOT;
-        }
-      }
 
       if (is_string($outbox)) {
         $error = "Error getting outbox: $outbox";
@@ -978,7 +987,7 @@ EOT;
         if (!$firstacct) {
           $balcode .= "<tr><td colspan=\"3\">&nbsp;</td></tr>\n";
         } else $firstacct = false;
-        $balcode .= "<tr><th colspan=\"3\">$acct</td></tr>\n";
+        $balcode .= "<tr><th colspan=\"3\">- $acct -</th></tr>\n";
         $newassetlist = '';
         foreach ($assets as $asset => $data) {
           if ($data[$t->AMOUNT] != 0) {
@@ -1047,6 +1056,32 @@ EOT;
 <input type="hidden" name="cmd" value="spend"/>
 
 ';
+      $acctoptions = '';
+      if (count($accts) > 1) {
+        $first = true;
+        foreach ($accts as $acct) {
+          $selcode = '';
+          if ($acct == $toacct) $selcode = ' selected="selected"';
+          $acct = hsc($acct);
+          $acctoptions .= <<<EOT
+<option value="$acct$selcode">$acct</option>
+
+EOT;
+        }
+      }
+      $acctcode = '';
+      if ($acctoptions) {
+        $acctcode = <<<EOT
+
+<tr>
+<td><b>To Acct:</b></td>
+<td><select name="toacct">
+$acctoptions
+</select></td>
+</tr>
+EOT;
+      }
+
       $spendcode = <<<EOT
 
 <table>
@@ -1067,6 +1102,10 @@ EOT;
 </tr><tr>
 <td><b>Nickname:</b></td>
 <td><input type="text" name="nickname" size="30" value="$nickname"/></td>
+</tr>$acctcode
+<tr>
+<td><b>To New Acct:</b></td>
+<td><input type="text" name="tonewacct" size="30" value="$tonewacct"/></td>
 </tr>
 </table>
 EOT;

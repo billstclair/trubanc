@@ -1086,6 +1086,9 @@ class client {
   // $assetid is the id of the asset to spend
   // $formattedamount is the formatted amount to spend
   // $acct is the source sub-account, default $t->MAIN
+  // $acct can also be array($fromacct, $toacct), for a transfer.
+  // In that case $toid should be the logged in ID.
+  // Fees are always taken from $t->MAIN
   function spend($toid, $assetid, $formattedamount, $acct=false, $note=false) {
     $t = $this->t;
     $db = $this->db;
@@ -1113,13 +1116,25 @@ class client {
     $parser = $this->parser;
 
     if (!$acct) $acct = $t->MAIN;
+    $toacct = $t->MAIN;
+    if (!is_string($acct)) {
+      $toacct = $acct[1];
+      $acct = $acct[0];
+      if (!(is_string($acct) && is_string($toacct))) {
+        return "Bad accts: from: $acct, to: $to_acct";
+      }
+    }
+
+    if ($id == $toid && $acct == $toacct) {
+      return "Transfer from acct ($acct) equals to acct ($toacct). Nothing to do.";
+    }
 
     $amount = $this->unformat_asset_value($formattedamount, $assetid);
-    if ($amount < 0) return "You may not spend a negative amount";
+    if (bccomp($amount, 0) <= 0) return "You may only spend a positive amount";
 
     $oldamount = $this->userbalance($acct, $assetid);
     if (!is_numeric($oldamount)) {
-      return "error getting balance for asset in acct $acct: $oldamount";
+      return "Error getting balance for asset in acct $acct: $oldamount";
     }
 
     $newamount = bcsub($oldamount, $amount);
@@ -1128,28 +1143,53 @@ class client {
       return "Insufficient balance, old: $oldamount, new: $newamount";
     }
 
+    if ($id == $toid) {
+      $oldtoamount = $this->userbalance($toacct, $assetid);
+      $newtoamount = bcadd($oldtoamount, $amount);
+      if (bccomp($oldtoamount, 0) < 0 &&
+          bccomp($newtoamount, 0) >=0) {
+        // This shouldn't be possible.
+        // If it happens, it means the asset is out of balance.
+        return "Asset out of balance, old: $oldtoamount, new: $newtoamount";
+      }
+    }
+
     $tranfee = false;
-    $fee_balance = false;
+    $need_fee_balance = false;
     if ($id != $bankid) {
       $fees = $this->getfees();
       if (is_string($fees)) return $fees;
       $tranfee = $fees[$t->TRANFEE];
       $tranfee_asset = $tranfee[$t->ASSET];
-      $tranfee_amt = $tranfee[$t->AMOUNT];
+      if ($id != $toid) $tranfee_amt = $tranfee[$t->AMOUNT];
+      else $tranfee_amt = ($oldtoamount === false) ? 1 : 0;
       if ($tranfee_asset == $assetid && $t->MAIN == $acct) {
         $newamount = bcsub($newamount, $tranfee_amt);
         if (bccomp($oldamount, 0) >= 0 &&
             bccomp($newamount, 0) < 0) {
           return "Insufficient balance for transaction fee";
         }
+      } elseif ($id == $toid && $tranfee_asset == $assetid && $t->MAIN = $toacct) {
+        $newtoamount = bcsub($newtoamount, $tranfee_amt);
+        if ($newtoamount == $oldtoamount) {
+          "Transferring one token to a new acct is silly";
+        }
+        if (bccomp($oldtoamount, 0) >= 0 &&
+            bccomp($newtoamount, 0) < 0) {
+          return "Insufficient destination balance for transaction fee";
+        }
       } else {
-        $fee_balance = $this->userbalance($t->MAIN, $tranfee_asset);
-        $fee_balance = bcsub($fee_balance, $tranfee_amt);
-        if (bccomp($fee_balance, 0) < 0) {
+        $old_fee_balance = $this->userbalance($t->MAIN, $tranfee_asset);
+        $fee_balance = bcsub($old_fee_balance, $tranfee_amt);
+        $need_fee_balance = true; // $fee_balance could be 0
+        if (bccomp($old_fee_balance, 0) >= 0 &&
+            bccomp($fee_balance, 0) < 0) {
           return "Insufficient tokens for transaction fee";
         }
       }
     }
+
+    $this->debugmsg("fee_balance: '$fee_balance', need_fee_balance: '$need_fee_balance'\n");
 
     $time = $this->gettime();
     if (!$time) return "Unable to get timestamp for transaction from bank";
@@ -1157,21 +1197,29 @@ class client {
                                        $assetid, $amount, $note);
     else $spend = $this->custmsg($t->SPEND, $bankid, $time, $toid, $assetid, $amount);
     $feeandbal = '';
-    if ($tranfee) {
-      $feemsg = $this->custmsg
-        ($t->TRANFEE, $bankid, $time, $tranfee_asset, $tranfee_amt);
-      $feeandbal = $feemsg;
+    if ($tranfee_amt) {
+      if ($id != $toid) {
+        $feemsg = $this->custmsg
+          ($t->TRANFEE, $bankid, $time, $tranfee_asset, $tranfee_amt);
+        $feeandbal = $feemsg;
+      }
       $feebal = false;
-      if ($fee_balance) {
-        $feebal .= $this->custmsg
+      if ($need_fee_balance) {
+        $feebal = $this->custmsg
           ($t->BALANCE, $bankid, $time, $tranfee_asset, $fee_balance);
-        $feeandbal .= ".$feebal";
+        if ($feeandbal) $feeandbal .= '.';
+        $feeandbal .= $feebal;
       }
     }      
     $balance = $this->custmsg
       ($t->BALANCE, $bankid, $time, $assetid, $newamount, $acct);
+    $tobalance = false;
+    if ($id == $toid) {
+      $tobalance = $this->custmsg($t->BALANCE, $bankid, $time,
+                                  $assetid, $newtoamount, $toacct);
+    }
     $outboxhash = '';
-    if ($id != $bankid) {
+    if ($id != $bankid && $id != $toid) {
       $outboxhash = $this->outboxhashmsg($time, $spend);
     }
 
@@ -1181,12 +1229,19 @@ class client {
         if ($t->MAIN == $acct) {
           $acctbals = array($acct => array($assetid => $balance,
                                            $tranfee_asset => $feebal));
+          if ($tobalance) $acctbals[$toacct] = array($assetid => $tobalance);
+        } elseif ($id == $toid && $t->MAIN == $toacct) {
+          $acctbals = array($acct => array($assetid => $balance),
+                            $t->MAIN => array($assetid => $tobalance,
+                                              $tranfee_asset => $feebal));
         } else {
           $acctbals = array($acct => array($assetid => $balance),
                             $t->MAIN => array($tranfee_asset => $feebal));
+          if ($tobalance) $acctbals[$toacct] = array($assetid => $tobalance);
         }
       } else {
         $acctbals = array($acct => array($assetid => $balance));
+        if ($tobalance) $acctbals[$toacct] = array($assetid => $tobalance);
       }
       $balancehash = $this->balancehashmsg($time, $acctbals);
     }
@@ -1195,6 +1250,7 @@ class client {
     $msg = $spend;
     if ($feeandbal) $msg.= ".$feeandbal";
     $msg .= ".$balance";
+    if ($tobalance) $msg .= ".$tobalance";
     if ($outboxhash) $msg .= ".$outboxhash";
     if ($balancehash) $msg .= ".$balancehash";
     $msg = $server->process($msg);
@@ -1212,10 +1268,11 @@ class client {
 
     $msgs = array($spend => true,
                   $balance => true);
+    if ($tobalance) $msgs[$tobalance] = true;
     if ($outboxhash) $msgs[$outboxhash] = true;
     if ($balancehash) $msgs[$balancehash] = true;
     if ($feeandbal) {
-      $msgs[$feemsg] = true;
+      if ($feemsg) $msgs[$feemsg] = true;
       if ($feebal) $msgs[$feebal] = true;
     }
 
@@ -1244,6 +1301,9 @@ class client {
 
     // All is well. Commit this baby.
     $db->put($this->userbalancekey($acct, $assetid), $msgs[$balance]);
+    if ($tobalance) {
+      $db->put($this->userbalancekey($toacct, $assetid), $msgs[$tobalance]);
+    }
     if ($outboxhash) {
       $db->put($this->useroutboxhashkey(), $msgs[$outboxhash]);
     }
@@ -1261,7 +1321,7 @@ class client {
       $spend .= ".$coupon";
       $this->coupon = $encryptedcoupon;
     }
-    $db->put($this->useroutboxkey($time), $spend);
+    if ($id != $toid) $db->put($this->useroutboxkey($time), $spend);
     $this->lastspendtime = $time;
 
     return false;    
@@ -1982,7 +2042,7 @@ class client {
       $args = $args[$t->MSG];
       return $args[$t->AMOUNT];
     }
-    return 0;
+    return false;
   }
 
   function useroutboxkey($time=false) {
