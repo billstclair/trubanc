@@ -1028,7 +1028,7 @@ class client {
       if ($a2 == $t->MAIN) return 0;
       return -1;
     } elseif ($a2 == $t->MAIN) return 1;
-    return strcmp($a1, $a2);
+    return strcmp(strtolower($a1), strtolower($a2));
   }
 
   function comparebalances($b1, $b2) {
@@ -1126,7 +1126,7 @@ class client {
     }
 
     if ($id == $toid && $acct == $toacct) {
-      return "Transfer from acct ($acct) equals to acct ($toacct). Nothing to do.";
+      return "Transfer from and  to the same ($acct). Nothing to do.";
     }
 
     $amount = $this->unformat_asset_value($formattedamount, $assetid);

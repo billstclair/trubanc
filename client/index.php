@@ -370,11 +370,16 @@ function do_spend() {
   if (!$recipient) {
     if ($mintcoupon) $recipient = $t->COUPON;
   } elseif ($mintcoupon) $error = "To mint a coupon don't specify a recipient";
-  if ($id == $recipient) $error = "Spends to yourself not yet supported";
   if (!$error) {
     if (!($amount || ($amount === '0'))) $error = 'Spend amount missing';
-    elseif (!$recipient) $error = 'Recipient missing';
-    elseif ($recipient != $t->COUPON && !$client->is_id($recipient)) {
+    elseif ($id == $recipient || !$recipient) {
+      // Spend to yourself = transfer
+      $recipient = $id;
+      $acct2 = $toacct;
+      if (!$acct2) $acct2 = $tonewacct;
+      elseif ($tonewacct) $error = 'Choose "Tranfer to" from the selector or by typing, but not both';
+      if (!$acct2) $error = 'Recipient missing';
+    } elseif ($recipient != $t->COUPON && !$client->is_id($recipient)) {
       $error = "Recipient ID malformed";
     }
   }
@@ -406,6 +411,7 @@ function do_spend() {
             $error = "Bug: blank acct or assetid";
             draw_balance($amount, $recipient, $note, $toacct, $tonewacct);
           } else {
+            if ($acct2) $acct = array($acct, $acct2);
             $error = $client->spend($recipient, $assetid, $amount, $acct, $note);
             if ($error) {
               draw_balance($amount, $recipient, $note, $toacct, $tonewacct);
@@ -984,10 +990,7 @@ EOT;
       $firstacct = true;
       foreach ($balance as $acct => $assets) {
         $acct = hsc($acct);
-        if (!$firstacct) {
-          $balcode .= "<tr><td colspan=\"3\">&nbsp;</td></tr>\n";
-        } else $firstacct = false;
-        $balcode .= "<tr><th colspan=\"3\">- $acct -</th></tr>\n";
+        $assetcode = '';
         $newassetlist = '';
         foreach ($assets as $asset => $data) {
           if ($data[$t->AMOUNT] != 0) {
@@ -1005,7 +1008,7 @@ EOT;
 
 EOT;
             $assetidx++;
-            $balcode .= <<<EOT
+            $assetcode .= <<<EOT
 <tr>
 <td align="right"><span style="margin-right: 5px">$formattedamount</span></td>
 <td>$assetname</td>
@@ -1015,6 +1018,14 @@ EOT;
 EOT;
           }
         }
+
+        if ($assetcode) {
+          if (!$firstacct) {
+            $balcode .= "<tr><td colspan=\"3\">&nbsp;</td></tr>\n";
+          } else $firstacct = false;
+          $balcode .= "<tr><th colspan=\"3\">- $acct -</th></tr>\n$assetcode";
+        }
+
         if ($newassetlist) {
           $assetlist .= <<<EOT
 <input type="hidden" name="acct$acctidx" value="$acct"/>
@@ -1056,7 +1067,7 @@ EOT;
 <input type="hidden" name="cmd" value="spend"/>
 
 ';
-      $acctoptions = '';
+      $acctoptions = '<option value="">Select or fill-in below...</a>' . "\n";
       if (count($accts) > 1) {
         $first = true;
         foreach ($accts as $acct) {
@@ -1064,7 +1075,7 @@ EOT;
           if ($acct == $toacct) $selcode = ' selected="selected"';
           $acct = hsc($acct);
           $acctoptions .= <<<EOT
-<option value="$acct$selcode">$acct</option>
+<option value="$acct"$selcode>$acct</option>
 
 EOT;
         }
@@ -1074,7 +1085,7 @@ EOT;
         $acctcode = <<<EOT
 
 <tr>
-<td><b>To Acct:</b></td>
+<td><b>Tranfer to:</b></td>
 <td><select name="toacct">
 $acctoptions
 </select></td>
@@ -1104,7 +1115,7 @@ EOT;
 <td><input type="text" name="nickname" size="30" value="$nickname"/></td>
 </tr>$acctcode
 <tr>
-<td><b>To New Acct:</b></td>
+<td><b>&nbsp;</b></td>
 <td><input type="text" name="tonewacct" size="30" value="$tonewacct"/></td>
 </tr>
 </table>
@@ -1117,13 +1128,21 @@ To make a spend, fill in the "Spend amount", choose a "Recipient" or
 enter a "Recipient ID, enter (optionally) a "Note", and click the
 "Spend" button next to the asset you wish to spend.
 </p>
-<!--<p>
+<p>
 To transfer balances to another acct, enter the "Spend Amount",
 select or fill-in the "Transfer to" acct name (letters, numbers, and
 spaces only), and click the "Spend" button next to the asset you want
-to transfer from.
-</p>-->
-<p>Entering a "Nickname" will add the "Recipient ID" to your contacts
+to transfer from. Each storage location costs one usage token, and
+there is currently no way to recover an unused location. 0 balances
+will show only on the raw balance screen.
+</p>
+<p>
+To mint a coupon, enter the "Spend Amount", check the "Mint coupon"
+box, and click the "Spend" button next to the asset you want to
+transfer to the coupon. You can redeem a coupon on the "Banks" page.
+</p>
+<p>
+Entering a "Nickname" will add the "Recipient ID" to your contacts
 list with that nickname, or change the nickname of the selected
 "Recipient".
 </p>
