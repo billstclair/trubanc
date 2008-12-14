@@ -52,10 +52,10 @@ directions in the gray boxes titled "Summary".
 <p>
 When you first go to the client web page, you'll see the
 <a href="demo/">Login screen</a>. Once you've created an account,
-simply enter your passphrase and press the "Login" key (or the "Enter"
-or "Return" key on your keyboard). But first, you need to create
-public key pair. Click the "Register a new account" link on the login
-screen to go to the
+simply enter your passphrase and click the "Login" button (or press
+the "Enter" or "Return" key on your keyboard). But first, you need to
+create public key pair. Click the "Register a new account" link on the
+login screen to go to the
 <a href="demo/register.html">
 Registration screen</a>.
 </p>
@@ -69,11 +69,12 @@ cryptography</a> to identify you in all communication with the server,
 and to ensure that the server you reach over the internet today is the
 same one you reached yesterday. With Trubanc, your private key,
 stored, encrypted with your passphrase, on the machine that hosts the
-client, <i>is</i> your identity. Guard it well. And if you're
-connecting to a real Trubanc server, install the client on your own
-machine. Don't use a public web client, like the one on this
-site. Protect your passphrase like your gold. If somebody gets it, and
-your passphrase, they are <i>you</i> as far as a Trubanc server is
+client, <i>is</i> your identity. Guard it well. I will soon write
+instructions for installing the client on your PC. But if you use one
+over the internet, make sure it's over an encrypted (https)
+link. Protect your passphrase like your gold. If somebody gets it, and
+your encrypted private key, or access to a public client site holding
+your private key, they are <i>you</i> as far as a Trubanc server is
 concerned. But without it, <i>nobody</i> can impersonate you.
 </p>
 
@@ -85,7 +86,10 @@ not a piece of paper, to remember your passphrase. Pick a good one,
 and don't forget it. If you do, you've lost your identity and access
 to any assets stored in accounts keyed to it. Unless you picked a
 really easy passphrase, nobody can recover it for you. That's a good
-thing.
+thing. There's a random-word passphrase generator on the
+<a href="https://loom.cc/?function=folder_tools">
+Loom Tools</a> page. Press the "Random" button in the "Passphrase"
+line.
 </p>
 
 <p>
@@ -108,7 +112,8 @@ a key size of 3072 bits should be secure until beyond the year
 2031. So that's the default. Smaller sizes are a little faster to
 generate, and use, but only a little. It hardly matters for a key that
 you'll only be using on this site to play with the interface. Finally,
-press the "Create account" button.
+press the "Create account" button. It takes a few seconds to generate
+a new passphrase, so be patient.
 </p>
 
 <span class="summary-header">Summary</span>
@@ -143,7 +148,7 @@ to look at this much.
 
 <p>
 After you add a new bank, you'll see at least two spends. One will be
-from the coupon from your sponsor, of enough usage tokens to cover the
+from the coupon from your sponsor, for enough usage tokens to cover the
 registration fee. The other will be a negative spend from the bank for
 that registration fee. In Trubanc, the bank can't simply change your
 balance behind your back. All balances and spends are signed by you
@@ -231,10 +236,11 @@ and allows you to add new ones. This is so simple that I'll just put
 it in the summary. You can also add a contact from the "Inbox" section
 of the
 <a href="demo/balance.html">
-Balance screen</a>, by checking "Add contact" in the "From"
-column. This will add a new contact with a blank nickname and
-notes. You'll probably want to visit the Contacts screen to add those,
-especially if the customer has no Account Name.
+Balance screen</a>, or during a spend, by fillin in the "Nickname" box
+in the inbox "From" column. or near the bottom of the spend form. This
+will add a new contact with a blank nickname and notes. You'll
+probably want to visit the Contacts screen to add those, especially if
+the customer has no Account Name.
 </p>
 
 <span class="summary-header">Summary</span>
@@ -303,7 +309,7 @@ more by tranferring to them as described above.
 <p>
 The "Outbox" section, below the spend instructions shows pending
 spends and coupons. The word "coupon" is a link to a page that shows
-each coupon, for easy copy and paste. When you mint a coupon, you'll
+that coupon, for easy copy and paste. When you mint a coupon, you'll
 be taken automatically to the new coupon's page. To redeem a coupon,
 paste it into the "Bank URL or Coupon" box on the
 <a href="demo/banks.html">
@@ -333,7 +339,7 @@ To create an account at a new bank, or add an existing bank account to
 a new client, use the
 <a href="demo/banks.html">
 Banks screen</a>. To create a new account, or to redeem it in an
-existing account, paste a coupon into the "Bank URL or Coupon". For a
+existing account, paste a coupon into "Bank URL or Coupon". For a
 new account, if you want the account to be named, enter an "Account
 name". To add an existing account at another bank to a client that
 doesn't have it, enter the bank's URL as the "Bank URL or Coupon",
@@ -370,14 +376,16 @@ garbage. Since rejecting that spam message will cost the spammer two
 tokens, it will cost him money to keep doing it. This should
 discourage spam. I'll eventually add a feature where you can choose to
 give back the usage tokens with a rejected spend. Until then, you'll
-need to explicitly spend them back, except to spammers.
+need to explicitly spend them back, except to spammers. An easy way to
+spend back usage tokens is to do a zero spend with a note to the
+recipient to reject the spend and take the tokens.
 </p>
 
 <h2>Issuing Assets</h2>
 
 <p>
-Many banks will issue their own assets. Many of the existing digital
-gold currencies work that way. But, like
+Many Trubanc banks will issue their own assets. Many of the existing
+digital gold currencies work that way. But, like
 <a href="https://loom.cc/">Loom</a>, Trubanc allows anyone to issue a
 currency. If you convince enough people that your currency is stable
 and accepted by enough people, they'll use it. Creating your new asset
