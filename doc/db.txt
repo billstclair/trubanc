@@ -106,6 +106,13 @@ Get bankid
 
   Which the client will be unable to parse, not knowing the bank's public key.
 
+  In order to make this command possible to send without first
+  generating a public key pair, you can use "0" for the <id>,
+  anything, including blank, for the <pubkey>, and any non-blank
+  string as the signature. E.g.:
+
+(0,bankid,):0
+
 
 Create account
 --------------

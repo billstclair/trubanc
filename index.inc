@@ -32,9 +32,19 @@ This page is a live server. Invoke it as
 a server request, and return the result. For example,
 <a href="./?debug=true&msg=(bc50c4fd9c228a21f64d34ca644a46c1fe8520e4%2Cbankid%2C-----BEGIN+PUBLIC+KEY-----%0AMFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBAMwfcmkk2coTuYAEbdZ5iXggObNPzbSi%0ADnVtndZFe4%2F4Xg0IQPfpQ04OkhWIftMy1OjFhGlBzzNzdW98KYwKMgsCAwEAAQ%3D%3D%0A-----END+PUBLIC+KEY-----%0A)%3A%0AsLJ9GqFjZ61fq%2FbDFL6rxpY3w2s5dWIAXJCvPKQTPEkrG%2F2I1fwxBfugBmn%2FiPwa%0AjCRtnFDnrn7Mv%2BUY%2BSH4yw%3D%3D">
 click here</a> to send a "bankid" request, with debugging enabled to
-make it easy to see. I'm working on a web client, which I'll link to here when it's ready to test.
-
+make it easy to see. But the server is mostly useful for client
+programs. There's a client here, available at the link below, that you
+can use to help me beta test the Trubanc code. This is running an an
+unsecured web host in Arizona, using code that is constantly under
+development, so don't store any real value here; you might lose
+it. Hopefully, there will be real Trubanc servers, storing real value,
+and hosted in countries that respect your financial privacy, real
+soon.
 </td></tr></table>
+<p>
+<a href="client/">Trubanc Client</a>
+<br/>
+<a href="client.html">Client Documentation</a>
 <p>
 You may view code in progress <a href="viewtext.php">here</a>.
 <br/>
@@ -46,7 +56,9 @@ To download the code to the "trubanc" subdir of pwd:
 git clone git://repo.or.cz/Trubanc.git trubanc
 </code></blockquote>
 <center>
-<p style="font-size: 75%;">Copyright &copy; Bill St. Clair, 2008. All rights reserved.</p>
+<p style="font-size: 75%;">Copyright &copy; 
+<a href="https://billstclair.com/loom/">
+Bill St. Clair</a>, 2008. All rights reserved.</p>
 </center>
 </body>
 </html>
