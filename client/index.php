@@ -377,7 +377,7 @@ function do_spend() {
       $recipient = $id;
       $acct2 = $toacct;
       if (!$acct2) $acct2 = $tonewacct;
-      elseif ($tonewacct) $error = 'Choose "Tranfer to" from the selector or by typing, but not both';
+      elseif ($tonewacct) $error = 'Choose "Transfer to" from the selector or by typing, but not both';
       if (!$acct2) $error = 'Recipient missing';
     } elseif ($recipient != $t->COUPON && !$client->is_id($recipient)) {
       $error = "Recipient ID malformed";
@@ -1067,7 +1067,7 @@ EOT;
 <input type="hidden" name="cmd" value="spend"/>
 
 ';
-      $acctoptions = '<option value="">Select or fill-in below...</a>' . "\n";
+      $acctoptions = '';
       if (count($accts) > 1) {
         $first = true;
         foreach ($accts as $acct) {
@@ -1084,12 +1084,14 @@ EOT;
       if ($acctoptions) {
         $acctcode = <<<EOT
 
-<tr>
-<td><b>Tranfer to:</b></td>
 <td><select name="toacct">
+<option value="">Select or fill-in below...</option>
 $acctoptions
 </select></td>
 </tr>
+<tr>
+<td><b>&nbsp;</b></td>
+
 EOT;
       }
 
@@ -1113,9 +1115,8 @@ EOT;
 </tr><tr>
 <td><b>Nickname:</b></td>
 <td><input type="text" name="nickname" size="30" value="$nickname"/></td>
-</tr>$acctcode
 <tr>
-<td><b>&nbsp;</b></td>
+<td><b>Transfer to:</b></td>$acctcode
 <td><input type="text" name="tonewacct" size="30" value="$tonewacct"/></td>
 </tr>
 </table>
@@ -1129,12 +1130,12 @@ enter a "Recipient ID, enter (optionally) a "Note", and click the
 "Spend" button next to the asset you wish to spend.
 </p>
 <p>
-To transfer balances to another acct, enter the "Spend Amount",
-select or fill-in the "Transfer to" acct name (letters, numbers, and
-spaces only), and click the "Spend" button next to the asset you want
-to transfer from. Each storage location costs one usage token, and
-there is currently no way to recover an unused location. 0 balances
-will show only on the raw balance screen.
+To transfer balances, enter the "Spend Amount", select or fill-in the
+"Transfer to" name (letters, numbers, and spaces only), and click
+the"Spend" button next to the asset you want to transfer from. Each
+storage location costs one usage token, and there is currently no way
+to recover an unused location. 0 balances will show only on the raw
+balance screen.
 </p>
 <p>
 To mint a coupon, enter the "Spend Amount", check the "Mint coupon"

@@ -1140,7 +1140,7 @@ class client {
     $newamount = bcsub($oldamount, $amount);
     if (bccomp($oldamount, 0) >= 0 &&
         bccomp($newamount,  0) < 0) {
-      return "Insufficient balance, old: $oldamount, new: $newamount";
+      return "Insufficient balance";
     }
 
     if ($id == $toid) {
@@ -1150,7 +1150,7 @@ class client {
           bccomp($newtoamount, 0) >=0) {
         // This shouldn't be possible.
         // If it happens, it means the asset is out of balance.
-        return "Asset out of balance, old: $oldtoamount, new: $newtoamount";
+        return "Asset out of balance";
       }
     }
 
@@ -2156,6 +2156,18 @@ class client {
       }
     }
     if ($value == 0 && $sign < 0) $res = "-$res";
+
+    // Insert commas
+    $start = 0;
+    if (substr($res, 0, 1) == '-') $start++;
+    $dotpos = strpos($res, '.');
+    if ($dotpos === false) $dotpos = strlen($res);
+    $len = $dotpos - $start;
+    while ($len > 3) {
+      $res = substr($res, 0, $len+$start-3) . ',' . substr($res, $len+$start-3);
+      $len -= 3;
+    }
+
     return $res;
   }
 
