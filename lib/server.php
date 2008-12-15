@@ -893,6 +893,16 @@ class server {
       return $this->failmsg($msg, $t->TRANFEE . " missing");
     }
 
+    if (bccomp($amount, 0) < 0) {
+      // Negative spend allowed only for switching issuer location
+      if (!$oldneg[$assetid]) {
+        return $this->failmsg($msg, "Negative spend on asset for which you are not the issuer");
+      }
+      // Spending out the issuance.
+      // Mark the new "acct" for the negative as being the spend itself.
+      if (!$newneg[$assetid]) $newneg[$assetid] = $args;
+    }
+
     // Check that we have exactly as many negative balances after the transaction
     // as we had before.
     if (count($oldneg) != count($newneg)) {
@@ -1329,6 +1339,9 @@ class server {
           // Accepting the payment. Credit it.
           $itemasset = $itemargs[$t->ASSET];
           $itemamt = $itemargs[$t->AMOUNT];
+          if (bccomp($itemamt, 0) < 0 && $itemargs[$t->CUSTOMER] != $bankid) {
+            $state['oldneg'][$itemasset] = $itemargs;
+          }
           $state['bals'][$itemasset] = bcadd($state['bals'][$itemasset], $itemamt);
           $res .= '.' . $this->bankmsg($t->ATSPENDACCEPT, $reqmsg);
         } else {

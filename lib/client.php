@@ -1130,7 +1130,12 @@ class client {
     }
 
     $amount = $this->unformat_asset_value($formattedamount, $assetid);
-    if (bccomp($amount, 0) <= 0) return "You may only spend a positive amount";
+    if (bccomp($amount, 0) < 0) {
+      $bal = $this->userbalance($acct, $assetid);
+      if ($bal != $amount) {
+        return "Negative spends must be for the whole issuer balance";
+      }
+    }
 
     $oldamount = $this->userbalance($acct, $assetid);
     if (!is_numeric($oldamount)) {
@@ -1427,8 +1432,9 @@ class client {
           $item[$t->AMOUNT] = $amount;
           if (!is_string($asset)) {
             $item[$t->ASSETNAME] = $asset[$t->ASSETNAME];
+            $incnegs = ($args[$t->CUSTOMER] != $this->bankid);
             $item[$t->FORMATTEDAMOUNT] =
-              $this->format_asset_value($amount, $asset, false);
+              $this->format_asset_value($amount, $asset, $incnegs);
           }
         } elseif ($request == $t->SPENDACCEPT || $request == $t->SPENDREJECT) {
           // Pull in data from outbox to get amounts
@@ -1783,9 +1789,11 @@ class client {
         $item = array();
         $item[$t->REQUEST] = $request;
         $item[$t->TIME] = $time;
+        $incnegs = false;
         if ($request == $t->SPEND) {
           $item[$t->ID] = $args[$t->ID];
           $item[$t->NOTE] = $args[$t->NOTE];
+          $incnegs = ($args[$t->ID] != $this->bankid);
         } elseif ($request == $t->TRANFEE) {
           // Nothing special to do here
         } elseif ($request == $t->COUPONENVELOPE) {
@@ -1806,7 +1814,7 @@ class client {
           if (!is_string($asset)) {
             $item[$t->ASSETNAME] = $asset[$t->ASSETNAME];
             $item[$t->FORMATTEDAMOUNT] =
-              $this->format_asset_value($amount, $asset, false);
+              $this->format_asset_value($amount, $asset, $incnegs);
           }
         }
         $items[] = $item;
