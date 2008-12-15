@@ -14,6 +14,9 @@ Optimize server traffic.
 
 Keep-Alive to the server.
 
+Stand-alone non-HTTP server:
+  http://www.van-steenbeek.net/?q=php_pcntl_fork
+
 Canonicalize the bank URL at the bank. That way you don't get the spelling of the first user to use it in a client.
 
 Email notification. Info must be encrypted in the server database. And it's obviously optional. User specifies message to send and options about transaction details, e.g. amount, asset, spender, bank url.

@@ -44,6 +44,7 @@ $cmd = mq($_REQUEST['cmd']);
 $db = new fsdb($dbdir);
 $ssl = new ssl();
 $client = new client($db, $ssl);
+$iphone = strstr($_SERVER['HTTP_USER_AGENT'], 'iPhone');
 
 if ($_COOKIE['debug']) $client->showprocess = 'appenddebug';
 
@@ -686,6 +687,7 @@ function draw_balance($spend_amount=false, $recipient=false, $note=false,
   global $client;
   global $error;
   global $onload, $body;
+  global $iphone;
   
   $t = $client->t;
 
@@ -1166,6 +1168,10 @@ $openspend
 <td valign="top">
 $assetlist$balcode
 </td>
+
+EOT;
+  if ($iphone) $fullspend .= "</tr>\n<tr>\n";
+  $fullspend .= <<<EOT
 <td valign="top">
 $spendcode
 </td>

@@ -16,6 +16,9 @@ if (!$body) $body = 'This is the template for Trubanc web client pages';
 <html>
 <head>
 <title><? echo $title; ?></title>
+<meta name="viewport" content="width=device-width"/>
+<link rel="apple-touch-icon" href="../trubanc-logo-50x47.jpg"/>
+<link rel="shortcut icon" href="../trubanc-logo-50x47.jpg"/>
 </head>
 <body<? if ($onload) echo " onload='$onload'"; ?>>
 <p>
