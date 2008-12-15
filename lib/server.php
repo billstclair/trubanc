@@ -1279,6 +1279,9 @@ class server {
       }
     }
 
+    $oldneg = array();
+    $newneg = array();
+
     // Credit the spend amounts for rejected spends, but do NOT
     // refund the transaction fees
     foreach ($rejects as $itemargs) {
@@ -1291,6 +1294,9 @@ class server {
       $spendargs = $spendfeeargs[0];
       $asset = $spendargs[$t->ASSET];
       $amt = $spendargs[$t->AMOUNT];
+      if (bccomp($amt, 0) < 0) {
+        $oldneg[$asset] = $spendargs;
+      }
       $bals[$asset] = bcadd($bals[$asset], $amt);
     }
 
@@ -1299,8 +1305,6 @@ class server {
     $accts = array();
     $res = $this->bankmsg($t->ATPROCESSINBOX, $parser->get_parsemsg($reqs[0]));
     $tokens = 0;
-    $oldneg = array();
-    $newneg = array();
 
     $state = array('acctbals' => $acctbals,
                    'bals' => $bals,
@@ -1707,15 +1711,13 @@ class server {
     $bals[$tokenid] = bcsub($bals[$tokenid], $tokens);
 
     $errmsg = "";
-    $first = true;
     // Check that the balances in the spend message, match the current balance,
     // minus amount spent minus fees.
     foreach ($bals as $balasset => $balamount) {
       if ($balamount != 0) {
         if ($balasset == $assetid) $name = $assetname;
         else $name = $this->lookup_asset_name($balasset);
-        if (!$first) $errmsg .= ', ';
-        $first = false;
+        if ($errmsg) $errmsg .= ', ';
         $errmsg .= "$name: $balamount";
       }
     }

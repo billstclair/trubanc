@@ -1640,7 +1640,7 @@ class client {
     foreach ($deltas as $acct => $amounts) {
       foreach ($amounts as $asset => $amount) {
         $oldamount = $balance[$acct][$asset][$t->AMOUNT];
-        if ((!$oldamount) && !($oldamount===0)) {
+        if ((!$oldamount) && !($oldamount==="0")) {
           $deltas[$t->MAIN][$feeasset] = bcsub($deltas[$t->MAIN][$feeasset], 1);
         }
       }
