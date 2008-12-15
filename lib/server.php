@@ -1616,6 +1616,10 @@ class server {
       return $this->failmsg($msg, "Scale & precision must be integers >= 0");
     }
 
+    if (bccomp($scale, 10) > 0) {
+      return $this->failmsg($msg, 'Maximum scale is 10');
+    }
+
     // Don't really need this restriction. Maybe widen it a bit?
     if (!$this->is_alphanumeric($assetname)) {
       return $this->failmsg($msg, "Asset name must contain only letters and digits");

@@ -1,3 +1,5 @@
+Nicknames for asset types.
+
 If the customer can prove he has a higher balance than the bank in an asset, add a balance-disagreement record to that balance entry. The customer's usable balance will be what the bank agrees with, and he can continue to make transactions, but the amount in disagreement will remain in disagreement until the bank officers and the asset issuer decide whether they're going to honor the customer's balance. If they do, they'll add a balance-disagreement-resolution to the user's inbox.
 
 A way to transfer contacts between client DBs, likely as a big URL.
