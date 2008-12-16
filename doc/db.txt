@@ -351,6 +351,30 @@ If they don't match, bank returns:
   the fees in the corresponding outbox item. spend_accept inbox items
   do not.
 
+Cancel Spend
+------------
+
+  Customer sends:
+
+(<id>,spend|cancel,<bankid>,<time#>,note:<note>)
+
+  Bank ensures that there is an outbox entry for <time#>, and that it
+  has not been accepted or rejected by its recipient. Removes the
+  inbox entry from the recipient, and adds an inbox entry to
+  customer's inbox that looks just like the recipient rejected the
+  spend, except that it's from the bank and has <note> as its
+  note. The customer can use processinbox on it just like any other
+  rejected spend. And the usage tokens paid for the spend are taken by
+  the bank, just like any other rejected spend. Bank returns:
+
+(<bankid>,@spend|cancel,(<id>,spend|cancel,<bankid>,<time#>,note:<note>))
+
+  If there's no outbox entry for <time#>, or the recipient has already
+  accepted or rejected the spend, bank returns:
+
+(<bankid>,failed,(<id>,spend|cancel,<bankid>,<time#>,note:<note>),errcode:<errcode>,reason:<reason>)
+
+
 Query Inbox
 ------------
 
