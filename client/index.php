@@ -982,7 +982,7 @@ EOT;
         }
       }
     }
-    if ($outboxcode) $outboxcode .= "</table><br/>\n";
+    if ($outboxcode) $outboxcode .= "</table>\n";
 
     $balance = $client->getbalance();
     if (is_string($balance)) $error = $balance;
@@ -1124,8 +1124,8 @@ EOT;
 </table>
 EOT;
       $onload = "document.forms[0].amount.focus()";
-      $closespend = <<<EOT
-</form>
+      $closespend = "</form>\n";
+      $instructions = <<<EOT
 <p>
 To make a spend, fill in the "Spend amount", choose a "Recipient" or
 enter a "Recipient ID, enter (optionally) a "Note", and click the
@@ -1178,7 +1178,7 @@ $spendcode
 </table>
 $closespend
 EOT;
-  $body = "$error<br/>$bankcode$inboxcode$fullspend$outboxcode";
+  $body = "$error<br/>$bankcode$inboxcode$fullspend$outboxcode$instructions";
 }
 
 function draw_coupon($time = false) {

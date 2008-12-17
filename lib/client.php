@@ -1194,8 +1194,6 @@ class client {
       }
     }
 
-    $this->debugmsg("fee_balance: '$fee_balance', need_fee_balance: '$need_fee_balance'\n");
-
     $time = $this->gettime();
     if (!$time) return "Unable to get timestamp for transaction from bank";
     if ($note) $spend = $this->custmsg($t->SPEND, $bankid, $time, $toid,

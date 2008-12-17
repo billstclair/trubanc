@@ -50,11 +50,19 @@ You may view code in progress <a href="viewtext.php">here</a>.
 <br/>
 To discuss, join <a href="irc://irc.freenode.net/#Trubanc">#Trubanc</a> on irc.freenode.net (<a href="http://embed.mibbit.com/?server=irc.freenode.com&channel=%23Trubanc">via mibbit</a>)
 </center>
-Git repository at <a href="http://repo.or.cz/w/Trubanc.git">repo.or.cz/w/Trubanc.git</a>.<br>
+Git repositories at <a href="http://repo.or.cz/w/Trubanc.git">repo.or.cz/w/Trubanc.git</a> and <a href="http://github.com/billstclair/trubanc/">github.com/billstclair/trubanc/</a>.
+<p>
 To download the code to the "trubanc" subdir of pwd:
-<blockquote><code>
-git clone git://repo.or.cz/Trubanc.git trubanc
-</code></blockquote>
+<br/>
+<code>
+<span style="margin-left: 15px;">git clone git://repo.or.cz/Trubanc.git trubanc</span>
+</code>
+<br/>
+or:
+<br/>
+<code>
+<span style="margin-left: 15px;">git clone git://github.com/billstclair/trubanc.git trubanc</span>
+</code>
 <center>
 <p style="font-size: 75%;">Copyright &copy; 
 <a href="https://billstclair.com/loom/">

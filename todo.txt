@@ -1,4 +1,31 @@
+Push to gitbub.com
+
+History
+  always/never/this time for spends
+  check boxes on inbox items
+  link to History page on Balance page
+    Check boxes for deletion.
+    Additional notes.
+    Sort
+    Filter
+    Page size (like PHPMyAdmin)
+    Export/Import
+
+URLs for adding a contact and for filling the spend page with info for a sale.
+
 Nicknames for asset types.
+
+Change timestamps to unix time, with decimal point to add precision.
+Start out with hundredths, then split 0.99 to 1.00 into a thousand, etc.
+---------
+  1234
+  1234.01
+  ...
+  1234.99
+  1234.99001
+  ...
+  1234.99999
+  1234.999990001
 
 If the customer can prove he has a higher balance than the bank in an asset, add a balance-disagreement record to that balance entry. The customer's usable balance will be what the bank agrees with, and he can continue to make transactions, but the amount in disagreement will remain in disagreement until the bank officers and the asset issuer decide whether they're going to honor the customer's balance. If they do, they'll add a balance-disagreement-resolution to the user's inbox.
 
