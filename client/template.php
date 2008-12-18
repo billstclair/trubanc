@@ -22,7 +22,8 @@ if (!$body) $body = 'This is the template for Trubanc web client pages';
 </head>
 <body<? if ($onload) echo " onload='$onload'"; ?>>
 <p>
-<img style="vertical-align: middle;" src="../trubanc-logo-50x47.jpg" alt="Trubanc" width="50" height="47"/>
+<a href="../">
+<img style="vertical-align: middle; border: 1px solid gray;" src="../trubanc-logo-50x47.jpg" alt="Trubanc" width="50" height="47"/></a>
 <b><? echo $bankname; ?></b>
 <? if ($menu) echo "&nbsp;&nbsp;$menu"; ?>
 </p>

@@ -356,23 +356,24 @@ Cancel Spend
 
   Customer sends:
 
-(<id>,spend|cancel,<bankid>,<time#>,note:<note>)
+(<id>,spend|reject,<bankid>,<time#>,<id>,note:<note>)
 
   Bank ensures that there is an outbox entry for <time#>, and that it
   has not been accepted or rejected by its recipient. Removes the
   inbox entry from the recipient, and adds an inbox entry to
   customer's inbox that looks just like the recipient rejected the
-  spend, except that it's from the bank and has <note> as its
-  note. The customer can use processinbox on it just like any other
-  rejected spend. And the usage tokens paid for the spend are taken by
-  the bank, just like any other rejected spend. Bank returns:
+  spend, except that it's from the customer instead of the recipient.
+  The customer can use processinbox on it just like any other rejected
+  spend. The usage tokens paid for the spend are taken by the bank,
+  just like any other rejected spend. This discourages lots of
+  cancelling of spends. Bank returns:
 
-(<bankid>,@spend|cancel,(<id>,spend|cancel,<bankid>,<time#>,note:<note>))
+(<bankid>,INBOX,<time2#>,(<id>,spend|cancel,<bankid>,<time#>,<id>,note:<note>))
 
   If there's no outbox entry for <time#>, or the recipient has already
   accepted or rejected the spend, bank returns:
 
-(<bankid>,failed,(<id>,spend|cancel,<bankid>,<time#>,note:<note>),errcode:<errcode>,reason:<reason>)
+(<bankid>,failed,(<id>,spend|reject,<bankid>,<time#>,<id>,note:<note>),errcode:<errcode>,reason:<reason>)
 
 
 Query Inbox

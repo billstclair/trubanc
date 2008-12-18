@@ -1041,6 +1041,62 @@ class server {
     return $res;
   }
 
+  // Process a spend|reject
+  function do_spendreject($args, $reqs, $msg) {
+    $t = $this->t;
+    $db = $this->db;
+
+    $id = $args[$t->CUSTOMER];
+    $lock = $db->lock($this->accttimekey($id));
+    $res = $this->do_spendreject_internal($args, $msg, $id);
+    $db->unlock($lock);
+    return $res;
+  }
+
+  function do_spendreject_internal($args, $msg, $id) {
+    $t = $this->t;
+    $u = $this->u;
+    $db = $this->db;
+    $bankid = $this->bankid;
+
+    $time = $args[$t->TIME];
+    $key = $this->outboxkey($id);
+    $item = $db->get("$key/$time");
+    if (!$item) return $this->failmsg($msg, "No outbox entry for time: $time");
+    $args = $this->unpack_bankmsg($item, $t->ATSPEND, $t->SPEND);
+    if (is_string($args)) return $this->failmsg($msg, $args);
+    if ($time != $args[$t->TIME]) {
+      return $this->failmsg($msg, "Time mismatch in outbox item");
+    }
+    $recipient = $args[$t->ID];
+    $key = $this->inboxkey($recipient);
+    $inbox = $db->contents($key);
+    foreach ($inbox as $intime) {
+      $item = $db->get("$key/$intime");
+      // Unlikely, but possible
+      if (!$item) return $this->failmsg($msg, "Inbox item removed");
+      $args = $this->unpack_bankmsg($item, $t->INBOX, $t->SPEND);
+      if (is_string($args)) return $this->failmsg($msg, $args);
+      if ($args[$t->TIME] == $time) {
+        // Found the inbox item corresponding to the outbox item
+        // Make sure it's still there
+        $lock = $db->lock("$key/$intime");
+        $item2 = $db->get("$key/$intime");
+        $db->put("$key/$intime", '');
+        $db->unlock($lock);
+        if ($item2 == '') {
+          return $this->failmsg($msg, "Inbox item removed");
+        }
+        $newtime = $this->gettime();
+        $item = $this->bankmsg($t->INBOX, $newtime, $msg);
+        $key = $this->inboxkey($id);
+        $db->put("$key/$newtime", $item);
+        return $item;
+      }
+    }
+  }
+
+
   // Redeem coupon by moving it from coupon/<coupon> to the customer inbox.
   // This isn't the right way to do this.
   // It really wants to be like processinbox, with new balances.
@@ -1873,6 +1929,7 @@ class server {
                      $t->GETTIME => array($t->BANKID,$t->REQ),
                      $t->GETFEES => array($t->BANKID,$t->REQ,$t->OPERATION=>1),
                      $t->SPEND => $patterns[$t->SPEND],
+                     $t->SPENDREJECT => $patterns[$t->SPENDREJECT],
                      $t->COUPONENVELOPE => $patterns[$t->COUPONENVELOPE],
                      $t->GETINBOX => $patterns[$t->GETINBOX],
                      $t->PROCESSINBOX => $patterns[$t->PROCESSINBOX],
@@ -1882,6 +1939,7 @@ class server {
                      $t->GETBALANCE => array($t->BANKID,$t->REQ,$t->ACCT=>1,$t->ASSET=>1));
       $commands = array();
       foreach($names as $name => $pattern) {
+        $name = str_replace('|', '', $name);
         $commands[$name] = array("do_$name", $pattern);
       }
       $this->commands = $commands;
