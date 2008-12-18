@@ -1,5 +1,3 @@
-Push to gitbub.com
-
 History
   always/never/this time for spends
   check boxes on inbox items
@@ -14,6 +12,9 @@ History
 URLs for adding a contact and for filling the spend page with info for a sale.
 
 Nicknames for asset types.
+
+Show/Hide checkboxes on sub-account names. Move hidden sub-account
+names to bottom of list, one line apiece.
 
 Change timestamps to unix time, with decimal point to add precision.
 Start out with hundredths, then split 0.99 to 1.00 into a thousand, etc.
