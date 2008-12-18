@@ -1330,6 +1330,53 @@ class client {
     return false;    
   }
 
+  function spendreject($time, $note=false) {
+    $t = $this->t;
+    $db = $this->db;
+
+    if (!$this->current_bank()) return "In spendreject(): Bank not set";
+    if ($err = $this->initbankaccts()) return $err;
+
+    $lock = $db->lock($this->userreqkey());
+    $res = $this->spendreject_internal($time, $note);
+    $db->unlock($lock);
+
+    if ($res) $this->forceinit();
+
+    return $res;
+  }
+
+  function spendreject_internal($time, $note) {
+    $t = $this->t;
+    $db = $this->db;
+    $u = $this->u;
+
+    $bankid = $this->bankid;
+    $id = $this->id;
+    $db = $this->db;
+    $server = $this->server;
+
+    if ($note) {
+      $msg = $this->custmsg($t->SPENDREJECT, $bankid, $time, $id, $note);
+    } else {
+      $msg = $this->custmsg($t->SPENDREJECT, $bankid, $time, $id);
+    }
+
+    $bankmsg = $server->process($msg);
+    $args = $this->unpack_bankmsg($bankmsg, $t->INBOX);
+    if (is_string($args)) return $args;
+
+    $time = $args[$t->TIME];
+    $args = $args[$t->MSG];
+    $msg2 = $parser->get_parsemsg($args);
+    if (trim($msg2) != trim($msg)) return "Bank return didn't wrap request";
+    $key = $this->userinboxkey();
+    $db->put("$key/$time", $bankmsg);
+
+    return false;
+  }
+
+
   // Return the last coupon resulting from a spend.
   // Clear the coupon store, so you can only get the coupon once.
   function getcoupon() {
