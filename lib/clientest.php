@@ -192,6 +192,7 @@ while (true) {
       "contacts: list contacts known to the current user\n" .
       "balance: show balances for current user\n" .
       "spend <user#> <asset#> <amount> [<acct>]: Spend from current user to <user#>\n" .
+      "cancel <spend#>: Cancel a spend. <spend#> is the outbox timestamp\n" .
       "xfer <asset#> <amount> <toacct> [<fromacct>]: Transfer from <fromacct> to <toacct>" .
       "coupon <asset#> <amount> [<acct>]: Create a coupon\n" .
       "outbox: Show outbox\n" .
@@ -359,6 +360,13 @@ while (true) {
           if ($err) echo "$err\n";
         }
       }
+    }
+  } elseif ($cmd == 'cancel') {
+    if ($cnt != 2) echo "Usage is: cancel <spend#>\n";
+    else {
+      $time = $tokens[1];
+      $err = $client->spendreject($time, "Cancelling $time");
+      if ($err) echo "$err\n";
     }
   } elseif ($cmd == 'xfer') {
     $cnt = count($tokens);
