@@ -93,6 +93,7 @@ elseif ($cmd == 'bank') do_bank();
 elseif ($cmd == 'asset') do_asset();
 elseif ($cmd == 'admin') do_admin();
 elseif ($cmd == 'spend') do_spend();
+elseif ($cmd == 'canceloutbox') do_canceloutbox();
 elseif ($cmd == 'processinbox') do_processinbox();
 
 elseif ($cmd == 'register') draw_register();
@@ -430,6 +431,21 @@ function do_spend() {
     if (!$found) {
       $error = "Bug: can't find acct/asset to spend";
       draw_balance($amount, $recipient, $note, $toacct, $tonewacct);
+    }
+  }
+}
+
+function do_canceloutbox() {
+  global $error;
+  global $client;
+
+  $cancelcount = mqpost('cancelcount');
+  for ($i=0; $i<$cancelcount; $i++) {
+    if (mqpost("cancel$i")) {
+      $canceltime = mqpost("canceltime$i");
+      $error = $client->spendreject($canceltime, "Spend cancelled");
+      draw_balance();
+      break;
     }
   }
 }
@@ -842,7 +858,6 @@ $seloptions
 </select>
 
 EOT;
-          $acctcode = '';
           if ($acctoptions) {
             $acctcode = <<<EOT
 <td><select name="$acctselname">
@@ -914,6 +929,7 @@ $timecode
 <td>$itemnote</td>
 <td>$selcode</td>
 <td>$reply</td>
+<td>&nbsp;</td>
 </tr>
 
 EOT;
@@ -933,7 +949,18 @@ $inboxcode
 EOT;
     }
 
+    // Index the spends in the inbox by MSGTIME
+    $inboxspends = array();
+    foreach ($inbox as $items) {
+      $item = $items[0];
+      $request = $item[$t->REQUEST];
+      if ($request == $t->SPENDACCEPT || $request == $t->SPENDREJECT) {
+        $inboxspends[$item[$t->MSGTIME]] = $item;
+      }
+    }
+
     // Prepare outbox display
+    $cancelcount = 0;
     $outboxcode = '';
     foreach ($outbox as $time => $items) {
       $timestr = hsc($time);
@@ -949,6 +976,7 @@ EOT;
 <th>Recipient</th>
 <th colspan="2">Amount</th>
 <th>Note</th>
+<th>Action</th>
 </tr>
 EOT;
           $assetname = hsc($item[$t->ASSETNAME]);
@@ -970,6 +998,15 @@ EOT;
               }
             } else $namestr = hsc($recip);
           }
+          $cancelcode = '&nbsp;';
+          if (!$inboxspends[$time]) {
+            $cancelcode = <<<EOT
+<input type="hidden" name="canceltime$cancelcount" value="$timestr"/>
+<input type="submit" name="cancel$cancelcount" value="Cancel"/>
+
+EOT;
+            $cancelcount++;
+          }
           $outboxcode .= <<<EOT
 <tr>
 <td>$timestr</td>
@@ -977,12 +1014,25 @@ EOT;
 <td align="right" style="border-right-width: 0;">$amount</td>
 <td style="border-left-width: 0;">$assetname</td>
 <td>$not</td>
+<td>$cancelcode</td>
 </tr>
 EOT;
         }
       }
     }
-    if ($outboxcode) $outboxcode .= "</table>\n";
+    if ($outboxcode) {
+      $outboxcode .= "</table>\n";
+      if ($cancelcount > 0) {
+        $outboxcode = <<<EOT
+<form method="post" action="./" autocomplete="off">
+<input type="hidden" name="cmd" value="canceloutbox"/>
+<input type="hidden" name="cancelcount" value="$cancelcount"/>
+$outboxcode
+</form>
+
+EOT;
+      }
+    }
 
     $balance = $client->getbalance();
     if (is_string($balance)) $error = $balance;

@@ -1355,6 +1355,23 @@ class client {
     $id = $this->id;
     $db = $this->db;
     $server = $this->server;
+    $parser = $this->parser;
+
+    $msg = $this->useroutbox($time);
+    if (!$msg) return "No outbox entry at time: $time";
+    $reqs = $parser->parse($msg);
+    if (!$reqs) return "In spendreject, parse error: " . $parser->errmsg;
+    foreach ($reqs as $req) {
+      $args = $this->match_bankreq($req);
+      if (is_string($args)) return $args;
+      if ($args[$t->REQUEST] == $t->COUPONENVELOPE) {
+        $coupon = $args[$t->ENCRYPTEDCOUPON];
+        if ($coupon) {
+          $coupon = $this->ssl->privkey_decrypt($coupon, $this->privkey);
+          return $this->redeem($coupon);
+        }
+      }
+    }
 
     if ($note) {
       $msg = $this->custmsg($t->SPENDREJECT, $bankid, $time, $id, $note);
@@ -1819,7 +1836,7 @@ class client {
       $msg = $db->get("$key/$time");
       $reqs = $parser->parse($msg);
       $items = array();
-      if (!$reqs) return "Parse error: " . $parser->errmsg;
+      if (!$reqs) return "In getoutbox, parse error: " . $parser->errmsg;
       foreach ($reqs as $req) {
         $args = $this->match_bankreq($req);
         if (is_string($args)) return $args;
@@ -1937,7 +1954,10 @@ class client {
     $parser = $this->parser;
 
     $reqs = $parser->parse($msg);
-    if (!$reqs) return "Parse error: " . $parser->errmsg;
+    if (!$reqs) {
+      $this->debugmsg("Error parsing: $msg\n");
+      return "In unpack_bankmsg, parse error: " . $parser->errmsg;
+    }
 
     $req = $reqs[0];
     $args = $this->match_bankreq($req, $request, $bankid);

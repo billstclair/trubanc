@@ -177,8 +177,8 @@ while (true) {
   $tokens = explode(' ', $line);
   foreach ($tokens as $k => $v) $tokens[$k] = trim($v);
   $cmd = $tokens[0];
-  if ($cmd == '?') {
-    echo "?: help\n" .
+  if ($cmd == '?' || $cmd == 'help') {
+    echo "?/help: help\n" .
       "q/quit: exit from  the command loop\n" .
       "show: toggle show process messages\n" .
       "users: show users\n" .
@@ -350,7 +350,12 @@ while (true) {
       if (!$user) echo "No such user: $useridx\n";
       else {
         $assets = $client->getassets();
-        $asset = $assets[$assetidx-1];
+        $i = 1;
+        $asset = false;
+        foreach ($assets as $asset) {
+          if ($i == $assetidx) break;
+          $i++;
+        }
         if (!$asset) echo "No such asset: $assetidx\n";
         else {
           $userid = $user['id'];
@@ -362,6 +367,7 @@ while (true) {
       }
     }
   } elseif ($cmd == 'cancel') {
+    $cnt = count($tokens);
     if ($cnt != 2) echo "Usage is: cancel <spend#>\n";
     else {
       $time = $tokens[1];

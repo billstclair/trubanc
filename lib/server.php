@@ -356,7 +356,8 @@ class server {
     $times = $db->contents($inboxkey);
     $res = array();
     foreach ($times as $time) {
-      $res[] = $db->get("$inboxkey/$time");
+      $item = $db->get("$inboxkey/$time");
+      if ($item) $res[] = $item;
     }
     return $res;
   }
@@ -1068,6 +1069,9 @@ class server {
     if ($time != $args[$t->TIME]) {
       return $this->failmsg($msg, "Time mismatch in outbox item");
     }
+    if ($args[$t->ID] == $t->COUPON) {
+      return $this->failmsg($msg, "Coupons must be redeemed, not cancelled");
+    }
     $recipient = $args[$t->ID];
     $key = $this->inboxkey($recipient);
     $inbox = $db->contents($key);
@@ -1094,6 +1098,7 @@ class server {
         return $item;
       }
     }
+    return $this->failmsg($msg, "Spend has already been processed");
   }
 
 
@@ -1939,8 +1944,8 @@ class server {
                      $t->GETBALANCE => array($t->BANKID,$t->REQ,$t->ACCT=>1,$t->ASSET=>1));
       $commands = array();
       foreach($names as $name => $pattern) {
-        $name = str_replace('|', '', $name);
-        $commands[$name] = array("do_$name", $pattern);
+        $fun = str_replace('|', '', $name);
+        $commands[$name] = array("do_$fun", $pattern);
       }
       $this->commands = $commands;
     }
