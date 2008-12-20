@@ -90,6 +90,7 @@ class tokens {
   var $SESSION = 'session';
   var $PREFERENCE = 'preference';
   var $TOKEN = 'token';
+  var $HISTORY = 'history';
 
   // Other client tokens
   var $FORMATTEDAMOUNT = 'formattedamount';

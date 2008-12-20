@@ -1078,10 +1078,31 @@ class server {
     foreach ($inbox as $intime) {
       $item = $db->get("$key/$intime");
       // Unlikely, but possible
-      if (!$item) return $this->failmsg($msg, "Inbox item removed");
+      if (!$item) return $this->failmsg($msg, "Spend has already been processed");
       $args = $this->unpack_bankmsg($item, $t->INBOX, $t->SPEND);
       if (is_string($args)) return $this->failmsg($msg, $args);
       if ($args[$t->TIME] == $time) {
+        // Calculate the fee, if there is one
+        $feeamt = '';
+        $reqs = $args[$this->unpack_reqs_key];
+        $req = $reqs[1];
+        if ($req) {
+          $args = $u->match_pattern($req);
+          if (is_string($args)) return $this->failmsg($msg, $args);
+          if ($args[$t->CUSTOMER] != $bankid) {
+            return $this->failmsg($msg, "Fee message not from bank");
+          }
+          if ($args[$t->REQUEST] == $t->ATTRANFEE) {
+            $req = $args[$t->MSG];
+            $args = $u->match_pattern($req);
+            if (is_string($args)) return $this->failmsg($msg, $args);
+            if ($args[$t->REQUEST] != $t->TRANFEE) {
+              return $this->failmsg($msg, "Fee wrapper doesn't wrap fee message");
+            }
+            $feeasset = $args[$t->ASSET];
+            $feeamt = $args[$t->AMOUNT];
+          }
+        }
         // Found the inbox item corresponding to the outbox item
         // Make sure it's still there
         $lock = $db->lock("$key/$intime");
@@ -1089,7 +1110,10 @@ class server {
         $db->put("$key/$intime", '');
         $db->unlock($lock);
         if ($item2 == '') {
-          return $this->failmsg($msg, "Inbox item removed");
+          return $this->failmsg($msg, "Spend has already been processed");
+        }
+        if ($feeamt) {
+          $this->add_to_bank_balance($feeasset, $feeamt);
         }
         $newtime = $this->gettime();
         $item = $this->bankmsg($t->INBOX, $newtime, $msg);

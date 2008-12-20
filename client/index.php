@@ -954,9 +954,7 @@ EOT;
     foreach ($inbox as $items) {
       $item = $items[0];
       $request = $item[$t->REQUEST];
-      if ($request == $t->SPENDACCEPT || $request == $t->SPENDREJECT) {
-        $inboxspends[$item[$t->MSGTIME]] = $item;
-      }
+      $inboxspends[$item[$t->MSGTIME]] = $item;
     }
 
     // Prepare outbox display
