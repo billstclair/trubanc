@@ -95,6 +95,7 @@ elseif ($cmd == 'admin') do_admin();
 elseif ($cmd == 'spend') do_spend();
 elseif ($cmd == 'canceloutbox') do_canceloutbox();
 elseif ($cmd == 'processinbox') do_processinbox();
+elseif ($cmd == 'toggleinstructions') do_toggleinstructions();
 
 elseif ($cmd == 'register') draw_register();
 elseif ($cmd == 'balance') draw_balance();
@@ -498,6 +499,14 @@ function do_processinbox() {
     if ($err) $error = "error from processinbox: $err";
   }
 
+  draw_balance();
+}
+
+function do_toggleinstructions() {
+  global $client;
+
+  $client->userpreference('hideinstructions',
+                          $client->userpreference('hideinstructions') ? '' : 'hide');
   draw_balance();
 }
 
@@ -1180,7 +1189,13 @@ EOT;
 EOT;
       $onload = "document.forms[0].amount.focus()";
       $closespend = "</form>\n";
-      $instructions = <<<EOT
+      if ($client->userpreference('hideinstructions')) {
+        $instructions = '<p>
+<a href="./?cmd=toggleinstructions">Show Instructions</a>
+</p>
+';
+      } else {
+        $instructions = <<<EOT
 <p>
 To make a spend, fill in the "Spend amount", choose a "Recipient" or
 enter a "Recipient ID, enter (optionally) a "Note", and click the
@@ -1204,8 +1219,11 @@ Entering a "Nickname" will add the "Recipient ID" to your contacts
 list with that nickname, or change the nickname of the selected
 "Recipient".
 </p>
-
+<p>
+<a href="./?cmd=toggleinstructions">Hide Instructions</a>
+</p>
 EOT;
+      }
     }
   }
 
