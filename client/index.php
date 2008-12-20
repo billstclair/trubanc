@@ -768,7 +768,14 @@ EOT;
       }
     }
 
-    if (is_string($inbox)) $error = "Error getting inbox: $inbox";
+    // Try again, in case we just needed to sync.
+    // Maybe this should be hidden by getinbox()
+    if (is_string($inbox)) $inbox = $client->getinbox();
+
+    if (is_string($inbox)) {
+      $error = "Error getting inbox: $inbox";
+      $inbox = array();
+    }
     elseif (count($inbox) == 0) $inboxcode .= "<b>=== Inbox empty ===</b><br/><br/>\n";
     else {
       if ($acctoptions) $acctheader = "\n<th>To Acct</th>";
