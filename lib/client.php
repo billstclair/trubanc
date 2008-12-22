@@ -1913,6 +1913,8 @@ class client {
       }
       $res[$time] = $items;
     }
+
+    uksort($res, 'bccomp');
     return $res;
   }
 
