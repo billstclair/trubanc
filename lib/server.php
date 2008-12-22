@@ -17,6 +17,7 @@ class server {
   var $parser;                  // parser instance
   var $u;                       // utility instance
   var $random;                  // random instance
+  var $timestamp;               // timestamp instance
 
   var $pubkeydb;
   var $bankname;
@@ -44,6 +45,7 @@ class server {
     $this->pubkeydb = $db->subdir($this->t->PUBKEY);
     $this->parser = new parser($this->pubkeydb, $ssl);
     $this->u = new utility($this->t, $this->parser, $this);
+    $this->timestamp = new timestamp();
     $this->bankname = $bankname;
     $this->bankurl = $bankurl;
     $this->setupDB($passphrase);
@@ -59,8 +61,7 @@ class server {
     $t = $this->t;
     $lock = $db->lock($t->TIME);
     $res = $db->get($t->TIME);
-    $timestamp = new timestamp();
-    $res = $timestamp->next($res);
+    $res = $this->timestamp->next($res);
     $db->put($t->TIME, $res);
     $db->unlock($lock);
     return $res;
@@ -416,7 +417,12 @@ class server {
       }
     }
     $db->unlock($lock);
-    return $res;
+    if (!$res) return "Timestamp not enqueued: $time";
+    $unixtime = $this->timestamp->stripfract($time);
+    if ($unixtime > ($time + 10*60)) {
+      return "Timestamp too old: $time";
+    }
+    return false;
   }
 
   function match_bank_signed_message($inmsg) {
@@ -779,8 +785,8 @@ class server {
     $note = $args[$t->NOTE];
 
     // Burn the transaction, even if balances don't match.
-    $accttime = $this->deq_time($id, $time);
-    if (!$accttime) return $this->failmsg($msg, "Timestamp not enqueued: $time");
+    $err = $this->deq_time($id, $time);
+    if ($err) return $this->failmsg($msg, $err);
 
     if ($id2 == $bankid) {
       return $this->failmsg($msg, "Spends to the bank are not allowed.");
@@ -1265,22 +1271,24 @@ class server {
       }
       if ($err) return $this->failmsg($msg, $err);
     }
-    // Append the timestamps, if there are any inbox entries
-    if (count($inbox) > 0) {
-      // Avoid bumping the global timestamp if the customer already
-      // has two timestamps > the highest inbox timestamp.
-      $time = $args[$t->TIME];
-      $key = $this->accttimekey($id);
-      $times = explode(',', $db->get($key));
-      if (!(count($times) >= 2 &&
-            bccomp($times[0], $time) > 0 &&
-            bccomp($times[1], $time) > 0)) {
-        $times = array($this->gettime(), $this->gettime());
-        $db->put($key, implode(',', $times));
-      }
-      $res .= '.' . $this->bankmsg($t->TIME, $id, $times[0]);
-      $res .= '.' . $this->bankmsg($t->TIME, $id, $times[1]);
-    }
+    /* Not pre-allocating timestamps any more
+     * // Append the timestamps, if there are any inbox entries
+     * if (count($inbox) > 0) {
+     *   // Avoid bumping the global timestamp if the customer already
+     *   // has two timestamps > the highest inbox timestamp.
+     *   $time = $args[$t->TIME];
+     *   $key = $this->accttimekey($id);
+     *   $times = explode(',', $db->get($key));
+     *   if (!(count($times) >= 2 &&
+     *         bccomp($times[0], $time) > 0 &&
+     *         bccomp($times[1], $time) > 0)) {
+     *     $times = array($this->gettime(), $this->gettime());
+     *     $db->put($key, implode(',', $times));
+     *   }
+     *   $res .= '.' . $this->bankmsg($t->TIME, $id, $times[0]);
+     *   $res .= '.' . $this->bankmsg($t->TIME, $id, $times[1]);
+     * }
+     */
     return $res;
   }
 
@@ -1309,8 +1317,8 @@ class server {
     $inboxtimes = explode('|', $timelist);
 
     // Burn the transaction, even if balances don't match.
-    $accttime = $this->deq_time($id, $time);
-    if (!$accttime) return $this->failmsg($msg, "Timestamp not enqueued: $time");
+    $err = $this->deq_time($id, $time);
+    if ($err) return $this->failmsg($msg, $err);
 
     $spends = array();
     $fees = array();
@@ -1753,8 +1761,8 @@ class server {
       if ($i == 1) {
         // Burn the transaction
         $time = $reqtime;
-        $accttime = $this->deq_time($id, $time);
-        if (!$accttime) return $this->failmsg($msg, "Timestamp not enqueued: $time");
+        $err = $this->deq_time($id, $time);
+        if ($err) return $this->failmsg($msg, $err);
       } elseif ($reqtime != $time) {
         return $this->failmsg($msg, "Timestamp mismatch");
       }

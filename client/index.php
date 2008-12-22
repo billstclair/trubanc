@@ -45,6 +45,7 @@ $cmd = mq($_REQUEST['cmd']);
 $db = new fsdb($dbdir);
 $ssl = new ssl();
 $client = new client($db, $ssl);
+$timestamp = new timestamp();
 $iphone = strstr($_SERVER['HTTP_USER_AGENT'], 'iPhone');
 
 if ($_COOKIE['debug']) $client->showprocess = 'appenddebug';
@@ -708,6 +709,14 @@ function contact_namestr($contact) {
   return namestr($nickname, $name, $recipid);
 }
 
+// Return the ready-for-html-output formatted date for a timestamp
+function datestr($time) {
+  global $timestamp;
+
+  $unixtime = $timestamp->stripfract($time);
+  return hsc(date("j-M-y g:i:sa T", $unixtime));
+}
+
 function draw_balance($spend_amount=false, $recipient=false, $note=false,
                       $toacct=false, $tonewacct=false) {
   global $client;
@@ -800,6 +809,7 @@ EOT;
 <th>Note</th>
 <th>Action</th>
 <th>Reply</th>$acctheader
+<th>Time</th>
 </tr>
 
 EOT;
@@ -882,6 +892,7 @@ $acctoptions
 </select></td>
 EOT;
           }
+          $date = datestr($time);
           $inboxcode .= <<<EOT
 $timecode
 <tr>
@@ -893,6 +904,7 @@ $timecode
 <td>$selcode</td>
 <td><textarea name="$notename" cols="20" rows="2"></textarea></td>
 $acctcode
+<td>$date</td>
 </tr>
 
 EOT;
@@ -936,7 +948,8 @@ EOT;
 <input type="checkbox" name="$selname" checked="checked">Remove</input>
 
 EOT;
-          $inboxcode .= <<<EOT
+        $date = datestr($time);
+        $inboxcode .= <<<EOT
 $timecode
 <tr>
 <td>$reqstr</td>
@@ -947,6 +960,7 @@ $timecode
 <td>$selcode</td>
 <td>$reply</td>
 <td>&nbsp;</td>
+<td>$date</td>
 </tr>
 
 EOT;
@@ -979,9 +993,7 @@ EOT;
     $outboxcode = '';
     foreach ($outbox as $time => $items) {
       $timestr = hsc($time);
-      $timestamp = new timestamp();
-      $unixtime = $timestamp->stripfract($time);
-      $date = date("j-M-Y G:i:s T", $unixtime);
+      $date = datestr($time);
       foreach ($items as $item) {
         $request = $item[$t->REQUEST];
         if ($request == $t->SPEND) {
@@ -1274,6 +1286,7 @@ function draw_coupon($time = false) {
   if (!$time) $time = mq($_REQUEST['time']);
   $items = $outbox[$time];
   $timestr = hsc($time);
+  $datestr = datestr($time);
   if ($items) {
     foreach ($items as $item) {
       $request = $item[$t->REQUEST];
@@ -1286,7 +1299,7 @@ function draw_coupon($time = false) {
         $coupon = hsc(trim($item[$t->COUPON]));
         $body = <<<EOT
 <br/>
-<b>Coupon for outbox entry $timestr</b>
+<b>Coupon for outbox entry at $datestr</b>
 <br/>
 <b>Amount:</b> $formattedamount $assetname
 <br/>

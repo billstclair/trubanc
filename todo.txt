@@ -1,3 +1,9 @@
+Instead of pre-allocating timestamps, let the user do one spend
+without timestamp compare after a processinbox. All timestamps must be
+newly allocated, and may not be older than 10 minutes. Otherwise, you
+can transfer assets to somebody and they'll have to pay your storage
+costs.
+
 History
   always/never/this time for spends
   check boxes on inbox items
