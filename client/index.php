@@ -9,6 +9,7 @@ require_once "settings.php";
 require_once "../lib/fsdb.php";
 require_once "../lib/ssl.php";
 require_once "../lib/client.php";
+require_once "../lib/timestamp.php";
 
 function mq($x) {
   if (get_magic_quotes_gpc()) return stripslashes($x);
@@ -978,6 +979,9 @@ EOT;
     $outboxcode = '';
     foreach ($outbox as $time => $items) {
       $timestr = hsc($time);
+      $timestamp = new timestamp();
+      $unixtime = $timestamp->stripfract($time);
+      $date = date("j-M-Y G:i:s T", $unixtime);
       foreach ($items as $item) {
         $request = $item[$t->REQUEST];
         if ($request == $t->SPEND) {
@@ -1023,7 +1027,7 @@ EOT;
           }
           $outboxcode .= <<<EOT
 <tr>
-<td>$timestr</td>
+<td>$date</td>
 <td>$namestr</td>
 <td align="right" style="border-right-width: 0;">$amount</td>
 <td style="border-left-width: 0;">$assetname</td>
@@ -1114,15 +1118,17 @@ EOT;
       foreach ($contacts as $contact) {
         $namestr = contact_namestr($contact);
         $recipid = $contact[$t->ID];
-        $selected = '';
-        if ($recipid == $recipient) {
-          $selected = ' selected="selected"';
-          $found = true;
-        }
-        $recipopts .= <<<EOT
+        if ($recipid != $client->id) {
+          $selected = '';
+          if ($recipid == $recipient) {
+            $selected = ' selected="selected"';
+            $found = true;
+          }
+          $recipopts .= <<<EOT
 <option value="$recipid"$selected>$namestr</option>
 
 EOT;
+        }
       }
       $recipopts .= "</select>\n";
       $selectmint = '';

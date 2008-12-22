@@ -7,6 +7,7 @@ require_once "tokens.php";
 require_once "ssl.php";
 require_once "utility.php";
 require_once "parser.php";
+require_once "timestamp.php";
 
 class server {
 
@@ -57,7 +58,9 @@ class server {
     $db = $this->db;
     $t = $this->t;
     $lock = $db->lock($t->TIME);
-    $res = bcadd($db->get($t->TIME), 1);
+    $res = $db->get($t->TIME);
+    $timestamp = new timestamp();
+    $res = $timestamp->next($res);
     $db->put($t->TIME, $res);
     $db->unlock($lock);
     return $res;
@@ -389,7 +392,7 @@ class server {
     $q = $db->get($key);
     if (!$q) $q = $time;
     else $q .= ",$time";
-    $db->put($q);
+    $db->put($key, $q);
     $db->unlock($lock);
     return $q;
   }
