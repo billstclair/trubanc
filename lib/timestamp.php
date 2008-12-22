@@ -1,6 +1,6 @@
 <?php
 
-  // An ever-incremeasing timestamp that stays pretty close to the actual time
+  // An ever-increasing timestamp that stays pretty close to the actual time
 
 class timestamp {
 

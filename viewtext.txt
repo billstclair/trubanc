@@ -14,6 +14,7 @@ css/docstyle.css|Style sheet for the docs
 lib/fsdb.php|The "File System Database" used by Trubanc
 lib/parser.php|Parser for the protocol strings
 lib/ssl.php|Interface to PHP's SSL wrapper
+lib/timestamp.php|An ever-increasing timestamp
 lib/tokens.php|All the names used in the database and protocol
 lib/utility.php|Some utility functions
 lib/cryptest.php|Test code for encryption
