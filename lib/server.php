@@ -412,7 +412,6 @@ class server {
           unset($times[$k]);
           $q = implode(',', $times);
           $db->put($key, $q);
-          $db->put($this->acctlastkey($id), $time);
         }
       }
     }
@@ -708,7 +707,7 @@ class server {
       $spendmsg = $this->bankmsg($t->INBOX, $time, $spendmsg);
       $db->put($this->inboxkey($id) . "/$time", $spendmsg);
     }
-    $db->put($this->acctlastkey($id), $time);
+    $db->put($this->acctlastkey($id), 1);
     $db->put($this->acctreqkey($id), 0);
     return $res;
   }
@@ -799,11 +798,13 @@ class server {
       return $this->failmsg($msg, "Not a number: $amount");
     }
 
-    // Make sure there are no inbox entries older than the spend
+    // Make sure there are no inbox entries older than the highest
+    // timestamp last read from the inbox
     $inbox = $this->scaninbox($id);
+    $last = $this->getacctlast($id);
     foreach ($inbox as $inmsg) {
       $inmsg_args = $this->unpack_bankmsg($inmsg);
-      if (bccomp($inmsg_args[$t->TIME], $time) <= 0) {
+      if ($last < 0 || bccomp($inmsg_args[$t->TIME], $last) <= 0) {
         return $this->failmsg($msg, "Please process your inbox before doing a spend");
       }
     }
@@ -1047,6 +1048,10 @@ class server {
       $db->put($this->inboxkey($id2) . "/$newtime", $inbox_item);
     }
 
+    // Force the user to do another getinbox, if anything appears
+    // in his inbox since he last processed it.
+    $db->put($this->acctlastkey($id), -1);
+
     // We're done
     return $res;
   }
@@ -1257,10 +1262,15 @@ class server {
 
     $inbox = $this->scaninbox($id);
     $res = $this->bankmsg($t->ATGETINBOX, $msg);
+    $last = 1;
     foreach ($inbox as $inmsg) {
       $res .= '.' . $inmsg;
       $args = $u->match_message($inmsg);
       if ($args && !is_string($args)) {
+        if ($args[$t->REQUEST] == $t->INBOX) {
+          $time = $args[$t->TIME];
+          if (bccomp($time, $last) > 0) $last = $time;
+        }
         $args = $u->match_pattern($args[$t->MSG]);
       }
       $err = false;
@@ -1271,6 +1281,10 @@ class server {
       }
       if ($err) return $this->failmsg($msg, $err);
     }
+
+    // Update last time
+    $db->put($this->acctlastkey($id), $last);
+
     /* Not pre-allocating timestamps any more
      * // Append the timestamps, if there are any inbox entries
      * if (count($inbox) > 0) {
@@ -1609,6 +1623,7 @@ class server {
       $db->put("$inboxkey/$inboxtime", '');
     }
 
+    // Clear processed outbox entries
     $outboxkey = $this->outboxkey($id);
     foreach ($outboxtimes as $outboxtime) {
       $db->put("$outboxkey/$outboxtime", '');

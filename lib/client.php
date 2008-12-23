@@ -1333,7 +1333,9 @@ class client {
       $spend .= ".$coupon";
       $this->coupon = $encryptedcoupon;
     }
-    if ($id != $toid) $db->put($this->useroutboxkey($time), $spend);
+    if ($id != $toid && $id != $bankid) {
+      $db->put($this->useroutboxkey($time), $spend);
+    }
     $this->lastspendtime = $time;
 
     if ($this->keephistory) {

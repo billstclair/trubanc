@@ -383,10 +383,10 @@ Query Inbox
 
 (<id>,getinbox,<bankid>,<req#>)
 
-  Bank compares <req#> to /account/<id>/req. If <req#>
-  is greater, bank sets /account/<id>/req to <req#> and
-  responds with contents of /account/<id>/inbox/, separated by
-  periods, plus two timestamps:
+  Bank compares <req#> to /account/<id>/req. If <req#> is greater,
+  bank sets /account/<id>/req to <req#> and responds with contents of
+  /account/<id>/inbox/, separated by periods. Bank also sets
+  /account/<id>/last to the highest of the timestamps in the inbox.
 
 (<bankid>,@getinbox,(<id>,getinbox,<bankid>,<req#>).
   (<bankid>,inbox,<time6#>,(<id2>,spend|accept,<bankid>,<time2#>,note:<note22>)).
@@ -394,22 +394,20 @@ Query Inbox
   (<bankid>,inbox,<time8#>,(<id4>,spend,<bankid>,<time4#>,note:<note4>)).
   (<bankid>,@tranfee,(<id4>,tranfee,<bankid>,<time4#>,<tokenid>,<amount4fee>)).
   (<bankid>,inbox,<time9#>,(<id5>,spend,<bankid>,time5#>,note:<note5>)).
-  (<bankid>,@tranfee,(<id5>,tranfee,<bankid>,<time5#>,<tokenid>,<amount5fee>)).
-  (<bankid>,time,<id>,<time10#>).
-  (<bankid>,time,<id>,<time11#>)
+  (<bankid>,@tranfee,(<id5>,tranfee,<bankid>,<time5#>,<tokenid>,<amount5fee>))
 
   Otherwise, bank sends:
 
 (<bankid>,failed,(<id>,inbox,<bankid>,<req#>),errcode:<errcode>,reason:<reason>)
 
-  The two new timestamps ("time" messages) are to use for
-  processing the inbox, and for doing a spend. The customer doesn't
-  have to do either, but he will often want to. The bank will not
-  allow a spend to be done if there are any inbox entries with a
-  bank-signed timestamp less than /account/<id>/last. This forces
-  customers to complete inbox transactions, and be in sync with the
-  bank about their balances and outbox contents, if they want to be
-  able to do spends.
+  The bank will not allow a spend to be done if there are any inbox
+  entries with a bank-signed timestamp less than /account/<id>/last,
+  except the first spend after a processinbox that clears the
+  inbox. This forces customers to complete inbox transactions, and be
+  in sync with the bank about their balances and outbox contents, if
+  they want to be able to do spends. Allowing the first spend after
+  the inbox is cleared to got through ensures that frequent spends
+  into your account don't lock you out from doing spends yourself.
 
 Process Inbox
 -------------
@@ -453,11 +451,10 @@ Process Inbox
 
 (<id>,commit,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time11#>,<balancecount>,<balancehash>)))
 
-  The bank sets /account/<id>/last to <time11#>, sets
-  /account/<id>/time to <time12#>, removes the transaction from
-  /account/<id>/inbox/, removes completed transactions from
-  /account/<id>/outbox/, signs and adds spend|accept and spend|reject
-  items to the other customers' inboxes, updates the
+  The bank sets /account/<id>/time to <time12#>, removes the
+  transaction from /account/<id>/inbox/, removes completed
+  transactions from /account/<id>/outbox/, signs and adds spend|accept
+  and spend|reject items to the other customers' inboxes, updates the
   /account/<id>/balance/<acctN>/<assetidN> with the balances from
   /account/<id>/transaction, updates /account/<id>/outboxhash, and
   /account/<id>/balancehash with the signed hashes, and sends back:
@@ -539,8 +536,7 @@ Create asset
   token for the balance file for the new asset), and the balancehash
   matches, then bank adds
   <assetid>=(<id>,asset,<assetid>,<scale>,<precision>,<assetname>) to
-  /asset/, sets /account/<id>/last to <time4#>, clears
-  /account/<id>/time, and returns:
+  /asset/, clears /account/<id>/time, and returns:
 
 (<bankid>,@asset,(<id>,asset,<bankid>,<assetid>,<assetname>)).
   (<bankid>,@balance,(<id>,balance,<bankid>,<time4#>,<assetid>,-1,acct:<acct1>)).
