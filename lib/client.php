@@ -1409,6 +1409,82 @@ class client {
     return false;
   }
 
+  function bccompnot($x, $y) {
+    return bccomp($y, $x);
+  }
+
+  function gethistorytimes() {
+    $t = $this->t;
+    $db = $this->db;
+
+    if (!$this->current_bank()) return "In gethistorytimes(): Bank not set";
+
+    $key = $this->userhistorykey();
+    $res = $db->contents($key);
+    uasort($res, array('client', 'bccompnot'));
+
+    return $res;
+  }
+
+  // Get the history items for $time.
+  // Return false if there is no corresponding item.
+  // Otherwise, return an array of matched inner message arrays.
+  // Return an error string if there is an error parsing or matching.
+  function gethistoryitems($time) {
+    $t = $this->t;
+    $u = $this->u;
+    $db = $this->db;
+    $parser = $this->parser;
+
+    if (!$this->current_bank()) return "In gethistorytimes(): Bank not set";
+
+    $key = $this->userhistorykey();
+    $msg = $db->get("$key/$time");
+    if (!$msg) return false;
+
+    $reqs = $parser->parse($msg);
+    if (!$reqs) return "While parsing history item: " . $parser->errmsg;
+    $res = array();
+    foreach ($reqs as $req) {
+      $args = $u->match_pattern($req);
+      if (is_string($args)) return "While matching history item: " . $args;
+      $inner = $args[$t->MSG];
+      if ($inner) {
+        $args = $u->match_pattern($inner);
+        if (is_string($args)) return "While matching inner history item: $args";
+      }
+      $assetid = $args[$t->ASSET];
+      $amount = $args[$t->AMOUNT];
+      if ($assetid && !($amount === false)) {
+        $asset = $this->getasset($assetid);
+        if (!is_string($asset)) {
+          $args[$t->ASSETNAME] = $asset[$t->ASSETNAME];
+          $incnegs = false;
+          $args[$t->FORMATTEDAMOUNT] =
+            $this->format_asset_value($amount, $asset, $incnegs);
+        } else {
+          $args[$t->ASSETNAME] = $assetid;
+          $args[$t->FORMATTEDAMOUNT] = $amount;
+        }
+      }
+      $res[] = $args;
+    }
+    return $res;
+  }
+
+  // Remove a history item
+  function removehistoryitem($time) {
+    $t = $this->t;
+    $db = $this->db;
+    $parser = $this->parser;
+
+    if (!$this->current_bank()) return "In gethistorytimes(): Bank not set";
+
+    $key = $this->userhistorykey();
+    $db->put("$key/$time", '');
+
+    return false;
+  }
 
   // Return the last coupon resulting from a spend.
   // Clear the coupon store, so you can only get the coupon once.
@@ -1422,13 +1498,6 @@ class client {
   }
 
   // Transfer from one sub-account to another
-  function transfer($assetid, $formattedamount, $fromacct, $toacct) {
-
-    if (!$this->current_bank()) return "In transfer(): Bank not set";
-    if ($err = $this->initbankaccts()) return $err;
-
-  }
-
   // Get the inbox contents.
   // Returns an error string, or an array of inbox entries, indexed by
   // their timestamps:

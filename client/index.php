@@ -107,6 +107,7 @@ elseif ($cmd == 'banks') draw_banks();
 elseif ($cmd == 'assets') draw_assets();
 elseif ($cmd == 'admins') draw_admin();
 elseif ($cmd == 'coupon') draw_coupon();
+elseif ($cmd == 'history') draw_history();
 elseif ($session) draw_balance();
 
 else draw_login();
@@ -709,6 +710,19 @@ function contact_namestr($contact) {
   return namestr($nickname, $name, $recipid);
 }
 
+function id_namestr($fromid) {
+  global $client;
+
+  $contact = $client->getcontact($fromid);
+  if ($contact) {
+    $namestr = contact_namestr($contact);
+    if ($namestr != $fromid) {
+      $namestr = "<span title=\"$fromid\">$namestr</span>";
+    }
+  } else $namestr = hsc($fromid);
+  return $namestr;
+}
+
 // Return the ready-for-html-output formatted date for a timestamp
 function datestr($time) {
   global $timestamp;
@@ -832,13 +846,7 @@ EOT;
         $request = $item[$t->REQUEST];
         $fromid = $item[$t->ID];
         $time = $item[$t->TIME];
-        $contact = $client->getcontact($fromid);
-        if ($contact) {
-          $namestr = contact_namestr($contact);
-          if ($namestr != $fromid) {
-            $namestr = "<span title=\"$fromid\">$namestr</span>";
-          }
-        } else $namestr = hsc($fromid);
+        $namestr = id_namestr($fromid);
 
         if ($request != $t->SPEND) {
           $msgtime = $item[$t->MSGTIME];
@@ -916,13 +924,7 @@ EOT;
         $fromid = $item[$t->ID];
         $reqstr = ($request == $t->SPENDACCEPT) ? "Accept" : "Reject";
         $time = $item[$t->TIME];
-        $contact = $client->getcontact($fromid);
-        if ($contact) {
-          $namestr = contact_namestr($contact);
-          if ($namestr != $fromid) {
-            $namestr = "<span title=\"$fromid\">$namestr</span>";
-          }
-        } else $namestr = hsc($fromid);
+        $namestr = id_namestr($fromid);
         $assetname = hsc($item[$t->ASSETNAME]);
         $amount = hsc($item[$t->FORMATTEDAMOUNT]);
         $itemnote = hsc($item[$t->NOTE]);
@@ -1020,13 +1022,7 @@ EOT;
 <a href="./?cmd=coupon&time=$timearg">$recip</a>
 EOT;
           } else {
-            $contact = $client->getcontact($recip);
-            if ($contact) {
-              $namestr = contact_namestr($contact);
-              if ($namestr != $recipient) {
-                $namestr = "<span title=\"$recipient\">$namestr<span>";
-              }
-            } else $namestr = hsc($recip);
+            $namestr = id_namestr($recip);
           }
           $cancelcode = '&nbsp;';
           if (!$inboxspends[$time]) {
@@ -1117,7 +1113,12 @@ EOT;
         }
       }
       $balcode .= "</table>\n</td></tr></table>\n";
-      $balcode .= '<br/><a href="./?cmd=rawbalance">Show raw balance</a><br/>' . "\n";
+      $balcode .= '<br/>
+<a href="./?cmd=rawbalance">Show raw balance</a>
+<br/>
+<a href="./?cmd=history">Show history</a>
+<br/>
+';      
     }
 
     $spendcode = '';
@@ -1616,13 +1617,7 @@ EOT;
 ';
     foreach ($assets as $asset) {
       $ownerid = $asset[$t->ID];
-      $contact = $client->getcontact($ownerid);
-      if ($contact) {
-        $namestr = contact_namestr($contact);
-        if ($namestr != $ownerid) {
-          $namestr = "<span title=\"$ownerid\">$namestr<span>";
-        }
-      } else $namestr = hsc($ownerid);
+      $namestr = id_namestr($ownerid);
       $assetid = $asset[$t->ASSET];
       $scale = $asset[$t->SCALE];
       $precision = $asset[$t->PRECISION];
@@ -1640,6 +1635,90 @@ EOT;
     }
     $body .= "</table>\n";
   }
+}
+
+function draw_history() {
+  global $body;
+  global $error;
+  global $client;
+
+  $t = $client->t;
+
+  $times = $client->gethistorytimes();
+  if (is_string($times)) $error = $times;
+  elseif (count($times) == 0) $error = "No saved history";
+  else {
+    settitle('History');
+    setmenu('balance');
+
+    // Need controls for pagination, and date search.
+    // Eventually, recipient, note, and amount search, too. 
+    $body = <<<EOT
+<br/>
+<table border="1">
+<caption><b>=== History ===</b></caption>
+<tr>
+<th>Time</th>
+<th>Request</th>
+<th>From</th>
+<th>To</th>
+<th colspan="2">Amount</th>
+<th>Note</th>
+<th>Acct</th>
+</tr>
+
+EOT;
+    $cnt = count($times);
+    for ($i=0; $i<$cnt; $i++) {
+      $time = $times[$i];
+      $items = $client->gethistoryitems($time);
+      if (is_string($items)) {
+        $error = $items;
+        break;
+      }
+      $datestr = datestr($time);
+      $body .= <<<EOT
+<tr>
+<td>$datestr</td>
+
+EOT;
+      // There are currently three types of history items:
+      // 1) Spend
+      // 2) Accept or reject of somebody else's spend
+      // 3) Acknowledgement of somebody else's accept or reject of my spend
+      $item = $items[0];
+      $request = $item[$t->REQUEST];
+      if ($request == $t->SPEND) {
+        $req = "Spend";
+        $from = "You";
+        $to = id_namestr($item[$t->ID]);
+        $amount = $item[$t->FORMATTEDAMOUNT];
+        $assetname = $item[$t->ASSETNAME];
+        $note = $item[$t->NOTE];
+        $body .= <<<EOT
+<td>$req</td>
+<td>$from</td>
+<td>$to</td>
+<td align="right" style="border-right-width: 0;">$amount</td>
+<td style="border-left-width: 0;">$assetname</td>
+<td>$note</td>
+<td>&nbsp;</td>
+EOT;
+      } elseif ($request == $t->PROCESSINBOX) {
+        // *** Continue here ***
+      } else {
+        $req = hsc($req);
+        $body .= <<<EOT
+<td>$req</td>
+<td colspan="6">Unknown request type</td>
+
+EOT;
+      }
+      $body .= "</tr>\n";
+    }
+    $body .= "</table>\n";
+  }
+  if ($error) draw_balance();
 }
 
 function draw_admin($name=false, $tokens=false) {
