@@ -77,6 +77,9 @@ if ($session) {
 }
 
 if ($client->id) {
+  $keephistory = $client->userpreference('keephistory');
+  $client->keephistory($keephistory);
+
   setbank();
 
   if (!$client->bankid) {
@@ -97,6 +100,7 @@ elseif ($cmd == 'admin') do_admin();
 elseif ($cmd == 'spend') do_spend();
 elseif ($cmd == 'canceloutbox') do_canceloutbox();
 elseif ($cmd == 'processinbox') do_processinbox();
+elseif ($cmd == 'togglehistory') do_togglehistory();
 elseif ($cmd == 'toggleinstructions') do_toggleinstructions();
 
 elseif ($cmd == 'register') draw_register();
@@ -505,6 +509,18 @@ function do_processinbox() {
   draw_balance();
 }
 
+function do_togglehistory() {
+  global $client, $keephistory, $error;
+
+  $keephistory = ($keephistory ? '' : 'keep');
+  $client->keephistory($keephistory);
+
+  $client->userpreference('keephistory', $keephistory);
+  $error = ($keephistory ? "History enabled" : "History disabled");
+
+  draw_balance();
+}
+
 function do_toggleinstructions() {
   global $client;
 
@@ -710,7 +726,7 @@ function contact_namestr($contact) {
   return namestr($nickname, $name, $recipid);
 }
 
-function id_namestr($fromid) {
+function id_namestr($fromid, &$contact) {
   global $client;
 
   $contact = $client->getcontact($fromid);
@@ -736,7 +752,7 @@ function draw_balance($spend_amount=false, $recipient=false, $note=false,
   global $client;
   global $error;
   global $onload, $body;
-  global $iphone;
+  global $iphone, $keephistory;
   
   $t = $client->t;
 
@@ -846,7 +862,7 @@ EOT;
         $request = $item[$t->REQUEST];
         $fromid = $item[$t->ID];
         $time = $item[$t->TIME];
-        $namestr = id_namestr($fromid);
+        $namestr = id_namestr($fromid, $contact);
 
         if ($request != $t->SPEND) {
           $msgtime = $item[$t->MSGTIME];
@@ -924,7 +940,7 @@ EOT;
         $fromid = $item[$t->ID];
         $reqstr = ($request == $t->SPENDACCEPT) ? "Accept" : "Reject";
         $time = $item[$t->TIME];
-        $namestr = id_namestr($fromid);
+        $namestr = id_namestr($fromid, $contact);
         $assetname = hsc($item[$t->ASSETNAME]);
         $amount = hsc($item[$t->FORMATTEDAMOUNT]);
         $itemnote = hsc($item[$t->NOTE]);
@@ -1022,7 +1038,7 @@ EOT;
 <a href="./?cmd=coupon&time=$timearg">$recip</a>
 EOT;
           } else {
-            $namestr = id_namestr($recip);
+            $namestr = id_namestr($recip, $contact);
           }
           $cancelcode = '&nbsp;';
           if (!$inboxspends[$time]) {
@@ -1113,12 +1129,15 @@ EOT;
         }
       }
       $balcode .= "</table>\n</td></tr></table>\n";
-      $balcode .= '<br/>
+      $enabled = ($keephistory ? 'enabled' : 'disabled');
+      $balcode .= <<<EOT
+<br/>
 <a href="./?cmd=rawbalance">Show raw balance</a>
 <br/>
-<a href="./?cmd=history">Show history</a>
+<a href="./?cmd=history">Show history</a> ($enabled)
 <br/>
-';      
+
+EOT;
     }
 
     $spendcode = '';
@@ -1208,13 +1227,17 @@ EOT;
 EOT;
       $onload = "document.forms[0].amount.focus()";
       $closespend = "</form>\n";
+      $historytext = ($keephistory ? "Disable" : "Enable") . " history";
+      $instructions = '<p><a href="./?cmd=togglehistory">' .
+                      $historytext . "</a>\n";
       if ($client->userpreference('hideinstructions')) {
-        $instructions = '<p>
+        $instructions .= '<br>
 <a href="./?cmd=toggleinstructions">Show Instructions</a>
 </p>
 ';
       } else {
-        $instructions = <<<EOT
+        $instructions .= <<<EOT
+</p>
 <p>
 To make a spend, fill in the "Spend amount", choose a "Recipient" or
 enter a "Recipient ID, enter (optionally) a "Note", and click the
@@ -1617,7 +1640,7 @@ EOT;
 ';
     foreach ($assets as $asset) {
       $ownerid = $asset[$t->ID];
-      $namestr = id_namestr($ownerid);
+      $namestr = id_namestr($ownerid, $contact);
       $assetid = $asset[$t->ASSET];
       $scale = $asset[$t->SCALE];
       $precision = $asset[$t->PRECISION];
@@ -1691,7 +1714,7 @@ EOT;
       if ($request == $t->SPEND) {
         $req = "Spend";
         $from = "You";
-        $to = id_namestr($item[$t->ID]);
+        $to = id_namestr($item[$t->ID], $contact);
         $amount = $item[$t->FORMATTEDAMOUNT];
         $assetname = $item[$t->ASSETNAME];
         $note = $item[$t->NOTE];

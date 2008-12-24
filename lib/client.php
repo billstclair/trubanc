@@ -1497,7 +1497,6 @@ class client {
     return $ssl->privkey_decrypt($coupon, $privkey);
   }
 
-  // Transfer from one sub-account to another
   // Get the inbox contents.
   // Returns an error string, or an array of inbox entries, indexed by
   // their timestamps:
@@ -1703,7 +1702,7 @@ class client {
     $parser = $this->parser;
 
     $inbox = $this->getinbox_internal($this->keephistory);
-    $outbox = $this->getoutbox_internal();
+    $outbox = $this->getoutbox_internal($this->keephistory);
     $balance = $this->getbalance_internal(true, false);
 
     $timelist = '';
@@ -1714,6 +1713,7 @@ class client {
     $msgs = array();
 
     $history = '';
+    $hist = '';
 
     foreach ($directions as $dir) {
       $time = $dir[$t->TIME];
@@ -1731,7 +1731,6 @@ class client {
       $in = $ins[0];
       $fee = $ins[1];        // will need generalization when I add multiple fees
       $inmsg = $ins[$t->MSG];
-      $hist = '';
 
       $trans = $this->gettime();
 
@@ -1746,7 +1745,7 @@ class client {
           $smsg = $this->custmsg($t->SPENDACCEPT, $bankid, $msgtime, $id, $note);
           $msgs[$smsg] = true;
           $msg .= $smsg;
-          if ($inmsg) $hist .= ".$smsg";
+          if ($inmsg) $hist .= ".$smsg.$inmsg";
         } elseif ($request == $t->SPENDREJECT) {
           if ($fee) {
             $deltas[$acct][$fee[$t->ASSET]] =
@@ -1755,7 +1754,7 @@ class client {
           $smsg = $this->custmsg($t->SPENDREJECT, $bankid, $msgtime, $id, $note);
           $msgs[$smsg] = true;
           $msg .= $smsg;
-          if ($inmsg) $hist .= ".$smsg";
+          if ($inmsg) $hist .= ".$smsg.$inmsg";
         } else {
           return "Illegal request for spend: $request";
         }
@@ -1775,6 +1774,8 @@ class client {
           $deltas[$t->MAIN][$outfee[$t->ASSET]] =
             bcadd($deltas[$t->MAIN][$outfee[$t->ASSET]], $outfee[$t->AMOUNT]);
         }
+        $outmsg = $out[$t->MSG];
+        if ($outmsg) $hist .= ".$inmsg.$outmsg";
       } else {
         return "Unrecognized inbox request: $inreq";
       }
@@ -1786,7 +1787,7 @@ class client {
     if ($msg) $msg = "$pmsg.$msg";
     else $msg = $pmsg;
 
-    if ($inmsg) $history = "$pmsg$hist.$inmsg";
+    if ($this->keephistory) $history = "$pmsg$hist";
 
     $acctbals = array();
 
@@ -1925,7 +1926,7 @@ class client {
     return $res;
   }
 
-  function getoutbox_internal() {
+  function getoutbox_internal($includeraw=false) {
     $t = $this->t;
     $db = $this->db;
     $parser = $this->parser;
@@ -1981,6 +1982,7 @@ class client {
           }
         }
         $items[] = $item;
+        if ($includeraw) $items[$t->MSG] = $msg;
       }
       $res[$time] = $items;
     }
