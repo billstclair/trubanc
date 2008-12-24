@@ -95,6 +95,7 @@ class tokens {
   // Other client tokens
   var $FORMATTEDAMOUNT = 'formattedamount';
   var $MSGTIME = 'msgtime';
+  var $ATREQUEST = '@request';
 }
 
 // Copyright 2008 Bill St. Clair

@@ -732,9 +732,8 @@ function id_namestr($fromid, &$contact) {
   $contact = $client->getcontact($fromid);
   if ($contact) {
     $namestr = contact_namestr($contact);
-    if ($namestr != $fromid) {
-      $namestr = "<span title=\"$fromid\">$namestr</span>";
-    }
+    if ($namestr == $fromid) $namestr = "[unknown]";
+    $namestr = "<span title=\"$fromid\">$namestr</span>";
   } else $namestr = hsc($fromid);
   return $namestr;
 }
@@ -1687,7 +1686,7 @@ function draw_history() {
 <th>To</th>
 <th colspan="2">Amount</th>
 <th>Note</th>
-<th>Acct</th>
+<th>Response</th>
 </tr>
 
 EOT;
@@ -1702,23 +1701,24 @@ EOT;
       $datestr = datestr($time);
       $body .= <<<EOT
 <tr>
-<td>$datestr</td>
 
 EOT;
       // There are currently three types of history items:
       // 1) Spend
-      // 2) Accept or reject of somebody else's spend
-      // 3) Acknowledgement of somebody else's accept or reject of my spend
+      // 2) Process Inbox
+      //   a) Accept or reject of somebody else's spend
+      //   b) Acknowledgement of somebody else's accept or reject of my spend
       $item = $items[0];
       $request = $item[$t->REQUEST];
       if ($request == $t->SPEND) {
-        $req = "Spend";
-        $from = "You";
+        $req = 'spend';
+        $from = 'You';
         $to = id_namestr($item[$t->ID], $contact);
         $amount = $item[$t->FORMATTEDAMOUNT];
         $assetname = $item[$t->ASSETNAME];
         $note = $item[$t->NOTE];
         $body .= <<<EOT
+<td>$datestr</td>
 <td>$req</td>
 <td>$from</td>
 <td>$to</td>
@@ -1726,12 +1726,81 @@ EOT;
 <td style="border-left-width: 0;">$assetname</td>
 <td>$note</td>
 <td>&nbsp;</td>
+
 EOT;
       } elseif ($request == $t->PROCESSINBOX) {
-        // *** Continue here ***
+        //echo "<pre>"; print_r($items); echo "</pre>\n";
+        $rows = array();
+        $req = false;
+        for ($j=1; $j<count($items); $j++) {
+          for (;$j<count($items); $j++) {
+            $item = $items[$j];
+            $request = $item[$t->REQUEST];
+            if ($request == $t->SPENDACCEPT || $REQUEST == $t->SPENDREJECT) {
+              if ($req) break;
+              $req = ($request == $t->SPENDACCEPT) ? 'accept' : 'reject';
+              $response = $item[$t->NOTE];
+            } elseif ($request == $t->SPEND) {
+              $from = id_namestr($item[$t->CUSTOMER], $contact);
+              $to = id_namestr($item[$t->ID], $contact);
+              $amount = $item[$t->FORMATTEDAMOUNT];
+              $assetname = $item[$t->ASSETNAME];
+              $note = $item[$t->NOTE];
+              if ($item[$t->ATREQUEST] == $t->ATSPEND) $req = "@$req";
+            }
+          }
+          if ($req) {
+            $row = array('req' => $req,
+                         'from' => $from,
+                         'to' => $to,
+                         'amount' => $amount,
+                         'assetname' => $assetname,
+                         'note' => $note,
+                         'response' => $response);
+            $rows[] = $row;
+            $req = ($request ==$t->SPENDACCEPT) ? 'accept' : 'reject';
+            $from = false;
+            $to = false;
+            $amount = false;
+            $assetname = false;
+            $note = false;
+            if ($req) {
+              $request = false;
+              $response = $item[$t->NOTE];
+            } else $response = false;
+          }
+        }
+        $rowcnt = count($rows);
+        if ($rowcnt > 0) {
+          $body .= "<td rowspan=\"$rowcnt\">$datestr</td>\n";
+          $first = true;
+          foreach ($rows as $row) {
+            if (!$first) $body .= "<tr>\n";
+            $first = false;
+            $req = $row['req'];
+            $from = $row['from'];
+            $to = $row['to'];
+            $amount = $row['amount'];
+            $assetname = $row['assetname'];
+            $note = $row['note'];
+            $response = $row['response'];
+            $body .= <<<EOT
+<td>$req</td>
+<td>$from</td>
+<td>$to</td>
+<td align="right" style="border-right-width: 0;">$amount</td>
+<td style="border-left-width: 0;">$assetname</td>
+<td>$note</td>
+<td>$response</td>
+</tr>
+
+EOT;
+          }
+        }
       } else {
         $req = hsc($req);
         $body .= <<<EOT
+<td>$datestr</td>
 <td>$req</td>
 <td colspan="6">Unknown request type</td>
 

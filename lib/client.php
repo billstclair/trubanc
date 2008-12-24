@@ -1450,8 +1450,10 @@ class client {
       if (is_string($args)) return "While matching history item: " . $args;
       $inner = $args[$t->MSG];
       if ($inner) {
+        $atrequest = $args[$t->REQUEST];
         $args = $u->match_pattern($inner);
         if (is_string($args)) return "While matching inner history item: $args";
+        $args[$t->ATREQUEST] = $atrequest;
       }
       $assetid = $args[$t->ASSET];
       $amount = $args[$t->AMOUNT];
