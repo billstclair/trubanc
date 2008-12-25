@@ -47,6 +47,7 @@ $ssl = new ssl();
 $client = new client($db, $ssl);
 $timestamp = new timestamp();
 $iphone = strstr($_SERVER['HTTP_USER_AGENT'], 'iPhone');
+$history = false;
 
 if ($_COOKIE['debug']) $client->showprocess = 'appenddebug';
 
@@ -100,7 +101,7 @@ elseif ($cmd == 'admin') do_admin();
 elseif ($cmd == 'spend') do_spend();
 elseif ($cmd == 'canceloutbox') do_canceloutbox();
 elseif ($cmd == 'processinbox') do_processinbox();
-elseif ($cmd == 'history') do_history();
+elseif ($cmd == 'dohistory') do_history();
 elseif ($cmd == 'togglehistory') do_togglehistory();
 elseif ($cmd == 'toggleinstructions') do_toggleinstructions();
 
@@ -511,28 +512,8 @@ function do_processinbox() {
 }
 
 function do_history() {
-  global $client;
-
-  $chkcnt = mqpost('chkcnt');
-  $nickcnt = mqpost('nickcnt');
-
-  for ($i=0; $i<$nickcnt; $i++) {
-    $nick = mqpost("nick$i");
-    if ($nick) {
-      $id = mqpost("nickid$i");
-      $client->addcontact($id, $nick);
-    }
-  }
-
-  for ($i=0; $i<$chkcnt; $i++) {
-    $chk = mqpost("chk$i");
-    if ($chk) {
-      $time = mqpost("time$i");
-      $client->removehistoryitem($time);
-    }
-  }
-
-  draw_history();
+  $history = gethistory();
+  $history->do_history();
 }
 
 function do_togglehistory() {
@@ -1687,225 +1668,23 @@ EOT;
   }
 }
 
+function gethistory() {
+  global $history;
+
+  if (!$history) {
+    require_once "history.php";
+    $history = new history();
+  }
+  return $history;
+}
+
 function draw_history() {
-  global $body;
-  global $error;
   global $client;
 
-  $t = $client->t;
-
-  $times = $client->gethistorytimes();
-  if (is_string($times)) $error = $times;
-  elseif (count($times) == 0) $error = "No saved history";
-  else {
-    settitle('History');
-    setmenu('balance');
-
-    // Need controls for pagination, and date search.
-    // Eventually, recipient, note, and amount search, too. 
-    $cnt = count($times);
-    $idx = 0;
-    $body = <<<EOT
-<br/>
-<form method="post" action="./" autocomplete="off">
-<input type="hidden" name="cmd" value="history"/>
-<input type="hidden" name="chkcnt" value="$cnt"/>
-<table border="1">
-<caption><b>=== History ===</b></caption>
-<tr>
-<th>Time</th>
-<th>Request</th>
-<th>From</th>
-<th>To</th>
-<th colspan="2">Amount</th>
-<th>Note</th>
-<th>Response</th>
-<th>x</th>
-</tr>
-
-EOT;
-    $nickcnt = 0;
-    for ($i=0; $i<$cnt; $i++) {
-      $time = $times[$i];
-      $items = $client->gethistoryitems($time);
-      if (is_string($items)) {
-        $error = $items;
-        break;
-      }
-      $datestr = datestr($time);
-      $timestr = hsc($time);
-      $body .= <<<EOT
-<tr>
-
-EOT;
-      // There are currently three types of history items:
-      // 1) Spend
-      // 2) Process Inbox
-      //   a) Accept or reject of somebody else's spend
-      //   b) Acknowledgement of somebody else's accept or reject of my spend
-      $item = $items[0];
-      $request = $item[$t->REQUEST];
-      if ($request == $t->SPEND) {
-        $req = 'spend';
-        $from = 'You';
-        $toid = $item[$t->ID];
-        $to = id_namestr($toid, $contact);
-        if (!$contact[$t->CONTACT] && $toid != $client->id) {
-          $to .= <<<EOT
-<br/>
-<input type="hidden" name="nickid$nickcnt" value="$toid"/>
-Nickname:
-<input type="text" name="nick$nickcnt" size="10"/>
-EOT;
-          $nickcnt++;
-        }
-        $amount = $item[$t->FORMATTEDAMOUNT];
-        $assetname = $item[$t->ASSETNAME];
-        $note = $item[$t->NOTE];
-        $body .= <<<EOT
-<td>$datestr</td>
-<td>$req</td>
-<td>$from</td>
-<td>$to</td>
-<td align="right" style="border-right-width: 0;">$amount</td>
-<td style="border-left-width: 0;">$assetname</td>
-<td>$note</td>
-<td>&nbsp;</td>
-<td>
-<input type="hidden" name="time$idx" value="$timestr"/>
-<input type="checkbox" name="chk$idx"/>
-</td>
-
-EOT;
-      } elseif ($request == $t->PROCESSINBOX) {
-        //echo "<pre>"; print_r($items); echo "</pre>\n";
-        $rows = array();
-        $req = false;
-        for ($j=1; $j<count($items); $j++) {
-          for (;$j<count($items); $j++) {
-            $item = $items[$j];
-            $request = $item[$t->REQUEST];
-            if ($request == $t->SPENDACCEPT || $REQUEST == $t->SPENDREJECT) {
-              if ($req) break;
-              $req = ($request == $t->SPENDACCEPT) ? 'accept' : 'reject';
-              $response = $item[$t->NOTE];
-            } elseif ($request == $t->SPEND) {
-              $fromid = $item[$t->CUSTOMER];
-              $from = id_namestr($fromid, $contact, 'You');
-              if (!$contact[$t->CONTACT] && $fromid != $client->id) {
-                $from .= <<<EOT
-<br/>
-<input type="hidden" name="nickid$nickcnt" value="$fromid"/>
-Nickname:
-<input type="text" name="nick$nickcnt" size="10"/>
-EOT;
-                $nickcnt++;
-              }
-              $toid = $item[$t->ID];
-              $to = id_namestr($toid, $contact, 'You');
-              if (!$contact[$t->CONTACT] && $toid != $client->id) {
-                $to .= <<<EOT
-<br/>
-<input type="hidden" name="nickid$nickcnt" value="$toid"/>
-Nickname:
-<input type="text" name="nick$nickcnt" size="10"/>
-EOT;
-                $nickcnt++;
-              }
-              $amount = $item[$t->FORMATTEDAMOUNT];
-              $assetname = $item[$t->ASSETNAME];
-              $note = $item[$t->NOTE];
-              if ($item[$t->ATREQUEST] == $t->ATSPEND) $req = "@$req";
-            }
-          }
-          if ($req) {
-            $row = array('req' => $req,
-                         'from' => $from,
-                         'to' => $to,
-                         'amount' => $amount,
-                         'assetname' => $assetname,
-                         'note' => $note,
-                         'response' => $response);
-            $rows[] = $row;
-            $req = ($request ==$t->SPENDACCEPT) ? 'accept' : 'reject';
-            $from = false;
-            $to = false;
-            $amount = false;
-            $assetname = false;
-            $note = false;
-            if ($req) {
-              $request = false;
-              $response = $item[$t->NOTE];
-            } else $response = false;
-          }
-        }
-        $rowcnt = count($rows);
-        if ($rowcnt > 0) {
-          $body .= "<td rowspan=\"$rowcnt\">$datestr</td>\n";
-          $first = true;
-          foreach ($rows as $row) {
-            if (!$first) $body .= "<tr>\n";
-            $req = $row['req'];
-            $from = $row['from'];
-            $to = $row['to'];
-            $amount = $row['amount'];
-            $assetname = $row['assetname'];
-            $note = $row['note'];
-            $response = $row['response'];
-            $checkcode = '';
-            if ($first) {
-              $checkcode = <<<EOT
-
-<td rowspan="$rowcnt">
-<input type="hidden" name="time$idx" value="$timestr"/>
-<input type="checkbox" name="chk$idx"/>
-</td>
-EOT;
-            $first = false;
-            }
-            $body .= <<<EOT
-<td>$req</td>
-<td>$from</td>
-<td>$to</td>
-<td align="right" style="border-right-width: 0;">$amount</td>
-<td style="border-left-width: 0;">$assetname</td>
-<td>$note</td>
-<td>$response</td>$checkcode
-</tr>
-
-EOT;
-          }
-        }
-      } else {
-        $req = hsc($req);
-        $body .= <<<EOT
-<td>$datestr</td>
-<td>$req</td>
-<td colspan="6">Unknown request type</td>
-
-EOT;
-      }
-      $body .= "</tr>\n";
-      $idx++;
-    }
-    if ($nickcnt > 0) {
-      $body .= <<<EOT
-<input type="hidden" name="nickcnt" value="$nickcnt"/>
-
-EOT;
-      $submitlabel = "Delete Checked & Add Nicknames";
-    } else {
-      $submitlabel = "Delete Checked";
-    }
-    $body .= <<<EOT
-</table>
-<br/>
-<input type="submit" name="submit" value="$submitlabel"/>
-</form>
-
-EOT;
-  }
-  if ($error) draw_balance();
+  $count = $client->userpreference('history/count');
+  if ($count === '') $count = 30;
+  $history = gethistory();
+  return $history->draw_history(1, $count);
 }
 
 function draw_admin($name=false, $tokens=false) {
