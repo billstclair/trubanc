@@ -259,13 +259,13 @@ EOT;
 <input type="hidden" name="cnt" value="$cnt"/>
 
 EOT;
-    if ($start > 1) {
-      $body .= <<<EOT
-<input type="submit" name="top" value="&lt;&lt;" title="Show the first page"/>
-<input type="submit" name="pageup" value="&lt;" title="Show the previous page"/>
+    $disabled = '';
+    if ($start <= 1) $disabled = ' disabled="disabled"';
+    $body .= <<<EOT
+<input type="submit" name="top" value="&lt;&lt;"$disabled title="Show the first page"/>
+<input type="submit" name="pageup" value="&lt;"$disabled title="Show the previous page"/>
 
 EOT;
-    }
 
     $body .= <<<EOT
 Start:
@@ -276,13 +276,13 @@ of $cnt entries
 
 EOT;
 
-    if (($start + $count2) <= $cnt) {
-      $body .= <<<EOT
-<input type="submit" name="pagedown" value="&gt;" title="Show the next page"/>
-<input type="submit" name="bottom" value="&gt;&gt;" title="Show the last page"/>
+    $disabled = '';
+    if (($start + $count2) > $cnt) $disabled = ' disabled="disabled"';
+    $body .= <<<EOT
+<input type="submit" name="pagedown" value="&gt;"$disabled title="Show the next page"/>
+<input type="submit" name="bottom" value="&gt;&gt;"$disabled title="Show the last page"/>
 
 EOT;
-    }
 
     $body .= "</form>\n";
   }
