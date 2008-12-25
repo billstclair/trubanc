@@ -20,6 +20,10 @@ function mqpost($x) {
   return mq($_POST[$x]);
 }
 
+function mqrequest($x) {
+  return mq($_REQUEST[$x]);
+}
+
 function hsc($x) {
   return htmlspecialchars($x);
 }
@@ -528,12 +532,22 @@ function do_togglehistory() {
   draw_balance();
 }
 
+function hideinstructions($newvalue=false) {
+  global $client;
+
+  $key = 'hideinstructions';
+  if ($newvalue === false) $newvalue = $client->userpreference($key);
+  else $client->userpreference($key, $newvalue);
+  return $newvalue;  
+}
+
 function do_toggleinstructions() {
   global $client;
 
-  $client->userpreference('hideinstructions',
-                          $client->userpreference('hideinstructions') ? '' : 'hide');
-  draw_balance();
+  $page = mqrequest('page');
+  hideinstructions(hideinstructions() ? '' : 'hide');
+  if ($page == 'history') draw_history();
+  else draw_balance();
 }
 
 function draw_login($key=false) {
@@ -1238,7 +1252,7 @@ EOT;
       $historytext = ($keephistory ? "Disable" : "Enable") . " history";
       $instructions = '<p><a href="./?cmd=togglehistory">' .
                       $historytext . "</a>\n";
-      if ($client->userpreference('hideinstructions')) {
+      if (hideinstructions()) {
         $instructions .= '<br>
 <a href="./?cmd=toggleinstructions">Show Instructions</a>
 </p>
@@ -1681,10 +1695,8 @@ function gethistory() {
 function draw_history() {
   global $client;
 
-  $count = $client->userpreference('history/count');
-  if ($count === '') $count = 30;
   $history = gethistory();
-  return $history->draw_history(1, $count);
+  return $history->draw_history();
 }
 
 function draw_admin($name=false, $tokens=false) {

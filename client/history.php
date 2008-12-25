@@ -4,12 +4,26 @@
 
 class history {
 
-  function draw_history($start=1, $count=0) {
+  // Get or set the history count
+  function historycount($newcount=false) {
+    global $client;
+
+    $key = 'history/count';
+    if ($newcount == false) {
+      $newcount = $client->userpreference($key);
+      if ($newcount === '') $newcount = 30;
+    } else $client->userpreference('history/count', $newcount);
+    return $newcount;
+  }
+
+  function draw_history($start=1, $count=false) {
     global $body;
     global $error;
     global $client;
 
     $t = $client->t;
+
+    if ($count === false) $count = $this->historycount();
 
     $times = $client->gethistorytimes();
     if (is_string($times)) $error = $times;
@@ -76,7 +90,7 @@ EOT;
           $from = 'You';
           $toid = $item[$t->ID];
           $to = id_namestr($toid, $contact);
-          if (!$contact[$t->CONTACT] && $toid != $client->id) {
+          if (!$contact[$t->CONTACT] && $toid != $client->id && $toid != 'coupon') {
             $to .= <<<EOT
 <br/>
 <input type="hidden" name="nickid$nickcnt" value="$toid"/>
@@ -120,7 +134,7 @@ EOT;
               } elseif ($request == $t->SPEND) {
                 $fromid = $item[$t->CUSTOMER];
                 $from = id_namestr($fromid, $contact, 'You');
-                if (!$contact[$t->CONTACT] && $fromid != $client->id) {
+                if (!$contact[$t->CONTACT] && $fromid != $client->id && $toid != 'coupon') {
                   $from .= <<<EOT
 <br/>
 <input type="hidden" name="nickid$nickcnt" value="$fromid"/>
@@ -131,7 +145,7 @@ EOT;
                 }
                 $toid = $item[$t->ID];
                 $to = id_namestr($toid, $contact, 'You');
-                if (!$contact[$t->CONTACT] && $toid != $client->id) {
+                if (!$contact[$t->CONTACT] && $toid != $client->id && $toid != 'coupon') {
                   $to .= <<<EOT
 <br/>
 <input type="hidden" name="nickid$nickcnt" value="$toid"/>
@@ -238,6 +252,28 @@ EOT;
 
 EOT;
       $this->scroller($start, $count, $cnt);
+      if (hideinstructions()) {
+        $body .= <<<EOT
+<a href="./?cmd=toggleinstructions&page=history">Show Instructions</a>
+
+EOT;
+      } else {
+        $body .= <<<EOT
+<table border="1">
+<caption><b>=== Key ===</b></caption>
+<tr><td>spend</td><td>You made a spend</td></tr>
+<tr><td>accept</td><td>You accepted a spend</td></tr>
+<tr><td>reject</td><td>You rejected a spend</td></tr>
+<tr><td>@accept</td><td>You acknowledged acceptance of your spend</td></tr>
+<tr><td>@reject</td><td>You acknowledged rejection of your spend</td></tr>
+<tr><td>=reject</td><td>You acknowledged your cancel of a spend</td></tr>
+<tr><td>=accept</td><td>You acknowledged your acceptance of a coupon you spent to yourself</td></tr>
+</table>
+<br/>
+<a href="./?cmd=toggleinstructions&page=history">Hide Instructions</a>
+
+EOT;
+      }
     }
     if ($error) draw_balance();
   }
@@ -336,7 +372,7 @@ EOT;
         if ($start < 1) $start = 1;
       }
 
-      $client->userpreference('history/count', $count);
+      $this->historycount($count);
     }
 
     $this->draw_history($start, $count);
