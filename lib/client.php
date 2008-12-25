@@ -1421,7 +1421,7 @@ class client {
 
     $key = $this->userhistorykey();
     $res = $db->contents($key);
-    uasort($res, array('client', 'bccompnot'));
+    usort($res, array($this, 'bccompnot'));
 
     return $res;
   }
@@ -1436,7 +1436,7 @@ class client {
     $db = $this->db;
     $parser = $this->parser;
 
-    if (!$this->current_bank()) return "In gethistorytimes(): Bank not set";
+    if (!$this->current_bank()) return "In gethistoryitems(): Bank not set";
 
     $key = $this->userhistorykey();
     $msg = $db->get("$key/$time");
@@ -1480,7 +1480,7 @@ class client {
     $db = $this->db;
     $parser = $this->parser;
 
-    if (!$this->current_bank()) return "In gethistorytimes(): Bank not set";
+    if (!$this->current_bank()) return "In removehistoryitem(): Bank not set";
 
     $key = $this->userhistorykey();
     $db->put("$key/$time", '');

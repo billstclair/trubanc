@@ -100,6 +100,7 @@ elseif ($cmd == 'admin') do_admin();
 elseif ($cmd == 'spend') do_spend();
 elseif ($cmd == 'canceloutbox') do_canceloutbox();
 elseif ($cmd == 'processinbox') do_processinbox();
+elseif ($cmd == 'history') do_history();
 elseif ($cmd == 'togglehistory') do_togglehistory();
 elseif ($cmd == 'toggleinstructions') do_toggleinstructions();
 
@@ -509,6 +510,31 @@ function do_processinbox() {
   draw_balance();
 }
 
+function do_history() {
+  global $client;
+
+  $chkcnt = mqpost('chkcnt');
+  $nickcnt = mqpost('nickcnt');
+
+  for ($i=0; $i<$nickcnt; $i++) {
+    $nick = mqpost("nick$i");
+    if ($nick) {
+      $id = mqpost("nickid$i");
+      $client->addcontact($id, $nick);
+    }
+  }
+
+  for ($i=0; $i<$chkcnt; $i++) {
+    $chk = mqpost("chk$i");
+    if ($chk) {
+      $time = mqpost("time$i");
+      $client->removehistoryitem($time);
+    }
+  }
+
+  draw_history();
+}
+
 function do_togglehistory() {
   global $client, $keephistory, $error;
 
@@ -726,8 +752,10 @@ function contact_namestr($contact) {
   return namestr($nickname, $name, $recipid);
 }
 
-function id_namestr($fromid, &$contact) {
+function id_namestr($fromid, &$contact, $you=false) {
   global $client;
+
+  if ($you && $fromid == $client->id) return $you;
 
   $contact = $client->getcontact($fromid);
   if ($contact) {
@@ -1675,8 +1703,13 @@ function draw_history() {
 
     // Need controls for pagination, and date search.
     // Eventually, recipient, note, and amount search, too. 
+    $cnt = count($times);
+    $idx = 0;
     $body = <<<EOT
 <br/>
+<form method="post" action="./" autocomplete="off">
+<input type="hidden" name="cmd" value="history"/>
+<input type="hidden" name="chkcnt" value="$cnt"/>
 <table border="1">
 <caption><b>=== History ===</b></caption>
 <tr>
@@ -1687,10 +1720,11 @@ function draw_history() {
 <th colspan="2">Amount</th>
 <th>Note</th>
 <th>Response</th>
+<th>x</th>
 </tr>
 
 EOT;
-    $cnt = count($times);
+    $nickcnt = 0;
     for ($i=0; $i<$cnt; $i++) {
       $time = $times[$i];
       $items = $client->gethistoryitems($time);
@@ -1699,6 +1733,7 @@ EOT;
         break;
       }
       $datestr = datestr($time);
+      $timestr = hsc($time);
       $body .= <<<EOT
 <tr>
 
@@ -1713,7 +1748,17 @@ EOT;
       if ($request == $t->SPEND) {
         $req = 'spend';
         $from = 'You';
-        $to = id_namestr($item[$t->ID], $contact);
+        $toid = $item[$t->ID];
+        $to = id_namestr($toid, $contact);
+        if (!$contact[$t->CONTACT] && $toid != $client->id) {
+          $to .= <<<EOT
+<br/>
+<input type="hidden" name="nickid$nickcnt" value="$toid"/>
+Nickname:
+<input type="text" name="nick$nickcnt" size="10"/>
+EOT;
+          $nickcnt++;
+        }
         $amount = $item[$t->FORMATTEDAMOUNT];
         $assetname = $item[$t->ASSETNAME];
         $note = $item[$t->NOTE];
@@ -1726,6 +1771,10 @@ EOT;
 <td style="border-left-width: 0;">$assetname</td>
 <td>$note</td>
 <td>&nbsp;</td>
+<td>
+<input type="hidden" name="time$idx" value="$timestr"/>
+<input type="checkbox" name="chk$idx"/>
+</td>
 
 EOT;
       } elseif ($request == $t->PROCESSINBOX) {
@@ -1741,8 +1790,28 @@ EOT;
               $req = ($request == $t->SPENDACCEPT) ? 'accept' : 'reject';
               $response = $item[$t->NOTE];
             } elseif ($request == $t->SPEND) {
-              $from = id_namestr($item[$t->CUSTOMER], $contact);
-              $to = id_namestr($item[$t->ID], $contact);
+              $fromid = $item[$t->CUSTOMER];
+              $from = id_namestr($fromid, $contact, 'You');
+              if (!$contact[$t->CONTACT] && $fromid != $client->id) {
+                $from .= <<<EOT
+<br/>
+<input type="hidden" name="nickid$nickcnt" value="$fromid"/>
+Nickname:
+<input type="text" name="nick$nickcnt" size="10"/>
+EOT;
+                $nickcnt++;
+              }
+              $toid = $item[$t->ID];
+              $to = id_namestr($toid, $contact, 'You');
+              if (!$contact[$t->CONTACT] && $toid != $client->id) {
+                $to .= <<<EOT
+<br/>
+<input type="hidden" name="nickid$nickcnt" value="$toid"/>
+Nickname:
+<input type="text" name="nick$nickcnt" size="10"/>
+EOT;
+                $nickcnt++;
+              }
               $amount = $item[$t->FORMATTEDAMOUNT];
               $assetname = $item[$t->ASSETNAME];
               $note = $item[$t->NOTE];
@@ -1776,7 +1845,6 @@ EOT;
           $first = true;
           foreach ($rows as $row) {
             if (!$first) $body .= "<tr>\n";
-            $first = false;
             $req = $row['req'];
             $from = $row['from'];
             $to = $row['to'];
@@ -1784,6 +1852,17 @@ EOT;
             $assetname = $row['assetname'];
             $note = $row['note'];
             $response = $row['response'];
+            $checkcode = '';
+            if ($first) {
+              $checkcode = <<<EOT
+
+<td rowspan="$rowcnt">
+<input type="hidden" name="time$idx" value="$timestr"/>
+<input type="checkbox" name="chk$idx"/>
+</td>
+EOT;
+            $first = false;
+            }
             $body .= <<<EOT
 <td>$req</td>
 <td>$from</td>
@@ -1791,7 +1870,7 @@ EOT;
 <td align="right" style="border-right-width: 0;">$amount</td>
 <td style="border-left-width: 0;">$assetname</td>
 <td>$note</td>
-<td>$response</td>
+<td>$response</td>$checkcode
 </tr>
 
 EOT;
@@ -1807,8 +1886,24 @@ EOT;
 EOT;
       }
       $body .= "</tr>\n";
+      $idx++;
     }
-    $body .= "</table>\n";
+    if ($nickcnt > 0) {
+      $body .= <<<EOT
+<input type="hidden" name="nickcnt" value="$nickcnt"/>
+
+EOT;
+      $submitlabel = "Delete Checked & Add Nicknames";
+    } else {
+      $submitlabel = "Delete Checked";
+    }
+    $body .= <<<EOT
+</table>
+<br/>
+<input type="submit" name="submit" value="$submitlabel"/>
+</form>
+
+EOT;
   }
   if ($error) draw_balance();
 }
