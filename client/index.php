@@ -28,6 +28,12 @@ function hsc($x) {
   return htmlspecialchars($x);
 }
 
+function printr($x) {
+  echo "<pre>\n";
+  print_r($x);
+  echo "</pre>\n";
+}
+
 $debug = '';
 
 function appenddebug($x) {
@@ -1053,7 +1059,9 @@ EOT;
           $amount = hsc($item[$t->FORMATTEDAMOUNT]);
           $not = hsc($item[$t->NOTE]);
           if (!$not) $not = '&nbsp;';
+          $label = 'Cancel';
           if ($recip == $t->COUPON) {
+            $label = 'Redeem';
             $recip = hsc($recip);
             $timearg = urlencode($time);
             $namestr = <<<EOT
@@ -1066,7 +1074,7 @@ EOT;
           if (!$inboxspends[$time]) {
             $cancelcode = <<<EOT
 <input type="hidden" name="canceltime$cancelcount" value="$timestr"/>
-<input type="submit" name="cancel$cancelcount" value="Cancel"/>
+<input type="submit" name="cancel$cancelcount" value="$label"/>
 
 EOT;
             $cancelcount++;

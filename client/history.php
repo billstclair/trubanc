@@ -119,7 +119,6 @@ EOT;
 
 EOT;
         } elseif ($request == $t->PROCESSINBOX) {
-          //echo "<pre>"; print_r($items); echo "</pre>\n";
           $rows = array();
           $req = false;
           for ($j=1; $j<count($items); $j++) {
@@ -131,6 +130,16 @@ EOT;
                 $req = ($request == $t->SPENDACCEPT) ? 'accept' : 'reject';
                 $cancelp = ($item[$t->CUSTOMER] == $client->id);
                 $response = $item[$t->NOTE];
+                $toid = $item[$t->CUSTOMER];
+                $to = id_namestr($toid, $contact, 'You');
+                if (!$contact[$t->CONTACT] && $toid != $client->id && $toid != 'coupon') {
+                  $to .= <<<EOT
+<br/>
+<input type="hidden" name="nickid$nickcnt" value="$toid"/>
+Nickname:
+<input type="text" name="nick$nickcnt" size="10"/>
+EOT;
+                }
               } elseif ($request == $t->SPEND) {
                 $fromid = $item[$t->CUSTOMER];
                 $from = id_namestr($fromid, $contact, 'You');
@@ -144,15 +153,22 @@ EOT;
                   $nickcnt++;
                 }
                 $toid = $item[$t->ID];
-                $to = id_namestr($toid, $contact, 'You');
-                if (!$contact[$t->CONTACT] && $toid != $client->id && $toid != 'coupon') {
-                  $to .= <<<EOT
+                if ($to) {
+                  // $to set above by spendaccept/spendredeem code
+                  if ($toid == 'coupon') {
+                    $to = "Coupon redeemed by:<br/>$to";
+                  }
+                } else {
+                  $to = id_namestr($toid, $contact, 'You');
+                  if (!$contact[$t->CONTACT] && $toid != $client->id && $toid != 'coupon') {
+                    $to .= <<<EOT
 <br/>
 <input type="hidden" name="nickid$nickcnt" value="$toid"/>
 Nickname:
 <input type="text" name="nick$nickcnt" size="10"/>
 EOT;
-                  $nickcnt++;
+                    $nickcnt++;
+                  }
                 }
                 $amount = $item[$t->FORMATTEDAMOUNT];
                 $assetname = $item[$t->ASSETNAME];
@@ -171,17 +187,14 @@ EOT;
                            'note' => $note,
                            'response' => $response);
               $rows[] = $row;
-              $req = ($request ==$t->SPENDACCEPT) ? 'accept' : 'reject';
+              if ($j > 1) $j--;
+              $req = false;
               $from = false;
               $to = false;
               $amount = false;
               $assetname = false;
               $note = false;
-              if ($req) {
-                $request = false;
-                $response = $item[$t->NOTE];
-                $cancelp = ($item[$t->CUSTOMER] == $client->id);
-              } else $response = false;
+              $response = false;
             }
           }
           $rowcnt = count($rows);

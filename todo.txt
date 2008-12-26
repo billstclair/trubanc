@@ -1,19 +1,25 @@
-Instead of pre-allocating timestamps, let the user do one spend
-without timestamp compare after a processinbox. All timestamps must be
-newly allocated, and may not be older than 10 minutes. Otherwise, you
-can transfer assets to somebody and they'll have to pay your storage
-costs.
+Storage fees, as percent of assets stored per time.
+Transaction fees. Fixed as amount and asset.
 
-History
-  always/never/this time for spends
-  check boxes on inbox items
-  link to History page on Balance page
-    Check boxes for deletion.
-    Additional notes.
+Currently, transaction fees go only to bank. Could give asset issuer a cut.
+Currently, storage fees go only to asset issuer. Could give bank a cut.
+Currently, transaction fees are paid by spender. Could charge
+  recipient, instead or as well
+
+Time zone preference for client.
+
+Acknowledging a coupon redemption shows only "Coupon" in the "To"
+column on the history screen. It should show the redeemer's name/id.
+
+History features:
+    Additional notes
     Sort
     Filter
-    Page size (like PHPMyAdmin)
     Export/Import
+    "Show raw history" link
+
+Coupon redemption should require only the coupon number, not the whole
+signed message.
 
 URLs for adding a contact and for filling the spend page with info for a sale.
 
