@@ -623,7 +623,7 @@ function draw_register($key=false) {
 <td><input type="password" name="passphrase2" size="50"/>
 </tr><tr>
 <td><b>Coupon:</b></td>
-<td><textarea name="coupon" cols="60" rows="2"></textarea></td>
+<td><input type="text" name="coupon" size="64"/></td>
 </tr><tr>
 <td><b>Account Name<br/>(Optional):</b></td>
 <td><input type="text" name="name" size="40"/></td>
@@ -1357,7 +1357,7 @@ function draw_coupon($time = false) {
 <br/>
 <b>Coupon for outbox entry at $datestr</b>
 <table border="1">
-<tr><td><b>Amount:</b></td>><td><span style="margin: 5px;">$formattedamount $assetname</span></td></tr>
+<tr><td><b>Amount:</b></td><td><span style="margin: 5px;">$formattedamount $assetname</span></td></tr>
 $note<tr><td><b>Coupon:</b></td><td><span style="margin: 5px;">$coupon</span></td></tr>
 </table>
 EOT;
@@ -1365,7 +1365,7 @@ EOT;
       }
     }
   }
-  echo "Couldn't find coupon: $timestr<br/>\n";
+  $error = "Couldn't find coupon: $timestr";
   draw_balance();
 }
 
@@ -1474,7 +1474,7 @@ function draw_banks($bankurl='', $name='') {
 <table>
 <tr>
 <td><b>Bank URL<br/>or Coupon:</b></td>
-<td><textarea name="bankurl" cols="40" rows="2">$bankurl</textarea>
+<td><input type="text" name="bankurl" size="64" value="$bankurl"/>
 </tr><tr>
 <td><b>Account Name<br/>(optional):</b></td>
 <td><input type="text" name="name" size="40" value="$name"/></td>

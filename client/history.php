@@ -139,6 +139,7 @@ EOT;
 Nickname:
 <input type="text" name="nick$nickcnt" size="10"/>
 EOT;
+                  $nickcnt++;
                 }
               } elseif ($request == $t->SPEND) {
                 $fromid = $item[$t->CUSTOMER];
@@ -260,7 +261,8 @@ EOT;
       $body .= <<<EOT
 </table>
 <br/>
-<input type="submit" name="submit" value="$submitlabel"/>
+<input type="submit" name="delete" value="$submitlabel"/>
+<input type="submit" name="deleteolder" value="Delete Checked & Older"/>
 </form>
 
 EOT;
@@ -340,7 +342,8 @@ EOT;
     global $client;
 
     // Delete or set nickname values
-    $submit = mqpost('submit');
+    $delete = mqpost('delete');
+    $deleteolder = mqpost('deleteolder');
 
     $chkcnt = mqpost('chkcnt');
     $nickcnt = mqpost('nickcnt');
@@ -356,7 +359,7 @@ EOT;
     $count = mqpost('count');
     $cnt = mqpost('cnt');
 
-    if ($submit) {
+    if ($delete || $deleteolder) {
       for ($i=0; $i<$nickcnt; $i++) {
         $nick = mqpost("nick$i");
         if ($nick) {
@@ -368,8 +371,19 @@ EOT;
       for ($i=0; $i<$chkcnt; $i++) {
         $chk = mqpost("chk$i");
         if ($chk) {
-          $time = mqpost("time$i");
-          $client->removehistoryitem($time);
+          $deltime = mqpost("time$i");
+          if ($delete) {
+            $client->removehistoryitem($deltime);
+          } elseif ($deleteolder) {
+            $times = $client->gethistorytimes();
+            foreach ($times as $time) {
+              if (bccomp($deltime, $time) >= 0) {
+                $found = true;
+                $client->removehistoryitem($time);
+              }
+            }
+            break;
+          }
         }
       }
     } else {

@@ -2002,7 +2002,7 @@ class client {
             else {
               $url = $args[$t->BANKURL];
               $coupon_number = $args[$t->COUPON];
-              $coupon = "[$url,$coupon_number]";
+              $coupon = "[$url, $coupon_number]";
             }
             $item[$t->COUPON] = $coupon;
           }
