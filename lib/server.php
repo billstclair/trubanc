@@ -613,10 +613,21 @@ class server {
       // Validate a coupon number
       $coupon_number_hash = sha1($coupon);
       $key = $t->COUPON . "/$coupon_number_hash";
-      if ($db->get($key)) {
+      $coupon  = $db->get($key);
+      if ($coupon) {
+        $args = $this->unpack_bankmsg($coupon, $t->ATSPEND, $t->SPEND);
+        if (is_string($args)) return $this->failmsg($msg, "Can't parse coupon: $args");
+        $assetid = $args[$t->ASSET];
+        if ($assetid != $this->tokenid) {
+          return $this->failmsg($msg, "Coupon not for usage tokens");
+        }
+        $amount = $args[$t->AMOUNT];
+        if ($amount < ($this->regfee + 10)) {
+          return $this->failmsg($msg, "Coupon for less than 10 tokens more than registration fee");
+        }
         $msg = $this->bankmsg($t->COUPONNUMBERHASH, $coupon_number_hash);
       } else {
-        $msg = $this->failmsg($inmsg, "Coupon already redeemed");
+        $msg = $this->failmsg($inmsg, "Coupon invalid or already redeemed");
       }
       $res .= ".$msg";
     }
@@ -974,17 +985,23 @@ class server {
 
     // All's well with the world. Commit this puppy.
     // Eventually, the commit will be done as a second phase.
-    $newtime = $this->gettime();
     $outbox_item = $this->bankmsg($t->ATSPEND, $spendmsg);
-    $inbox_item = $this->bankmsg($t->INBOX, $newtime, $spendmsg);
     if ($feemsg) {
       $outbox_item .= ".$feemsg";
-      $inbox_item .= ".$feemsg";
     }
     $res = $outbox_item;
-    
-    // If it's a coupon request, generate the coupon
-    if ($id2 == $t->COUPON) {
+
+    $newtime = false;
+    if ($id2 != $t->COUPON) {
+      if ($id != $id2) {
+        $newtime = $this->gettime();
+        $inbox_item = $this->bankmsg($t->INBOX, $newtime, $spendmsg);
+        if ($feemsg) {
+          $inbox_item .= ".$feemsg";
+        }
+      }
+    } else {
+      // If it's a coupon request, generate the coupon
       $ssl = $this->ssl;
       $random = $this->random;
       if (!$random) {
@@ -1044,7 +1061,7 @@ class server {
     }
 
     // Append spend to recipient's inbox
-    if ($id != $id2) {
+    if ($newtime) {
       $db->put($this->inboxkey($id2) . "/$newtime", $inbox_item);
     }
 
@@ -1178,13 +1195,18 @@ class server {
     }
     $coupon = $args[$t->ENCRYPTEDCOUPON];
     $coupon = $this->ssl->privkey_decrypt($coupon, $this->privkey);
-    $args = $this->unpack_bankmsg($coupon, $t->COUPON);
-    if (is_string($args)) return "Error parsing coupon: $args";
-    if ($bankid != $args[$t->CUSTOMER]) {
-      return "Coupon not signed by bank";
+    if ($u->is_coupon_number($coupon)) {
+      $coupon_number = $coupon;
+    } else {
+      $args = $this->unpack_bankmsg($coupon, $t->COUPON);
+      if (is_string($args)) return "Error parsing coupon: $args";
+      if ($bankid != $args[$t->CUSTOMER]) {
+        return "Coupon not signed by bank";
+      }
+      $coupon_number = $args[$t->COUPON];
     }
 
-    $coupon_number_hash = sha1($args[$t->COUPON]);
+    $coupon_number_hash = sha1($coupon_number);
 
     $key = $t->COUPON . "/$coupon_number_hash";
     $lock = $db->lock($key);
@@ -1479,7 +1501,7 @@ class server {
           $inboxtime = $this->gettime();
           $inboxmsg = $this->bankmsg($t->INBOX, $inboxtime, $reqmsg);
         }
-        $inboxmsgs[] = array($otherid, $inboxtime, $inboxmsg);
+        if ($inboxtime) $inboxmsgs[] = array($otherid, $inboxtime, $inboxmsg);
       } elseif ($request == $t->OUTBOXHASH) {
         if ($outboxhashreq) {
           return $this->failmsg($msg, $t->OUTBOXHASH . " appeared multiple times");

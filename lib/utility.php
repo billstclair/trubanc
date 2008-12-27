@@ -252,6 +252,16 @@ class utility {
     return $res;
   }
 
+  // Predicate. True if arg looks like a coupon number
+  function is_coupon_number($x) {
+    return is_string($x) && strlen($x) == 32 && @pack("H*", $x);
+  }
+
+  // Predicate. True if arg looks like an ID
+  function is_id($x) {
+    return is_string($x) && strlen($x) == 40 && @pack("H*", $x);
+  }
+
 }
 
 // Test code

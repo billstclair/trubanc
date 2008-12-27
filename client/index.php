@@ -223,8 +223,9 @@ function do_login() {
       } else $privkey = $keysize;
 
       if ($coupon) {
-        if ($client->parsecoupon($coupon, $bankid, $url)) {
-          $error = "Invalid coupon";
+        $err = $client->parsecoupon($coupon, $bankid, $url, $coupon_number);
+        if ($err) {
+          $error = "Invalid coupon: $err";
         } else {
           $error = $client->verifycoupon($coupon, $bankid, $url);
         }
@@ -368,6 +369,7 @@ function do_spend() {
   global $client;
 
   $t = $client->t;
+  $u = $client->u;
   $id = $client->id;
 
 
@@ -385,7 +387,7 @@ function do_spend() {
   if (!$recipient) {
     $recipient = $recipientid;
     if ($recipient && !$allowunregistered &&
-        $client->is_id($recipient) && !$client->get_id($recipient)) {
+        $u->is_id($recipient) && !$client->get_id($recipient)) {
       $error = 'Recipient ID not registered at bank';
     }
   }
@@ -401,7 +403,7 @@ function do_spend() {
       if (!$acct2) $acct2 = $tonewacct;
       elseif ($tonewacct) $error = 'Choose "Transfer to" from the selector or by typing, but not both';
       if (!$acct2) $error = 'Recipient missing';
-    } elseif ($recipient != $t->COUPON && !$client->is_id($recipient)) {
+    } elseif ($recipient != $t->COUPON && !$u->is_id($recipient)) {
       $error = "Recipient ID malformed";
     }
   }
@@ -621,7 +623,7 @@ function draw_register($key=false) {
 <td><input type="password" name="passphrase2" size="50"/>
 </tr><tr>
 <td><b>Coupon:</b></td>
-<td><textarea name="coupon" cols="40" rows="2"></textarea></td>
+<td><textarea name="coupon" cols="60" rows="2"></textarea></td>
 </tr><tr>
 <td><b>Account Name<br/>(Optional):</b></td>
 <td><input type="text" name="name" size="40"/></td>
@@ -1348,23 +1350,16 @@ function draw_coupon($time = false) {
         $assetname = hsc($item[$t->ASSETNAME]);
         $formattedamount = hsc($item[$t->FORMATTEDAMOUNT]);
         $note = hsc($item[$t->NOTE]);
-        if ($note) $note = "<b>Note:</b> $note<br/>\n";
+        if ($note) $note = "<tr><td><b>Note:</b></td><td><span style=\"margin: 5px;\">$note</span></td></tr>\n";
       } elseif ($request == $t->COUPONENVELOPE) {
         $coupon = hsc(trim($item[$t->COUPON]));
         $body = <<<EOT
 <br/>
 <b>Coupon for outbox entry at $datestr</b>
-<br/>
-<b>Amount:</b> $formattedamount $assetname
-<br/>
-$note<br/>
-<textarea style="padding: 5px;" name="coupon" cols="90" rows="12" readonly="readonly">
-$coupon
-</textarea>
-<p>
-You can redeem this coupon on the
-<a href="./?cmd=banks">Banks</a> screen. It will appear as a spend from yourself.
-</p>
+<table border="1">
+<tr><td><b>Amount:</b></td>><td><span style="margin: 5px;">$formattedamount $assetname</span></td></tr>
+$note<tr><td><b>Coupon:</b></td><td><span style="margin: 5px;">$coupon</span></td></tr>
+</table>
 EOT;
         return;
       }

@@ -232,24 +232,45 @@ class client {
 
   // Parse a coupon into bankid & url.
   // Return an error string or false.
-  // Sets the $bankid & $url args to the bankid & URL in the coupon.
-  function parsecoupon($coupon, &$bankid, &$url) {
+  // Sets the $bankid, $url, & $coupon_number args to the bankid, URL
+  // and coupon number in the coupon.
+  // Coupon can be [$url,$coupon_number] or
+  // ($bankid,coupon,$url,$coupon_number,$asset,$amount,note:$note)
+  function parsecoupon($coupon, &$bankid, &$url, &$coupon_number) {
     $t = $this->t;
+    $u = $this->u;
     $db = $this->db;
     $parser = $this->parser;
 
     if (!is_string($coupon)) return 'Coupon not a string';
-    $parse = $parser->tokenize($coupon);
-    $items = array();
-    foreach ($parse as $item) $items[] = $item;
-    if ($items[0] != '(') return "Message doesn't start with left paren";
-    $bankid = $items[1];
-    if (!$this->is_id($bankid)) return "Coupon bankid not an id";
-    if ($items[2] != ',') return "Coupon missing comma 1";
-    if ($items[3] != $t->COUPON) return "Coupon isn't a coupon message";
-    if ($items[4] != ',') return "Coupon missing comma 2";
-    $url = $items[5];
+
+    // Coupon can be just [$url,$coupon_number]
+    $coupon = trim($coupon);
+    if (substr($coupon, 0, 1) == '[') {
+      if (substr($coupon, -1) != ']') return "Malformed coupon string";
+      $a = explode(',', substr($coupon, 1, -1));
+      if (count($a) != 2) return "Malformed coupon string";
+      $bankid = '';
+      $url = trim($a[0]);
+      $coupon_number = trim($a[1]);
+    } else {
+      $parse = $parser->tokenize($coupon);
+      $items = array();
+      foreach ($parse as $item) $items[] = $item;
+      if ($items[0] != '(') return "Message doesn't start with left paren";
+      $bankid = $items[1];
+      if (!$u->is_id($bankid)) return "Coupon bankid not an id";
+      if ($items[2] != ',') return "Coupon missing comma 1";
+      if ($items[3] != $t->COUPON) return "Coupon isn't a coupon message";
+      if ($items[4] != ',') return "Coupon missing comma 2";
+      $url = $items[5];
+      if ($items[6] != ',') return "Coupon missing comma 3";
+      $coupon_number = $items[7];
+    }
     if (!$this->isurl($url)) return "Coupon url isn't a url: $url";
+    if (!$u->is_coupon_number($coupon_number)) {
+      return "Coupon number malformed: $coupon_number";
+    }
     return false;
   }
 
@@ -259,15 +280,21 @@ class client {
   // Ask the bank whether a coupon of that number exists.
   function verifycoupon($coupon, $bankid, $url) {
     $t = $this->t;
+    $u = $this->u;
     $parser = $this->parser;
 
     $err = $this->verifybank($url, $bankid);
     if ($err) return "verifycoupon: $err";
-    $args = $this->unpack_bankmsg($coupon, $t->COUPON, $bankid);
-    if (is_string($args)) return $args;
-
-    $coupon_number = $args[$t->COUPON];
-    if (!$this->is_coupon_number($coupon_number)) {
+    $coupon = trim($coupon);
+    if (substr($coupon, 0, 1) == '[') {
+      $err = $this->parsecoupon($coupon, $ignore, $ignore, $coupon_number);
+      if ($err) return $err;
+    } else {
+      $args = $this->unpack_bankmsg($coupon, $t->COUPON, $bankid);
+      if (is_string($args)) return $args;
+      $coupon_number = $args[$t->COUPON];
+    }
+    if (!$u->is_coupon_number($coupon_number)) {
       return "Malformed coupon number: $coupon_number";
     }
     $msg = "(0," . $t->BANKID . ",0,$coupon_number):0";
@@ -276,9 +303,9 @@ class client {
 
     $reqs = $parser->parse($msg);
     if (!$reqs) return "verifycoupon: " . $parser->errmsg;
-    if (count($reqs) != 2) return "verifycoupon: expected 2 messages from bank";
     $args = $this->match_bankreq($reqs[0], $t->REGISTER, $bankid);
     if (is_string($args)) return "verifycoupon: $args";
+    if (count($reqs) != 2) return "verifycoupon: expected 2 messages from bank";
     $args = $this->match_bankreq($reqs[1], $t->COUPONNUMBERHASH, $bankid);
     if (is_string($args)) return "$args";
 
@@ -364,16 +391,20 @@ class client {
     $bankid = false;
     $realurl = false;
     $coupon = false;
-    $err = $this->parsecoupon($url, $bankid, $realurl);
-    if ($err) {
+    $err = $this->parsecoupon($url, $bankid, $realurl, $coupon_number);
+    if (is_string($err)) {
       $err = $this->verifybank($url, $bankid);
       if ($err) return $err;
     } else {
+      if (!$bankid) {
+        $err = $this->verifybank($realurl, $bankid);
+        if ($err) return $err;
+      }
       if (!$couponok) {
         $err = $this->verifycoupon($url, $bankid, $realurl);
         if ($err) return "$err";
       }
-      $coupon = $url;
+      $coupon = $coupon_number;
     }
     $err = $this->setbank($bankid, false);
     if (!$err) {
@@ -389,7 +420,7 @@ class client {
 
     $this->bankid = $bankid;
     $url = $this->bankprop($t->URL, $bankid);
-    if (!$url) return "URL not stored for verified bank";
+    if (!$url) return "URL not stored for verified bank: $bankid";
     $this->server = new serverproxy($url, $this);
     $err = $this->register($name, $coupon, $bankid);
     if ($err) {
@@ -1966,6 +1997,13 @@ class client {
           $coupon = $args[$t->ENCRYPTEDCOUPON];
           if ($coupon) {
             $coupon = $this->ssl->privkey_decrypt($coupon, $this->privkey);
+            $args = $this->unpack_bankmsg($coupon, $t->COUPON);
+            if (is_string($args)) $coupon = "Coupon malformed: $coupon";
+            else {
+              $url = $args[$t->BANKURL];
+              $coupon_number = $args[$t->COUPON];
+              $coupon = "[$url,$coupon_number]";
+            }
             $item[$t->COUPON] = $coupon;
           }
         } else {
@@ -2008,13 +2046,8 @@ class client {
     
     $coupon = $ssl->pubkey_encrypt($coupon, $pubkey);
     $msg = $this->sendmsg($t->COUPONENVELOPE, $bankid, $coupon);
-    $args = $this->unpack_bankmsg($msg);
-    if (is_string($args)) return "redeem: $args";
-    $request = $args[$t->REQUEST];
-    if ($request == $t->FAILED) return "redeem: " . $args[$t->ERRMSG];
-    elseif ($request != $t->ATCOUPONENVELOPE) {
-      return "redeem: unexpected return type from server: $request";
-    }
+    $args = $this->unpack_bankmsg($msg, $t->ATCOUPONENVELOPE);
+    if (is_string($args)) return "Redeem: $args";
     return false;
   }
 
@@ -2813,16 +2846,6 @@ class client {
       $res[$tok] = $db->get($this->tokenkey($tok));
     }
     return $res;
-  }
-
-  // Predicate. True if arg looks like an ID
-  function is_id($x) {
-    return is_string($x) && strlen($x) == 40 && @pack("H*", $x);
-  }
-
-  // Predicate. True if arg looks like an coupon
-  function is_coupon_number($x) {
-    return is_string($x) && strlen($x) == 32 && @pack("H*", $x);
   }
 
   // Add a string to the debug output.
