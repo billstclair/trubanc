@@ -86,7 +86,8 @@ class utility {
                                            $t->ASSET,$t->AMOUNT,$t->NOTE=>1),
                         $t->ASSET => array($t->BANKID,$t->ASSET,
                                            $t->SCALE,$t->PRECISION,$t->ASSETNAME),
-
+                        $t->STORAGE => array($t->BANKID,$t->ASSET,$t->PERCENT,$t->SCALE),
+                        $t->FRACTION => array($t->BANKID,$t->TIME,$t->ASSET,$t->AMOUNT),
                         $t->REGISTER => array($t->BANKID,$t->PUBKEY,$t->NAME=>1),
                         $t->SPENDACCEPT => array($t->BANKID,$t->TIME,$t->ID,$t->NOTE=>1),
                         $t->SPENDREJECT => array($t->BANKID,$t->TIME,$t->ID,$t->NOTE=>1),
@@ -115,6 +116,8 @@ class utility {
                         $t->ATSPEND => array($t->MSG),
                         $t->ATTRANFEE => array($t->MSG),
                         $t->ATASSET => array($t->MSG),
+                        $t->ATSTORAGE => array($t->MSG),
+                        $t->ATFRACTION => array($t->MSG),
                         $t->ATPROCESSINBOX => array($t->MSG),
                         $t->ATSPENDACCEPT => array($t->MSG),
                         $t->ATSPENDREJECT => array($t->MSG),

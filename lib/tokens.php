@@ -16,6 +16,8 @@ class tokens {
   var $PUBKEY = 'pubkey';
   var $PUBKEYSIG = 'pubkeysig';
   var $ASSET = 'asset';
+  var $STORAGE = 'storage';
+  var $FRACTION = 'fraction';
   var $ACCOUNT = 'account';
   var $LAST = 'last';
   var $REQ = 'req';
@@ -48,6 +50,8 @@ class tokens {
   // Affirmations
   var $ATREGISTER = '@register';
   var $ATOUTBOXHASH = '@outboxhash';
+  var $ATSTORAGE = '@storage';
+  var $ATFRACTION = '@fraction';
   var $ATBALANCE = '@balance';
   var $ATSPEND = '@spend';
   var $ATTRANFEE = '@tranfee';
@@ -73,6 +77,7 @@ class tokens {
   var $ASSETNAME = 'assetname';
   var $SCALE = 'scale';
   var $PRECISION = 'precision';
+  var $PERCENT = 'percent';
   var $HASH = 'hash';
   var $MSG = 'msg';
   var $ERRMSG = 'errmsg';

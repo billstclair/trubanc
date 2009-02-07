@@ -1743,6 +1743,7 @@ class server {
     $scale = $args[$t->SCALE];
     $precision = $args[$t->PRECISION];
     $assetname = $args[$t->ASSETNAME];
+    $storage_msg = false;
 
     if (!(is_numeric($scale) && is_numeric($precision) &&
           $scale >= 0 && $precision >= 0)) {
@@ -1763,14 +1764,13 @@ class server {
         ($msg, "Asset id is not sha1 hash of 'id,scale,precision,name'");
     }
 
-    if ($this->is_asset($assetid)) {
-      return $this->failmsg($msg, "Asset already exists: $assetid");
-    }
+    $exists = ($this->is_asset($assetid));
 
     $tokens = 1;       // costs 1 token for the /asset/<assetid> file
     if ($id == $bankid) $tokens = 0;
 
-    $bals = array($assetid => -1);
+    $bals = array();
+    if (!$exists) $bals[$assetid] > -1;
     $acctbals = array();
     $accts = array();
     $oldneg = array();
@@ -1800,10 +1800,12 @@ class server {
         $time = $reqtime;
         $err = $this->deq_time($id, $time);
         if ($err) return $this->failmsg($msg, $err);
-      } elseif ($reqtime != $time) {
-        return $this->failmsg($msg, "Timestamp mismatch");
       }
       if ($reqid != $id) return $this->failmsg($msg, "ID mismatch");
+      elseif ($request == $t->STORAGE) {
+        if ($storage_msg) return $this->failmsg($msg, "Duplicate storage fee");
+        $storage_msg = $parser->get_parsemsg($req);
+      }
       elseif ($request == $t->BALANCE) {
         $reqmsg = $parser->get_parsemsg($req);
         $errmsg = $this->handle_balance_msg($id, $reqmsg, $args, $state, $assetid);
@@ -1830,11 +1832,9 @@ class server {
     $oldneg = $state['oldneg'];
     $newneg = $state['newneg'];
 
-    $amount = -1;
-
     // Check that we have exactly as many negative balances after the transaction
     // as we had before, plus one for the new asset
-    $oldneg[$assetid] = $t->MAIN;
+    if (!$exists) $oldneg[$assetid] = $t->MAIN;
     if (count($oldneg) != count($newneg)) {
       return $this->failmsg($msg, "Negative balance count not conserved");
     }
@@ -1876,6 +1876,9 @@ class server {
     // All's well with the world. Commit this puppy.
     // Add asset
     $res = $this->bankmsg($t->ATASSET, $parser->get_parsemsg($reqs[0]));
+    if ($storage_msg) {
+      $res .= "." . $this->bankmsg($t->ATSTORAGE, $storage_msg);
+    }
     $db->put($t->ASSET . "/$assetid", $res);
 
     // Credit bank with tokens
