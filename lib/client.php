@@ -801,11 +801,12 @@ class client {
   //         $t->ASSET => $assetid,
   //         $t->SCALE => $scale,
   //         $t->PRECISION => $precision,
-  //         $t->ASSETNAME => $assetname)
+  //         $t->ASSETNAME => $assetname,
+  //         $t->STORAGE => $percent)
   //
   // If the asset isn't found in the client database, looks it up on the
   // server, and stores it in the client database.
-  function getasset($assetid) {
+  function getasset($assetid, $forceserver=false) {
     $t = $this->t;
     $db = $this->db;
 
@@ -813,23 +814,32 @@ class client {
 
     $key = $this->assetkey($assetid);
     $lock = $db->lock($key, true);
-    $msg = $db->get($key);
+    $msg = $forceserver ? false : $db->get($key);
     if ($msg) {
       $db->unlock($lock);
       $args = $this->unpack_bankmsg($msg, $t->ATASSET);
       if (is_string($args)) return "While matching asset: $args";
-      $args = $args[$t->MSG];
     } else {
       $args = $this->getasset_internal($assetid, $key);
       $db->unlock($lock);
       if (is_string($args)) return $args;
+    }
+    $reqs = $args[$this->unpack_reqs_key][1];
+    $args = $args[$t->MSG];
+    $percent = false;
+    if ($reqs) {
+      $args1 = $this->match_bankreq($reqs, $t->ATSTORAGE);
+      if (is_string($args1)) return "While matching storage fee: $args1";
+      $args1 = $args1[$t->MSG];
+      $percent = $args1[$t->PERCENT];
     }
 
     return array($t->ID => $args[$t->CUSTOMER],
                  $t->ASSET => $assetid,
                  $t->SCALE => $args[$t->SCALE],
                  $t->PRECISION => $args[$t->PRECISION],
-                 $t->ASSETNAME => $args[$t->ASSETNAME]);
+                 $t->ASSETNAME => $args[$t->ASSETNAME],
+                 $t->PERCENT => $percent);
   }
 
   function getasset_internal($assetid, $key) {
@@ -842,22 +852,22 @@ class client {
     $msg = $this->sendmsg($t->GETASSET, $bankid, $req, $assetid);
     $args = $this->unpack_bankmsg($msg, $t->ATASSET);
     if (is_string($args)) return "While downloading asset: $args";
-    $args = $args[$t->MSG];
-    if ($args[$t->REQUEST] != $t->ASSET ||
-        $args[$t->BANKID] != $bankid ||
-        $args[$t->ASSET] != $assetid) {
+    $msgargs = $args[$t->MSG];
+    if ($msgargs[$t->REQUEST] != $t->ASSET ||
+        $msgargs[$t->BANKID] != $bankid ||
+        $msgargs[$t->ASSET] != $assetid) {
       return "Bank wrapped wrong object with @asset";
     }
     $db->put($key, $msg);
     return $args;
   }
 
-  function addasset($scale, $precision, $assetname) {
+  function addasset($scale, $precision, $assetname, $percent=false) {
     $t = $this->t;
     $db = $this->db;
 
     $lock = $db->lock($this->userreqkey());
-    $res = $this->addasset_internal($scale, $precision, $assetname);
+    $res = $this->addasset_internal($scale, $precision, $assetname, $percent);
     $db->unlock($lock);
 
     if ($res) $this->forceinit();
@@ -865,7 +875,7 @@ class client {
     return $res;
   }
 
-  function addasset_internal($scale, $precision, $assetname) {
+  function addasset_internal($scale, $precision, $assetname, $percent) {
     $t = $this->t;
     $u = $this->u;
     $db = $this->db;
@@ -888,52 +898,67 @@ class client {
     $bal1 = $this->getbalance($t->MAIN, $tokenid);
     if (is_string($bal1)) return $bal1;
     $bal1 = $bal1[$t->AMOUNT];
+    $oldasset = $this->getasset($assetid);
+    $oldasset = !is_string($oldasset);
     if ($id == $bankid) $bal1 = '';
     else {
+      $tokens = !$oldasset ? 2 : 1;
       $ispos = (bccomp($bal1, 0) >= 0);
-      $bal1 = bcsub($bal1, 2);
+      $bal1 = bcsub($bal1, $tokens);
       if ($ispos && (bccomp($bal1, 0) < 0)) {
+        if ($oldasset) return "You need 1 usage token to update an asset";
         return "You need 2 usage tokens to create a new asset";
       }
       $bal1 = $this->custmsg($t->BALANCE, $bankid, $time, $tokenid, $bal1);
     }
-    $bal2 = $this->custmsg($t->BALANCE, $bankid, $time, $assetid, -1);
+    $bal2 = false;
+    if (!$oldasset) $bal2 = $this->custmsg($t->BALANCE, $bankid, $time, $assetid, -1);
 
-    $acctbals = array($t->MAIN => array($assetid => $bal2));
+    $acctbals = array();
     if ($bal1) $acctbals[$t->MAIN][$tokenid] = $bal1;
+    if ($bal2) $acctbals[$t->MAIN][$assetid] = $bal2;
     $balancehash = $this->balancehashmsg($time, $acctbals);
 
     $msg = $process;
+    if ($percent) {
+      $storage = $this->custmsg($t->STORAGE, $bankid, $time, $assetid, $percent);
+      $msg .= ".$storage";
+    }
     if ($bal1) $msg .= ".$bal1";
-    $msg .= ".$bal2.$balancehash";
+    if ($bal2) $msg .= ".$bal2";
+    $msg .= ".$balancehash";
     $msg = $server->process($msg);
 
     // Request sent. Check for error
     $reqs = $this->parser->parse($msg);
     if (!$reqs) return "While adding asset: " . $parser->errmsg;
-    $gotbal1 = $gotbal2 = false;
+    $gotbal1 = $gotbal2 = $gotstorage = false;
     foreach ($reqs as $req) {
       $args = $this->match_bankreq($req);
       if (is_string($args)) return "While adding asset: $args";
       if ($args[$t->REQUEST] == $t->FAILED) {
-        return "While adding asset: " . $args[$t->ERRMSG];
+        return "Server error while adding asset: " . $args[$t->ERRMSG];
       }
       $msg = $parser->get_parsemsg($req);
       $m = $args[$t->MSG];
       $m = trim($parser->get_parsemsg($m));
       if ($m == $bal1) $gotbal1 = $msg;
       elseif ($m == $bal2) $gotbal2 = $msg;
+      elseif ($m == $storage) $gotstorage = $msg;
     }
 
-    if (!(($gotbal1 || (!$bal1)) && $gotbal2)) {
+    if (!(($gotbal1 || (!$bal1)) && ($gotbal2 || (!$bal2)))) {
       return "While adding asset: missing returned balance from server";
+    }
+    if ($percent && !$gotstorage) {
+      return "While adding asset: storage fee not returned from server";
     }
 
     // All is well. Commit the balance changes
     if ($bal1) $db->put($this->userbalancekey($t->MAIN, $tokenid), $gotbal1);
-    $db->put($this->userbalancekey($t->MAIN, $assetid), $gotbal2);
+    if ($bal2) $db->put($this->userbalancekey($t->MAIN, $assetid), $gotbal2);
 
-    $this->getasset($assetid);
+    $this->getasset($assetid, true);
 
     return false;
   }

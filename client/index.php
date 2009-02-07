@@ -346,15 +346,18 @@ function do_asset() {
     $scale = mqpost('scale');
     $precision = mqpost('precision');
     $assetname = mqpost('assetname');
+    $storage = mqpost('storage');
     if (!((strlen(scale) > 0) && (strlen($precision) > 0) &&
           (strlen($assetname) > 0))) {
       $error = "Scale, Precision, and Asset name must all be specified";
     } elseif (!(is_numeric($scale) && is_numeric($precision))) {
       $error = "Scale and Precision must be numbers";
+    } elseif ($storage && !is_numeric($storage)) {
+      $error = "Storage fee must be a number";
     } else {
-      $error = $client->addasset($scale, $precision, $assetname);
+      $error = $client->addasset($scale, $precision, $assetname, $storage);
     }
-    if ($error) draw_assets($scale, $precision, $assetname);
+    if ($error) draw_assets($scale, $precision, $assetname, $storage);
     else draw_assets();
   } else draw_balance();
 }
@@ -1612,7 +1615,7 @@ EOT;
   }
 }
 
-function draw_assets($scale=false, $precision=false, $assetname=false) {
+function draw_assets($scale=false, $precision=false, $assetname=false, $storage=false) {
   global $onload, $body;
   global $error;
   global $client;
@@ -1643,6 +1646,9 @@ function draw_assets($scale=false, $precision=false, $assetname=false) {
 <td><b>Asset name:</b></td>
 <td><input type="text" name="assetname" size="30" value="$assetname"/></td>
 </tr><tr>
+<td><b>Storage fee (%/year):</b></td>
+<td><input type="text" name="storage" size="5" value="$storage"/></td>
+</tr><tr>
 <td></td>
 <td><input type="submit" name="newasset" value="Add Asset"/>
 <input type="submit" name="cancel" value="Cancel"/></td>
@@ -1659,6 +1665,7 @@ EOT;
 <th>Asset name</th>
 <th>Scale</th>
 <th>Precision</th>
+<th>Storage Fee<br/>(%/year)</th>
 <th>Owner</th>
 <th>Asset ID</th>
 </tr>
@@ -1670,11 +1677,14 @@ EOT;
       $scale = $asset[$t->SCALE];
       $precision = $asset[$t->PRECISION];
       $assetname = $asset[$t->ASSETNAME];
+      $percent = $asset[$t->PERCENT];
+      if (!$percent) $percent = "&nbsp;";
       $body .= <<<EOT
 <tr>
 <td>$assetname</td>
 <td align="right">$scale</td>
 <td align="right">$precision</td>
+<td align="right">$percent</td>
 <td>$namestr</td>
 <td>$assetid</td>
 </tr>

@@ -951,7 +951,7 @@ class server {
         $errmsg .= "$name: $balamount";
       }
     }
-    if ($errmsg != '') return $this->failmsg($msg, "Balance discrepanies: $errmsg");
+    if ($errmsg != '') return $this->failmsg($msg, "Balance discrepancies: $errmsg");
 
     // Check outboxhash
     // outboxhash must be included, except on self spends
@@ -1573,7 +1573,7 @@ class server {
         $errmsg .= "$name: $balamount";
       }
     }
-    if ($errmsg != '') return $this->failmsg($msg, "Balance discrepanies: $errmsg");
+    if ($errmsg != '') return $this->failmsg($msg, "Balance discrepancies: $errmsg");
 
     // No outbox hash maintained for the bank
     if ($id != $bankid) {
@@ -1858,7 +1858,7 @@ class server {
         $errmsg .= "$name: $balamount";
       }
     }
-    if ($errmsg != '') return $this->failmsg($msg, "Balance discrepanies: $errmsg");
+    if ($errmsg != '') return $this->failmsg($msg, "Balance discrepancies: $errmsg");
 
     // balancehash must be included
     if (!$balancehashreq) {

@@ -39,7 +39,7 @@ $dbdir/
     <id>=(<bankid>,@register,(<id>,register,<bankid>,<pubkey>,name=<name>))
   asset/ -- Where the asset types are stored
     <assetid>=(<bankid>,@asset,(<id>,asset,<bankid>,<assetid>,<scale>,<precision>,<assetname>)).
-              (<bankid>,@storage,(<id>,storage,<bankid>,<assetid>,<percent>,<scale>))
+              (<bankid>,@storage,(<id>,storage,<bankid>,<time#>,<assetid>,<percent>))
         -- The assetid is the sha1 hash of a comma-separated
         -- concatenation of <id>,<scale>,<precision>,<assetname>
         -- This makes an assetid impossible to forge, though there
@@ -514,7 +514,7 @@ Lookup asset
   if <assetid> exists in /asset, bank returns:
 
 (<bankid>,@asset,(<issuerid>,asset,<bankid>,<assetid>,<scale>,<precision>,<assetname>)).
-(<bankid>,@storage,(<issuerid>,storage,<bankid>,<assetid>,<percent>))
+(<bankid>,@storage,(<issuerid>,storage,<bankid>,<time#>,<assetid>,<percent>))
 
   Where the @storage item is optional.
   Otherwise, bank returns:
@@ -528,7 +528,7 @@ Create asset
   Customer sends:
 
 (<id>,asset,<bankid>,<assetid>,<scale>,<precision>,<assetname>).
-  (<id>,storage,<bankid>,<assetid>,<percent>).
+  (<id>,storage,<bankid>,<assetid>,<time4#>,<percent>).
   (<id>,balance,<bankid>,<time4#>,<assetid>,-1,acct:<acct1>).
   (<id>,balance,<bankid>,<time4#>,assetid2>,<amount2>acct:<acct2>).
   ...
@@ -551,7 +551,7 @@ Create asset
   /asset/, clears /account/<id>/time, and returns:
 
 (<bankid>,@asset,(<id>,asset,<bankid>,<assetid>,<assetname>)).
-  (<bankid>,@storage,(<id>,storage,<bankid>,<assetid>,<percent>)).
+  (<bankid>,@storage,(<id>,storage,<bankid>,<time4#>,<assetid>,<percent>)).
   (<bankid>,@balance,(<id>,balance,<bankid>,<time4#>,<assetid>,-1,acct:<acct1>)).
   (<bankid>,@balance,(<id>,balance,<bankid>,<time4#>,assetid2>,<amount2>acct:<acct2>)).
   ...
