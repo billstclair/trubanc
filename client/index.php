@@ -338,9 +338,11 @@ function do_asset() {
   global $client;
   global $error;
 
+  $t = $client->t;
   $error = false;
 
   $newasset = mqpost('newasset');
+  $updatepercent = mqpost('updatepercent');
 
   if ($newasset) {
     $scale = mqpost('scale');
@@ -359,6 +361,26 @@ function do_asset() {
     }
     if ($error) draw_assets($scale, $precision, $assetname, $storage);
     else draw_assets();
+  } elseif ($updatepercent) {
+    $percentcnt = mqpost('percentcnt');
+    for ($i=0; $i<$percentcnt; $i++) {
+      $assetid = mqpost("assetid$i");
+      $opercent = mqpost("opercent$i");
+      $percent = mqpost("percent$i");
+      if ($percent != $opercent) {
+        $asset = $client->getasset($assetid);
+        if (is_string($asset)) {
+          $error = "Can't find assetid: $assetid";
+        } else {
+          $scale = $asset[$t->SCALE];
+          $precision = $asset[$t->PRECISION];
+          $assetname = $asset[$t->ASSETNAME];
+          $error = $client->addasset($scale, $precision, $assetname, $percent);
+        }
+        if ($error) break;
+      }
+    }
+    draw_assets();
   } else draw_balance();
 }
 
@@ -374,7 +396,6 @@ function do_spend() {
   $t = $client->t;
   $u = $client->u;
   $id = $client->id;
-
 
   $amount = mqpost('amount');
   $recipient = mqpost('recipient');
@@ -1660,7 +1681,8 @@ EOT;
 
   $assets = $client->getassets();
   if (count($assets) > 0) {
-    $body .= '<table border="1">
+    $body .= '<form method="post" action="./" autocomplete="off">
+<table border="1">
 <tr>
 <th>Asset name</th>
 <th>Scale</th>
@@ -1670,6 +1692,7 @@ EOT;
 <th>Asset ID</th>
 </tr>
 ';
+    $incnt = 0;
     foreach ($assets as $asset) {
       $ownerid = $asset[$t->ID];
       $namestr = id_namestr($ownerid, $contact);
@@ -1678,6 +1701,14 @@ EOT;
       $precision = $asset[$t->PRECISION];
       $assetname = $asset[$t->ASSETNAME];
       $percent = $asset[$t->PERCENT];
+      if ($ownerid == $client->id) {
+        $percent = <<<EOT
+<input type="hidden" name="assetid$incnt" value="$assetid"/>
+<input type="hidden" name="opercent$incnt" value="$percent"/>
+<input type="text" name="percent$incnt" value="$percent" size="10" style="text-align: right;"/>
+EOT;
+        $incnt++;
+      }
       if (!$percent) $percent = "&nbsp;";
       $body .= <<<EOT
 <tr>
@@ -1692,6 +1723,13 @@ EOT;
 EOT;
     }
     $body .= "</table>\n";
+    if ($incnt > 0) {
+      $body .= '<input type="hidden" name="percentcnt" value="' . $incnt . '"/>
+<input type="hidden" name="cmd" value="asset"/>
+<br/><input type="submit" name="updatepercent" value="Update Storage Fees"/>
+';
+    }
+    $body .= "</form>\n";
   }
 }
 
