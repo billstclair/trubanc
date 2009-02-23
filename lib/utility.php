@@ -317,7 +317,7 @@ class utility {
 
 // Test code
 
-
+/*
 $ut = new utility(false, false, false);
 $balance = 365;
 $percent = "1.00";
@@ -340,7 +340,7 @@ $fracfee = $ut->storage_fee($fraction, 0, $time * 363, $percent, $digits);
 $ut->normalize_balance($balance, $fraction, $digits);
 $fee = bcadd($balfee, $fracfee, $digits);
 echo "Fee: $fee, balance: $balance, fraction: $fraction\n";
-
+*/
 
 // Copyright 2008 Bill St. Clair
 //
