@@ -266,8 +266,8 @@ Spend
   it work.
 
 (<id>,spend,<bankid>,<time#>,<id2>,<assetid>,<amount>,note:<note>).
-  (<id>,storagefee,<bankid>,<time#>,<assetid>,<storageamount>).
   (<id>,tranfee,<bankid>,<time#>,<tokenid>,<amount2fee>).
+  (<id>,storagefee,<bankid>,<time#>,<assetid>,<storageamount>).
   (<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>).
   (<id>,fraction,<bankid>,<time#>,<assetid>,<fractionamount>).
   (<id>,balance,<bankid>,<time#>,<assetid2>,<amount2>,acct:<acct2>).
@@ -283,7 +283,7 @@ Spend
   /account/<id>/outbox, and returns:
 
 (<bankid>,@spend,(<id>,spend,<time#>,<id2>,<bankid>,<assetid>,<amount>,note:<note>)).
-  (<bankid>,(<id>,storagefee,<bankid>,<time#>,<assetid>,<storageamount>)).
+  (<bankid>,@storagefee,(<id>,storagefee,<bankid>,<time#>,<assetid>,<storageamount>)).
   (<bankid>,@tranfee,(<id>,tranfee,<bankid>,<time#>,<tokenid>,<amount2fee>)).
   (<bankid>,@balance,(<id>,balance,<time#>,<bankid>,<assetid>,<amount>,acct:<acct>)).
   (<bankid>,@fraction,(<id>,fraction,<bankid>,<time#>,<assetid>,<amount>)).

@@ -17,6 +17,7 @@ class tokens {
   var $PUBKEYSIG = 'pubkeysig';
   var $ASSET = 'asset';
   var $STORAGE = 'storage';
+  var $STORAGEFEE = 'storagefee';
   var $FRACTION = 'fraction';
   var $ACCOUNT = 'account';
   var $LAST = 'last';
@@ -51,6 +52,7 @@ class tokens {
   var $ATREGISTER = '@register';
   var $ATOUTBOXHASH = '@outboxhash';
   var $ATSTORAGE = '@storage';
+  var $ATSTORAGEFEE = '@storagefee';
   var $ATFRACTION = '@fraction';
   var $ATBALANCE = '@balance';
   var $ATSPEND = '@spend';

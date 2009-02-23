@@ -265,12 +265,63 @@ class utility {
     return is_string($x) && strlen($x) == 40 && @pack("H*", $x);
   }
 
+  // Return the number of digits after the decimal point in a number
+  function number_precision($number) {
+    $i = strpos($number, '.');
+    if ($i === false) return 0;
+    return strlen($number) - $i - 1;
+  }
+
+  // Calculate the storage fee.
+  // $balance is the starting balance, updated on output.
+  // $fraction is the starting fractional amount, updated on output.
+  // $baltime is the time of the $balance
+  // $fractime is the time of the $fraction
+  // $now is the current time
+  // $percent is the storage fee rate, in percent/year
+  // Returns the storage fee, and updates $balance and $fraction
+  function storage_fee(&$balance, &$fraction, $baltime, $fractime, $now, $percent) {
+    if (!$percent) return 0;
+
+    $SECSPERYEARPCT = bcmul(60 * 60 * 24 * 365, 100, 0);
+
+    // Add 3 for divide by 365, 2 for percent, 3 more for 1/1000 precision
+    $digits = $this->number_precision($percent) + 8;
+    $balfee = bcmul($balance, $percent, $digits);
+    $balfee = bcmul($balfee, $now - $baltime, $digits);
+    $balfee = bcdiv($balfee, $SECSPERYEARPCT, $digits);
+    $fracfee = bcmul($fraction, $percent, $digits);
+    $fracfee = bcmul($fracfee, $now - $fractime, $digits);
+    $fracfee = bcdiv($fracfee, $SECSPERYEARPCT, $digits);
+    $fee = bcadd($balfee, $fracfee, $digits);
+    $total = bcadd($balance, $fraction, $digits);
+    $total = bcsub($total, $fee, $digits);
+    $i = strpos($total, '.');
+    if ($i === false) {
+      $balance = $total;
+      $fraction = 0;
+    } else {
+      $balance = substr($total, 0, $i);
+      $fraction = substr($total, $i);
+    }
+    return $fee;
+  }
+
 }
 
 // Test code
 /*
-$ut = new utility();
-print_r($ut->bignum_sort(array("10","1","20", "2", "99999", "123456")));
+$ut = new utility(false, false, false);
+$balance = 365;
+$percent = "1.00";
+$fraction = 0;
+$time = 60*60*24;
+$fee = $ut->storage_fee($balance, $fraction, 0, 0, $time, $percent);
+echo "Fee: $fee, balance: $balance, fraction: $fraction\n";
+$fee = $ut->storage_fee($balance, $fraction, 0, 0, $time, $percent);
+echo "Fee: $fee, balance: $balance, fraction: $fraction\n";
+$fee = $ut->storage_fee($balance, $fraction, 0, 0, $time * 363, $percent);
+echo "Fee: $fee, balance: $balance, fraction: $fraction\n";
 */
 
 // Copyright 2008 Bill St. Clair

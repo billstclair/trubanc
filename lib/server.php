@@ -105,6 +105,10 @@ class server {
     return $this->acctbalancekey($id, $acct) . "/$asset";
   }
 
+  function fractionbalancekey($id, $asset) {
+    return $this->accountdir($id) . $this->t->FRACTION . "/$asset";
+  }
+
   function assetbalance($id, $asset, $acct=false) {
     $t = $this->t;
     $db = $this->db;
@@ -113,6 +117,50 @@ class server {
     $msg = $db->get($key);
     if (!$msg) return 0;
     return $this->unpack_bankmsg($msg, $t->ATBALANCE, $t->BALANCE, $t->AMOUNT);
+  }
+
+  // Get the values necessary to compute the storage fee.
+  // Return value: storage fee $percent
+  // On output (set only if $percent != 0):
+  // $issuer - the ID of the asset issuer
+  // $fraction - the fraction balance for $id/$assetid
+  // $fractime - the time of the fraction
+  function storageinfo($id, $assetid, &$issuer, &$fraction, &$fractime) {
+    $t = $this->t;
+    $u = $this->u;
+    $parser = $this->parser;
+    $db = $this->db;
+
+    $msg = $db->get($t->ASSET . "/$assetid");
+    if ($msg) {
+      $reqs = $parser->parse($msg);
+      if (!$reqs) return 0;
+    }
+    $req = $reqs[1];
+    if (!$req) return 0;
+    $args = $u->match_pattern($req);
+    if (is_string($args)) return 0;
+    if ($args[$t->REQUEST] != $t->ATSTORAGE) return 0;
+    $req = $args[$t->MSG];
+    $args = $u->match_pattern($req);
+    if (is_string($args)) return 0;
+    if ($args[$t->REQUEST] != $t->STORAGE) return 0;
+    $issuer = $args[$t->ID];
+    $percent = $args[$t->PERCENT];
+    
+    $fraction = 0;
+    $fractime = 0;
+    $key = $this->fractionbalancekey($id, $assetid);
+    $msg = $db->get($key);
+    if ($msg) {
+      $args = $this->unpack_bankmsg($msg, $t->ATFRACTION, $t->FRACTION);
+      if (!is_string($args)) {
+        $fraction = $args[$t->AMOUNT];
+        $fractime = $args[$t->TIME];
+      }
+    }
+
+    return $percent;
   }
 
   function outboxkey($id) {
@@ -161,8 +209,19 @@ class server {
 
   function lookup_asset($assetid) {
     $t = $this->t;
+    $u = $this->u;
+
     $asset = $this->is_asset($assetid);
-    return $this->unpack_bankmsg($asset, $t->ATASSET, $t->ASSET);
+    if (!$asset) return false;
+    $res = $this->unpack_bankmsg($asset, $t->ATASSET, $t->ASSET);
+    if (is_string($res)) return $res;
+    $req1 = $res[$this->unpack_reqs_key][1];
+    if ($req1) {
+      $args = $u->match_pattern($req1);
+      if (is_string($args)) return "While matching asset storage fee: $args";
+      $res[$t->PERCENT] = $args[$t->PERCENT];
+    }
+    return $res;
   }
 
   function lookup_asset_name($assetid) {
@@ -802,8 +861,12 @@ class server {
       return $this->failmsg($msg, "Spends to the bank are not allowed.");
     }
 
-    if (!$this->is_asset($assetid)) {
+    $asset = $this->lookup_asset($assetid);
+    if (!$asset) {
       return $this->failmsg($msg, "Unknown asset id: $assetid");
+    }
+    if (is_string($asset)) {
+      return $this->failmsg($msg, "Bad asset: $asset");
     }
     if (!is_numeric($amount)) {
       return $this->failmsg($msg, "Not a number: $amount");
@@ -866,6 +929,8 @@ class server {
           return $this->failmsg($msg, "Mismatched tranfee asset or amount ($tranasset <> $tokenid || $tranamt <> $tokens)");
         }
         $feemsg = $this->bankmsg($t->ATTRANFEE, $parser->get_parsemsg($req));
+      } elseif ($request == $t->STORAGEFEE) {
+      } elseif ($request == $t->FRACTION) {
       } elseif ($request == $t->BALANCE) {
         if ($time != $reqargs[$t->TIME]) {
           return $this->failmsg($msg, "Time mismatch in balance item");
