@@ -120,6 +120,9 @@ class server {
   }
 
   // Get the values necessary to compute the storage fee.
+  // Inputs:
+  // $id - the user ID
+  // $assetid - the asset ID
   // Return value: storage fee $percent
   // On output (set only if $percent != 0):
   // $issuer - the ID of the asset issuer
@@ -579,9 +582,11 @@ class server {
   //   'accts => array(<acct> => true);
   //   'oldneg' => array(<asset> => <acct>), negative balances in current account
   //   'newneg' => array(<asset> => <acct>), negative balances in updated account
+  //   'time' => the transaction time
   // Returns an error string on error, or false on no error.
   function handle_balance_msg($id, $msg, $args, &$state, $creating_asset=false) {
     $t = $this->t;
+    $u = $this->u;
     $db = $this->db;
     $bankid = $this->bankid;
 
@@ -615,6 +620,7 @@ class server {
     $acctmsg = $db->get($assetbalancekey);
     if (!$acctmsg) {
       if ($id != $bankid) $state['tokens']++;
+      $amount = 0;
     } else {
       $acctargs = $this->unpack_bankmsg($acctmsg, $t->ATBALANCE, $t->BALANCE);
       if (is_string($acctargs) || !$acctargs ||
@@ -631,6 +637,36 @@ class server {
         }
         $state['oldneg'][$asset] = $acct;
       }
+    }
+
+    $charges = $state['charges'];
+    if (!$charges) $state['charges'] = $charges = array();
+    $assetinfo = $charges[$asset];
+    if (!$assetinfo) {
+      $assetinfo = array();
+      $percent = $this->storageinfo($id, $assetid, $issuer, $fraction, $fractime);
+      if ($percent) {
+        if ($fraction) {
+          $time = $state['time'];
+          $fracfee = $u->storage_fee($fraction, $fractime, $time, $percent, $digits);
+        }
+        $assetinfo['percent'] = $percent;
+        $assetinfo['issuer'] = $issuer;
+        $assetinfo['fraction'] = $fraction;
+        $assetinfo['storagefee'] = $fracfee;
+        $assetinfo['digits'] = $u->fraction_digits($percent);
+      }
+      $charges[$asset] = $assetinfo;
+      $state['charges'] = $charges;
+    }
+    $percent = $assetinfo['percent'];
+    if ($percent && $amount) {
+      $digits = $assetinfo['digits'];
+      $storagefee = $assetinfo['storagefee'];
+      $amttime = $acctargs[$t->TIME];
+      $time = $state['time'];
+      $fee = $u->storage_fee($amount, $amttime, $time, $percent, $digits);
+      $assetinfo['storagefee'] = bcadd($storagefee, $fee, $digits);
     }
     return false;
   }
@@ -886,6 +922,8 @@ class server {
     $tokens = 0;
     $tokenid = $this->tokenid;
     $feemsg = '';
+    $storagemsg = '';
+    $fracmsg = '';
     if ($id != $id2 && $id != $bankid) {
       // Spends to yourself are free, as are spends from the bank
       $tokens = $this->tranfee;
@@ -907,7 +945,8 @@ class server {
                    'tokens' => $tokens,
                    'accts' => $accts,
                    'oldneg' => $oldneg,
-                   'newneg' => $newneg);
+                   'newneg' => $newneg,
+                   'time' => $time );
     $outboxhashreq = false;
     $balancehashreq = false;
     for ($i=1; $i<count($reqs); $i++) {
@@ -919,8 +958,9 @@ class server {
       $reqtime = $reqargs[$t->TIME];
       if ($reqtime != $time) return $this->failmsg($msg, "Timestamp mismatch");
       if ($reqid != $id) return $this->failmsg($msg, "ID mismatch");
-      if ($request == $t->TRANFEE) {
-        if ($feemsg) {
+      $reqmsg = $parser->get_parsemsg($req);
+      if ($request == $t->TRANFEE) { 
+       if ($feemsg) {
           return $this->failmsg($msg, $t->TRANFEE . ' appeared multiple times');
         }
         $tranasset = $reqargs[$t->ASSET];
@@ -928,14 +968,31 @@ class server {
         if ($tranasset != $tokenid || $tranamt != $tokens) {
           return $this->failmsg($msg, "Mismatched tranfee asset or amount ($tranasset <> $tokenid || $tranamt <> $tokens)");
         }
-        $feemsg = $this->bankmsg($t->ATTRANFEE, $parser->get_parsemsg($req));
+        $feemsg = $this->bankmsg($t->ATTRANFEE, $reqmsg);
       } elseif ($request == $t->STORAGEFEE) {
+        if ($storagemsg) {
+          return $this->failmsg($msg, $t->STORAGEFEE . ' appeared multiple times');
+        }
+        $storageasset = $reqargs[$t->ASSET];
+        $storageamt = $reqargs[$t->AMOUNT];
+        if ($storageasset != $assetid) {
+          return $this->failmsg($msg, "Storage fee asset id doesn't match spend");
+        }
+        $storagemsg = $this->bankmsg($t->ATSTORAGEFEE, $reqmsg);
       } elseif ($request == $t->FRACTION) {
+        if ($fracmsg) {
+          return $this->failmsg($msg, $t->FRACTION . ' appeared multiple times');
+        }
+        $fracasset = $reqargs[$t->ASSET];
+        $fracamt = $reqargs[$t->AMOUNT];
+        if ($fracasset != $assetid) {
+          return $this->failmsg($msg, "Fraction asset id doesn't match spend");
+        }
+        $fracmsg = $this->bankmsg($t->ATFRACTION, $reqmsg);
       } elseif ($request == $t->BALANCE) {
         if ($time != $reqargs[$t->TIME]) {
           return $this->failmsg($msg, "Time mismatch in balance item");
         }
-        $reqmsg = $parser->get_parsemsg($req);
         $errmsg = $this->handle_balance_msg($id, $reqmsg, $reqargs, $state);
         if ($errmsg) return $this->failmsg($msg, $errmsg);
         $newbals[] = $reqmsg;
@@ -947,7 +1004,7 @@ class server {
           return $this->failmsg($msg, "Time mismatch in outboxhash");
         }
         $outboxhashreq = $req;
-        $outboxhashmsg = $parser->get_parsemsg($req);
+        $outboxhashmsg = $reqmsg;
         $outboxhash = $reqargs[$t->HASH];
         $outboxhashcnt = $reqargs[$t->COUNT];
       } elseif ($request == $t->BALANCEHASH) {
@@ -960,7 +1017,7 @@ class server {
         $balancehashreq = $req;
         $balancehash = $reqargs[$t->HASH];
         $balancehashcnt = $reqargs[$t->COUNT];
-        $balancehashmsg = $parser->get_parsemsg($req);
+        $balancehashmsg = $reqmsg;
       } else {
         return $this->failmsg($msg, "$request not valid for spend. Only " .
                               $t->TRANFEE . ', ' . $t->BALANCE . ", and " .
@@ -1508,7 +1565,8 @@ class server {
                    'tokens' => $tokens,
                    'accts' => $accts,
                    'oldneg' => $oldneg,
-                   'newneg' => $newneg);
+                   'newneg' => $newneg,
+                   'time' => $time);
 
     $outboxhashreq = false;
     $balancehashreq = false;
@@ -1849,7 +1907,9 @@ class server {
                    'tokens' => $tokens,
                    'accts' => $accts,
                    'oldneg' => $oldneg,
-                   'newneg' => $newneg);
+                   'newneg' => $newneg
+                   // 'time' initialized below
+                   );
 
     $balancehashreq = false;
 
@@ -1865,6 +1925,7 @@ class server {
         $time = $reqtime;
         $err = $this->deq_time($id, $time);
         if ($err) return $this->failmsg($msg, $err);
+        $state['time'] = $time;
       }
       if ($reqid != $id) return $this->failmsg($msg, "ID mismatch");
       elseif ($request == $t->STORAGE) {
