@@ -279,13 +279,13 @@ class utility {
   }
 
   // Calculate the storage fee.
-  // $balance is the starting balance, updated on output.
+  // $balance is the balance
   // $baltime is the time of the $balance
   // $now is the current time
   // $percent is the storage fee rate, in percent/year
   // $digits is the precision for the arithmetic
   // Returns the storage fee, and subtracts it from $balance
-  function storage_fee(&$balance, $baltime, $now, $percent, $digits) {
+  function storage_fee($balance, $baltime, $now, $percent, $digits) {
     if (!$percent) return 0;
 
     $SECSPERYEARPCT = bcmul(60 * 60 * 24 * 365, 100, 0);
@@ -293,7 +293,6 @@ class utility {
     $fee = bcmul($balance, $percent, $digits);
     $fee = bcmul($fee, $now - $baltime, $digits);
     $fee = bcdiv($fee, $SECSPERYEARPCT, $digits);
-    $balance = bcsub($balance, $fee, $digits);
     return $fee;
   }
 

@@ -367,7 +367,7 @@ function do_asset() {
       $assetid = mqpost("assetid$i");
       $opercent = mqpost("opercent$i");
       $percent = mqpost("percent$i");
-      if ($percent != $opercent) {
+      if (!($percent === $opercent)) {   // Detect differences in trailing zeroes
         $asset = $client->getasset($assetid);
         if (is_string($asset)) {
           $error = "Can't find assetid: $assetid";

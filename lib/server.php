@@ -639,28 +639,37 @@ class server {
       }
     }
 
+    // Compute storage charges:
+    // $state['charges'] =
+    //   array($assetid =>
+    //         array('percent' => <Storage fee percent>,
+    //               'issuer' => <Asset issuer>,
+    //               'fraction' => <Fraction balance after fraction storage charge>,
+    //               'digits' => <Digits of precision to keep on fraction>
+    //               'storagefee' => <Total storage fee for asset>))
     $charges = $state['charges'];
     if (!$charges) $state['charges'] = $charges = array();
     $assetinfo = $charges[$asset];
     if (!$assetinfo) {
       $assetinfo = array();
-      $percent = $this->storageinfo($id, $assetid, $issuer, $fraction, $fractime);
-      if ($percent) {
-        if ($fraction) {
-          $time = $state['time'];
-          $fracfee = $u->storage_fee($fraction, $fractime, $time, $percent, $digits);
+      $tokenid = $this->tokenid;
+      if ($asset != $tokenid) {
+        $percent = $this->storageinfo($id, $asset, $issuer, $fraction, $fractime);
+        if ($percent) {
+          if ($fraction) {
+            $time = $state['time'];
+            $fracfee = $u->storage_fee($fraction, $fractime, $time, $percent, $digits);
+          }
+          $assetinfo['percent'] = $percent;
+          $assetinfo['issuer'] = $issuer;
+          $assetinfo['fraction'] = $fraction;
+          $assetinfo['storagefee'] = $fracfee;
+          $assetinfo['digits'] = $u->fraction_digits($percent);
         }
-        $assetinfo['percent'] = $percent;
-        $assetinfo['issuer'] = $issuer;
-        $assetinfo['fraction'] = $fraction;
-        $assetinfo['storagefee'] = $fracfee;
-        $assetinfo['digits'] = $u->fraction_digits($percent);
       }
-      $charges[$asset] = $assetinfo;
-      $state['charges'] = $charges;
     }
     $percent = $assetinfo['percent'];
-    if ($percent && $amount) {
+    if ($percent && bccomp($amount, 0) > 0) {   // no charges for asset issuer
       $digits = $assetinfo['digits'];
       $storagefee = $assetinfo['storagefee'];
       $amttime = $acctargs[$t->TIME];
@@ -668,6 +677,8 @@ class server {
       $fee = $u->storage_fee($amount, $amttime, $time, $percent, $digits);
       $assetinfo['storagefee'] = bcadd($storagefee, $fee, $digits);
     }
+    $charges[$asset] = $assetinfo;
+    $state['charges'] = $charges;
     return false;
   }
 
@@ -1031,6 +1042,35 @@ class server {
     $accts = $state['accts'];
     $oldneg = $state['oldneg'];
     $newneg = $state['newneg'];
+    $charges = $state['charges'];
+
+    // Work the transaction fee into the balances
+    $storagefee = false;
+    if ($charges) {
+      $assetinfo = $charges[$assetid];
+      if ($assetinfo) {
+        $storagefee = $assetinfo['storagefee'];
+        if ($storagefee) {
+          $issuer = $assetinfo['issuer'];
+          $fraction = $assetinfo['fraction'];
+          $digits = $assetinfo['digits'];
+          $bal = $bals[$assetid];
+          $bal = bcadd($bal, $fraction, $digits);
+          $bal = bcsub($bal, $storagefee, $digits);
+          $u->normalize_balance($bal, $fraction, $digits);
+          $bals[$assetid] = $bal;
+          if (bccomp($fraction, $fracamt) != 0) {
+            return $this->failmsg($msg, "Fraction amount was: $fractamt, sb: $fraction");
+          }
+          if (bccomp($storagefee, $storageamt) != 0) {
+            return $this->failmsg($msg, "Storage fee was: $storageamt, sb: $storagefee");
+          }
+        }
+      }
+    }
+    if (!$storagefee && ($storagemsg || $fracmsg)) {
+      return $this->failmsg($msg, "Storage or fraction included when no storage fee");
+    }
 
     // tranfee must be included if there's a transaction fee
     if ($tokens != 0 && !$feemsg && $id != $id2) {
@@ -1107,6 +1147,8 @@ class server {
 
     // All's well with the world. Commit this puppy.
     // Eventually, the commit will be done as a second phase.
+    // *** Still need to commit the fraction and return
+    // *** $fracmsg and $storagemsg
     $outbox_item = $this->bankmsg($t->ATSPEND, $spendmsg);
     if ($feemsg) {
       $outbox_item .= ".$feemsg";
