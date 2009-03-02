@@ -73,6 +73,8 @@ $dbdir/
         <time6#>=(<bankid>,inbox,<time6#>,(<id3>,spend|reject,<bankid>,<time3#>,<id>,note:<note32>))
         <time7#>=(<bankid>,inbox,<time7#>,(<id4>,spend,<bankid>,<time4#>,<id>,<assetid4>,<amount4>,note:<note4>)).
                  (<bankid>,@tranfee,(<id>,tranfee,<bankid>,<time4#>,<tokenid>,<amount4fee>))
+      storagefee/
+        <assetid>=(<bankid>,storagefee,<bankid>,<time#>,<assetid>,<amount>)
       transaction/
         (<bankid>,@spend,(<id>,spend,<time#>,<id2>,<bankid>,<assetid>,<amount>,note:<note>))...
           or
@@ -403,7 +405,9 @@ Query Inbox
   (<bankid>,inbox,<time8#>,(<id4>,spend,<bankid>,<time4#>,note:<note4>)).
   (<bankid>,@tranfee,(<id4>,tranfee,<bankid>,<time4#>,<tokenid>,<amount4fee>)).
   (<bankid>,inbox,<time9#>,(<id5>,spend,<bankid>,time5#>,note:<note5>)).
-  (<bankid>,@tranfee,(<id5>,tranfee,<bankid>,<time5#>,<tokenid>,<amount5fee>))
+  (<bankid>,@tranfee,(<id5>,tranfee,<bankid>,<time5#>,<tokenid>,<amount5fee>)).
+  (<bankid>,storagefee,<bankid>,<time10#>,<assetid>,<amount>).
+  (<bankid>,storagefee,<bankid>,<time11#>,<assetid2>,<amount>)
 
   Otherwise, bank sends:
 
@@ -423,42 +427,42 @@ Process Inbox
 
   Customer sends:
 
-(<id>,processinbox,<bankid>,<time11#>,<time6#>|<time7#>|<time8#>|<time9#>).
+(<id>,processinbox,<bankid>,<time12#>,<time6#>|<time7#>|<time8#>|<time9#>).
   (<id>,spend|accept,<bankid>,<id4>,<time4#>,note:<note42>).
   (<id>,spend|reject,<bankid,<id5>,<time5#>,note:<note52>).
-  (<id>,balance,<bankid>,<time11#>,<assetid>,<amount>,acct:<acct>).
-  (<id>,balance,<bankid>,<time11#>,assetid2>,<amount2>,acct:<acct2>).
+  (<id>,balance,<bankid>,<time12#>,<assetid>,<amount>,acct:<acct>).
+  (<id>,balance,<bankid>,<time12#>,assetid2>,<amount2>,acct:<acct2>).
   ...
-  (<id>,balance,<bankid>,<time11#>,<assetidN>,<amount3>,acct:<acctN>).
-  (<id>,outboxhash,<bankid>,<time11#>,<outboxcount>,<outboxhash>).
-  (<id>,balancehash,<bankid>,<time11#>,<balancecount>,<balancehash>)
+  (<id>,balance,<bankid>,<time12#>,<assetidN>,<amount3>,acct:<acctN>).
+  (<id>,outboxhash,<bankid>,<time12#>,<outboxcount>,<outboxhash>).
+  (<id>,balancehash,<bankid>,<time12#>,<balancecount>,<balancehash>)
 
-  Bank compares <time11#> to /account/<id>/time. If it's the
+  Bank compares <time12#> to /account/<id>/time. If it's the
   same. Bank processes the requested inbox transactions, and compares
   the result to the balances and hashes sent by customer. If
   correct, bank computes the response below, stores it in
   /account/<id>/tranaction, and responds with:
 
-(<bankid,@processinbox,(<id>,processinbox,<bankid>,<time11#>,<time7#>|<time8#>|<time9#>).
+(<bankid,@processinbox,(<id>,processinbox,<bankid>,<time12#>,<time7#>|<time8#>|<time9#>).
   (<bankid>,@spend|accept,(<id>,spend|accept,<bankid>,<id4>,<time4#>,note:<note42>)).
   (<bankid,@spend|reject,(<id>,spend|reject,<bankid,<id5>,<time5#>,note:<note52>)).
-  (<bankid>,@balance,(<id>,balance,<bankid>,<time11#>,<assetid>,<amount>,acct:<acct>)).
-  (<bankid>,@balance,(<id>,balance,<bankid>,time11#>,assetid2>,<amount2>,acct:<acct2>)).
+  (<bankid>,@balance,(<id>,balance,<bankid>,<time12#>,<assetid>,<amount>,acct:<acct>)).
+  (<bankid>,@balance,(<id>,balance,<bankid>,time12#>,assetid2>,<amount2>,acct:<acct2>)).
   ...
-  (<bankid>,@balance,(<id>,balance,<bankid>,<time11#>,<assetidN>,<amount3>,acct:<acctN>)).
-  (<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time11#>,<outboxcount>,<outboxhash>)).
-  (<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time11#>,<balancecount>,<balancehash>))
+  (<bankid>,@balance,(<id>,balance,<bankid>,<time12#>,<assetidN>,<amount3>,acct:<acctN>)).
+  (<bankid>,@outboxhash,(<id>,outboxhash,<bankid>,<time12#>,<outboxcount>,<outboxhash>)).
+  (<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time12#>,<balancecount>,<balancehash>))
 
   Otherwise, bank returns:
 
-(<bankid>,failed,(<id>,processinbox,<bankid>,<time11#>|<time6#>|<time7#>|<time8#>|<time9#>),errcode:<errcode>,reason:<reason>)
+(<bankid>,failed,(<id>,processinbox,<bankid>,<time12#>|<time6#>|<time7#>|<time8#>|<time9#>),errcode:<errcode>,reason:<reason>)
 
   Again, that was the first phase of the two phase commit.
 
   To commit the transaction, the customer countersigns the
   balancehash, and sends it back to the bank:
 
-(<id>,commit,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time11#>,<balancecount>,<balancehash>)))
+(<id>,commit,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time12#>,<balancecount>,<balancehash>)))
 
   The bank sets /account/<id>/time to <time12#>, removes the
   transaction from /account/<id>/inbox/, removes completed
@@ -468,7 +472,7 @@ Process Inbox
   /account/<id>/transaction, updates /account/<id>/outboxhash, and
   /account/<id>/balancehash with the signed hashes, and sends back:
 
-(<bankid>,@commit,(<id>,commit,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time11#>,<balancecount>,<balancehash>))))
+(<bankid>,@commit,(<id>,commit,(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time12#>,<balancecount>,<balancehash>))))
 
   If the bank no longer has a record of the first phase of the
   transaction, it will send:
@@ -478,12 +482,12 @@ Process Inbox
   If the customer disagrees with the banks first response, he can
   rollback the transaction by sending:
 
-(<id>,rollback,<bankid>,<time11#>)
+(<id>,rollback,<bankid>,<time12#>)
 
   The bank removes the /account/<id>/transaction file, and responds
   with:
 
-(<bankid>,@rollback,(<id>,rollback,<bankid>,<time11#>))
+(<bankid>,@rollback,(<id>,rollback,<bankid>,<time12#>))
 
   This is the most complicated function in the system. It has to deal
   with two kinds of inbox items. The first is spontaneous spends from

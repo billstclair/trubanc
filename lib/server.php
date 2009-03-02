@@ -178,6 +178,10 @@ class server {
     return $this->accountdir($id) . $this->t->INBOX;
   }
 
+  function storagefeekey($id, $assetid) {
+    return $this->accountdir($id) . $this->t->STORAGEFEE . "/$assetid";
+  }
+
   function outboxdir($id) {
     return $this->accountdir($id) . $this->t->OUTBOX;
   }
@@ -880,17 +884,26 @@ class server {
 
     $id = $args[$t->CUSTOMER];
     $lock = $db->lock($this->accttimekey($id));
-    $res = $this->do_spend_internal($args, $reqs, $msg);
+    $res = $this->do_spend_internal($args, $reqs, $msg,
+                                    $ok, $assetid, $issuer, $storagefee, $digits);
     $db->unlock($lock);
+    // This is outside the customer lock to avoid deadlock with the issuer account.
+    if ($ok && $storagefee) {
+      $err = $this->post_storage_fee($assetid, $issuer, $storagefee, $digits);
+      if ($err) return $this->failmsg($msg, "While updating storage fee: $err");
+    }
     return $res;
   }
 
-  function do_spend_internal($args, $reqs, $msg) {
+  function do_spend_internal($args, $reqs, $msg,
+                             &$ok, &$assetid, &$issuer, &$storagefee, &$digits) {
     $t = $this->t;
     $u = $this->u;
     $db = $this->db;
     $bankid = $this->bankid;
     $parser = $this->parser;
+
+    $ok = false;
 
     // $t->SPEND => array($t->BANKID,$t->TIME,$t->ID,$t->ASSET,$t->AMOUNT,$t->NOTE=>1),
     $id = $args[$t->CUSTOMER];
@@ -1147,8 +1160,6 @@ class server {
 
     // All's well with the world. Commit this puppy.
     // Eventually, the commit will be done as a second phase.
-    // *** Still need to commit the fraction and return
-    // *** $fracmsg and $storagemsg
     $outbox_item = $this->bankmsg($t->ATSPEND, $spendmsg);
     if ($feemsg) {
       $outbox_item .= ".$feemsg";
@@ -1207,6 +1218,13 @@ class server {
       }
     }
 
+    if ($fracmsg) {
+      $key = $this->fractionbalancekey($id, $assetid);
+      $db->put($key, $fracmsg);
+      $res .= ".$fracmsg";
+    }
+    if ($storagemsg) $res .= ".$storagemsg";
+
     if ($id != $id2 && $id != $bankid) {
       // Update outboxhash
       $outboxhash_item = $this->bankmsg($t->ATOUTBOXHASH, $outboxhashmsg);
@@ -1234,7 +1252,46 @@ class server {
     $db->put($this->acctlastkey($id), -1);
 
     // We're done
+    $ok = true;
     return $res;
+  }
+
+  // Credit storage fee to an asset issuer
+  function post_storage_fee($assetid, $issuer, $storagefee) {
+    $db = $this->db;
+
+    $lock = $db->lock($this->accttimekey($issuer));
+    $res = $this->post_storage_fee_internal($assetid, $issuer, $storagefee);
+    $db->unlock($lock);
+    return $res;
+  }
+
+  function post_storage_fee_internal($assetid, $issuer, $storagefee) {
+    $db = $this->db;
+    $t = $this->t;
+    $parser = $this->parser;
+    $bankid = $this->bankid;
+
+    $key = $this->storagefeekey($issuer, $assetid);
+    $storagemsg = $db->get($key);
+    if ($storagemsg) {
+      $reqs = $parser->parse($storagemsg);
+      if (!$reqs) return $parser->errmsg;
+      if (count($reqs) != 1) return "Bad storagefee msg: $storagemsg";
+      $args = $u->match_pattern($reqs[0]);
+      if (is_string($args)) return "While posting storagefee: $args";
+      if ($args[$t->CUSTOMER] != $bankid ||
+          $args[$t->REQUEST] != $t->STORAGEFEE ||
+          $args[$t->ID] != $bankid ||
+          $args[$t->ASSET] != $assetid) {
+        return "Storage fee message malformed";
+      }
+      $amount = $args[$t->AMOUNT];
+      $storagefee = bcadd($storagefee, $amount, $digits);
+    }
+    $time = $this->gettime();
+    $storagemsg = $this->bankmsg($this->STORAGEFEE, $bankid, $time, $assetid, $storagefee);
+    $db->put($key, $storagemsg);
   }
 
   // Process a spend|reject
