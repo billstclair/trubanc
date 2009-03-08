@@ -1215,6 +1215,16 @@ class client {
 
     $lock = $db->lock($this->userreqkey());
     $res = $this->spend_internal($toid, $assetid, $formattedamount, $acct, $note);
+    if ($res) {
+      // Storage fee may have changed. Reload the asset.
+      $asset = $this->getasset($assetid);
+      if (!is_string($asset)) {
+        $percent = $asset[$t->PERCENT];
+        $asset = $this->getasset($assetid, true);
+        if ($percent != $asset[$t->PERCENT]);
+        $res = $this->spend_internal($toid, $assetid, $formattedamount, $acct, $note);
+      }
+    }
     $db->unlock($lock);
 
     if ($res) $this->forceinit();
