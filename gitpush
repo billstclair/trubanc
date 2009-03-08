@@ -1,5 +1,9 @@
 #!/bin/bash
 # Push the HEAD to the shared repository
-git push git+ssh://$TRUBANC/home/htdocs/trubanc.git --tags HEAD
+# assumes the following remotes:
+#  git remote add trubanc git+ssh://$TRUBANC/home/htdocs/trubanc.git
+#  git remote add github git@github.com:billstclair/trubanc.git
+#  git remote add repo git+ssh://repo.or.cz/srv/git/Trubanc.git
+git push trubanc
 git push github
-git push git+ssh://repo.or.cz/srv/git/Trubanc.git --tags HEAD
+git push repo
