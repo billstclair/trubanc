@@ -49,7 +49,6 @@ class utility {
         $ptr = $i;
       }
     }
-    if ($ptr == 0) return $str;
     $res .= substr($str, $ptr);
     return $res;
   }
@@ -292,9 +291,12 @@ class utility {
 
     $SECSPERYEARPCT = bcmul(60 * 60 * 24 * 365, 100, 0);
 
+    $baltime = bcadd($baltime, 0, 0); // truncate
+    $now = bcadd($now, 0, 0);         // truncate
     $fee = bcmul($balance, $percent, $digits);
-    $fee = bcmul($fee, $now - $baltime, $digits);
+    $fee = bcmul($fee, bcsub($now, $baltime), $digits);
     $fee = bcdiv($fee, $SECSPERYEARPCT, $digits);
+    if (bccomp($fee, 0) < 0) $fee = 0;
     return $fee;
   }
 
@@ -309,7 +311,7 @@ class utility {
       $fraction = 0;
     } else {
       $balance = substr($total, 0, $i);
-      $fraction = substr($total, $i);
+      $fraction = '0' . substr($total, $i);
       if (bccomp($fraction, 0, $digits) == 0) $fraction = 0;
     }
   }
@@ -343,7 +345,7 @@ $fee = bcadd($balfee, $fracfee, $digits);
 echo "Fee: $fee, balance: $balance, fraction: $fraction\n";
 */
 
-// Copyright 2008 Bill St. Clair
+// Copyright 2008-2009 Bill St. Clair
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -356,5 +358,3 @@ echo "Fee: $fee, balance: $balance, fraction: $fraction\n";
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions
 // and limitations under the License.
-
-?>

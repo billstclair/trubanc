@@ -802,7 +802,8 @@ class client {
   //         $t->SCALE => $scale,
   //         $t->PRECISION => $precision,
   //         $t->ASSETNAME => $assetname,
-  //         $t->STORAGE => $percent)
+  //         $t->PERCENT => $percent
+  //         $t->ISSUER => $issuer)
   //
   // If the asset isn't found in the client database, looks it up on the
   // server, and stores it in the client database.
@@ -831,6 +832,7 @@ class client {
       $args1 = $this->match_bankreq($reqs, $t->ATSTORAGE);
       if (is_string($args1)) return "While matching storage fee: $args1";
       $args1 = $args1[$t->MSG];
+      $issuer = $args1[$t->CUSTOMER];
       $percent = $args1[$t->PERCENT];
     }
 
@@ -839,6 +841,7 @@ class client {
                  $t->SCALE => $args[$t->SCALE],
                  $t->PRECISION => $args[$t->PRECISION],
                  $t->ASSETNAME => $args[$t->ASSETNAME],
+                 $t->ISSUER => $issuer,
                  $t->PERCENT => $percent);
   }
 
@@ -1202,20 +1205,47 @@ class client {
       }
     }
 
-    $oldamount = $this->userbalance($acct, $assetid);
+    $oldamount = $this->userbalanceandtime($acct, $assetid, $oldtime);
     if (!is_numeric($oldamount)) {
       return "Error getting balance for asset in acct $acct: $oldamount";
+    }
+
+    $time = $this->gettime();
+    if (!$time) return "Unable to get timestamp for transaction from bank";
+
+    $storagefee = 0;
+    $digits = 0;
+    $percent = $this->storageinfo($assetid, $fraction, $fractime);
+    if ($percent) {
+      $digits = $u->fraction_digits($percent);
+      $fracfee = $u->storage_fee($fraction, $fractime, $time, $percent, $digits);
+      $storagefee = $u->storage_fee($oldamount, $oldtime, $time, $percent, $digits);
+      $storagefee = bcadd($storagefee, $fracfee, $digits);
+      $baseoldamount = $oldamount;
+      $oldamount = bcsub($oldamount, $storagefee, $digits);
+      $u->normalize_balance($oldamount, $fraction, $digits);
     }
 
     $newamount = bcsub($oldamount, $amount);
     if (bccomp($oldamount, 0) >= 0 &&
         bccomp($newamount,  0) < 0) {
-      return "Insufficient balance";
+      if ($id == $toid && $percent && bccomp($amount, $baseoldamount) <= 0) {
+        // User asked to transfer less than the whole amount, but the storage fee
+        // put it over. Reduce amount to leave 0 in $acct
+        $amount = $oldamount;
+        $newamount = 0;
+      } else return "Insufficient balance";
     }
 
     if ($id == $toid) {
-      $oldtoamount = $this->userbalance($toacct, $assetid);
-      $newtoamount = bcadd($oldtoamount, $amount);
+      $oldtoamount = $this->userbalanceandtime($toacct, $assetid, $totime);
+      if ($percent) {
+        $tofee = $u->storage_fee($oldtoamount, $totime, $time, $percent, $digits);
+        $storagefee = $bcadd($storagefee, $tofee, $digits);
+        $oldtoamount = $bcsub($oldtoamount, $tofee, $digits);
+      }
+      $newtoamount = bcadd($oldtoamount, $amount, $digits);
+      if ($percent) $u->normalize_balance($newtoamount, $fraction, $digits);
       if (bccomp($oldtoamount, 0) < 0 &&
           bccomp($newtoamount, 0) >=0) {
         // This shouldn't be possible.
@@ -1259,8 +1289,6 @@ class client {
       }
     }
 
-    $time = $this->gettime();
-    if (!$time) return "Unable to get timestamp for transaction from bank";
     if ($note) $spend = $this->custmsg($t->SPEND, $bankid, $time, $toid,
                                        $assetid, $amount, $note);
     else $spend = $this->custmsg($t->SPEND, $bankid, $time, $toid, $assetid, $amount);
@@ -1314,6 +1342,12 @@ class client {
       $balancehash = $this->balancehashmsg($time, $acctbals);
     }
 
+    // Prepare storage fee related message components
+    if ($percent) {
+      $storagefeemsg = $this->custmsg($t->STORAGEFEE, $bankid, $time, $assetid, $storagefee);
+      $fractionmsg = $this->custmsg($t->FRACTION, $bankid, $time, $assetid, $fraction);
+    }
+
     // Send request to server, and get response
     $msg = $spend;
     if ($feeandbal) $msg.= ".$feeandbal";
@@ -1321,6 +1355,7 @@ class client {
     if ($tobalance) $msg .= ".$tobalance";
     if ($outboxhash) $msg .= ".$outboxhash";
     if ($balancehash) $msg .= ".$balancehash";
+    if ($percent) $msg .= ".$storagefeemsg.$fractionmsg";
     $msg = $server->process($msg);
 
     $reqs = $parser->parse($msg);
@@ -1342,6 +1377,10 @@ class client {
     if ($feeandbal) {
       if ($feemsg) $msgs[$feemsg] = true;
       if ($feebal) $msgs[$feebal] = true;
+    }
+    if ($percent) {
+      $msgs[$storagefeemsg] = true;
+      $msgs[$fractionmsg] = true;
     }
 
     $coupon = false;
@@ -1393,6 +1432,10 @@ class client {
       $db->put($this->useroutboxkey($time), $spend);
     }
     $this->lastspendtime = $time;
+
+    if ($percent) {
+      $db->put($this->userfractionkey($assetid), $msgs[$fractionmsg]);
+    }
 
     if ($this->keephistory) {
       $key = $this->userhistorykey();
@@ -2120,7 +2163,6 @@ class client {
 
     $reqs = $parser->parse($msg);
     if (!$reqs) {
-      $this->debugmsg("Error parsing: $msg\n");
       return "In unpack_bankmsg, parse error: " . $parser->errmsg;
     }
 
@@ -2155,6 +2197,42 @@ class client {
       $args[$t->MSG] = $msgargs;
     }
     return $args;
+  }
+
+  // Get the values necessary to compute the storage fee.
+  // Inputs:
+  // $id - the user ID
+  // $assetid - the asset ID
+  // Return value: storage fee $percent
+  // On output (set only if $percent != 0):
+  // $fraction - the fraction balance for $id/$assetid
+  // $fractime - the time of the fraction
+  function storageinfo($assetid, &$fraction, &$fractime) {
+    $t = $this->t;
+    $u = $this->u;
+    $parser = $this->parser;
+    $db = $this->db;
+
+    $asset = $this->getasset($assetid);
+    if (!$asset) return 0;
+    $issuer = $asset[$t->ISSUER];
+    $percent = $fraction = $fractime = 0;
+    if ($issuer == $this->id) return;
+
+    $percent = $asset[$t->PERCENT];
+        
+    $key = $this->userfractionkey($assetid);
+    $msg = $db->get($key);
+    if ($msg) {
+      $args = $this->unpack_bankmsg($msg, $t->ATFRACTION);
+      if (!is_string($args)) {
+        $args = $args[$t->MSG];
+        $fraction = $args[$t->AMOUNT];
+        $fractime = $args[$t->TIME];
+      }
+    }
+
+    return $percent;
   }
 
   function pubkey($id) {
@@ -2258,6 +2336,10 @@ class client {
     return $this->userbalancekey();
   }
 
+  function userfractionkey($assetid) {
+    return $this->userbankkey($this->t->FRACTION) . "/$assetid";
+  }
+
   function userbalancekey($acct=false, $assetid=false) {
     $t = $this->t;
 
@@ -2270,6 +2352,10 @@ class client {
   }
 
   function userbalance($acct, $assetid) {
+    return $this->userbalanceandtime($acct, $assetid, $time);
+  }
+
+  function userbalanceandtime($acct, $assetid, &$time) {
     $db = $this->db;
     $t = $this->t;
 
@@ -2278,6 +2364,7 @@ class client {
       $args = $this->unpack_bankmsg($msg, $t->ATBALANCE);
       if (is_string($args)) return $args;
       $args = $args[$t->MSG];
+      $time = $args[$t->TIME];
       return $args[$t->AMOUNT];
     }
     return false;
@@ -2893,6 +2980,7 @@ class serverproxy {
   }
 
   // From http://us.php.net/manual/en/function.stream-context-create.php#72017
+  // May be able to optimize this (with keep-alive) by using the cURL functions
   function post($url, $post_variables=array()) {
     $content = http_build_query($post_variables);
     $content_length = strlen($content);
@@ -2977,7 +3065,7 @@ class pubkeydb {
   }
 }
 
-// Copyright 2008 Bill St. Clair
+// Copyright 2008-2009 Bill St. Clair
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -2991,4 +3079,3 @@ class pubkeydb {
 // See the License for the specific language governing permissions
 // and limitations under the License.
 
-?>

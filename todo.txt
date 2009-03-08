@@ -1,11 +1,14 @@
+Storage fees:
+  FRACTION comes over with GETBALANCE
+  STORAGEFEE comes over with GETINBOX
+  STORAGEFEE can be accepted by PROCESSINBOX
+  FRACTION displayed in user interface.
+  STORAGEFEE displayed in user interface, for SPEND and PROCESSINBOX
+  Sync command in user interface.
+
 Accept only the [url,number] form for coupons. Give a reasonable error
 message if the user misses copying part of the coupon (e.g. the
 opening or closing square bracket).
-
-Storage fees, as percent of assets stored per time. How to deal with
-changing storage fee when asset ownership changes. New owner can sign
-the "storage" message, and that's how we know who to pay. Just need to
-verify ownership at storage change time.
 
 Transaction fees. Fixed as amount and asset.
 

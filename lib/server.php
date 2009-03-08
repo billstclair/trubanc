@@ -148,7 +148,7 @@ class server {
     $args = $u->match_pattern($req);
     if (is_string($args)) return 0;
     if ($args[$t->REQUEST] != $t->STORAGE) return 0;
-    $issuer = $args[$t->ID];
+    $issuer = $args[$t->CUSTOMER];
     $percent = $args[$t->PERCENT];
     
     $fraction = 0;
@@ -890,7 +890,9 @@ class server {
     // This is outside the customer lock to avoid deadlock with the issuer account.
     if ($ok && $storagefee) {
       $err = $this->post_storage_fee($assetid, $issuer, $storagefee, $digits);
-      if ($err) return $this->failmsg($msg, "While updating storage fee: $err");
+      if ($err) {
+        $this->debugmsg("post_storage_fee failed: $err");
+      }
     }
     return $res;
   }
@@ -1057,7 +1059,7 @@ class server {
     $newneg = $state['newneg'];
     $charges = $state['charges'];
 
-    // Work the transaction fee into the balances
+    // Work the storage fee into the balances
     $storagefee = false;
     if ($charges) {
       $assetinfo = $charges[$assetid];
@@ -1257,18 +1259,19 @@ class server {
   }
 
   // Credit storage fee to an asset issuer
-  function post_storage_fee($assetid, $issuer, $storagefee) {
+  function post_storage_fee($assetid, $issuer, $storagefee, $digits) {
     $db = $this->db;
 
     $lock = $db->lock($this->accttimekey($issuer));
-    $res = $this->post_storage_fee_internal($assetid, $issuer, $storagefee);
+    $res = $this->post_storage_fee_internal($assetid, $issuer, $storagefee, $digits);
     $db->unlock($lock);
     return $res;
   }
 
-  function post_storage_fee_internal($assetid, $issuer, $storagefee) {
+  function post_storage_fee_internal($assetid, $issuer, $storagefee, $digits) {
     $db = $this->db;
     $t = $this->t;
+    $u = $this->u;
     $parser = $this->parser;
     $bankid = $this->bankid;
 
@@ -1282,7 +1285,7 @@ class server {
       if (is_string($args)) return "While posting storagefee: $args";
       if ($args[$t->CUSTOMER] != $bankid ||
           $args[$t->REQUEST] != $t->STORAGEFEE ||
-          $args[$t->ID] != $bankid ||
+          $args[$t->BANKID] != $bankid ||
           $args[$t->ASSET] != $assetid) {
         return "Storage fee message malformed";
       }
@@ -1290,7 +1293,7 @@ class server {
       $storagefee = bcadd($storagefee, $amount, $digits);
     }
     $time = $this->gettime();
-    $storagemsg = $this->bankmsg($this->STORAGEFEE, $bankid, $time, $assetid, $storagefee);
+    $storagemsg = $this->bankmsg($t->STORAGEFEE, $bankid, $time, $assetid, $storagefee);
     $db->put($key, $storagemsg);
   }
 
@@ -2287,7 +2290,7 @@ class server {
 
 }
 
-// Copyright 2008 Bill St. Clair
+// Copyright 2008-2009 Bill St. Clair
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -2301,4 +2304,3 @@ class server {
 // See the License for the specific language governing permissions
 // and limitations under the License.
 
-?>

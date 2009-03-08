@@ -52,6 +52,8 @@ $dbdir/
               note=<note>
               name=<name>
               pubkeysig=<pubkeysig>
+          fraction/     -- fractional amounts due to storage fees
+            <assetid>=(<bankid>,@fraction,(<id>,fraction,<bankid>,<time#>,<assetid>,<amount>))
           balancehash=(<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<count>,<hash>))
           balance/
             <acct>/  -- "main" is the default acct name
@@ -77,7 +79,7 @@ $dbdir/
             -- from getting too long to handle
             <time>=<message>...
 
-// Copyright 2008 Bill St. Clair
+// Copyright 2008-2009 Bill St. Clair
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
