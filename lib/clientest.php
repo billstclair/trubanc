@@ -191,6 +191,7 @@ while (true) {
       "fees: get transaction and registration fees\n" .
       "contacts: list contacts known to the current user\n" .
       "balance: show balances for current user\n" .
+      "fraction: show fractional balances for current user\n" .
       "spend <user#> <asset#> <amount> [<acct>]: Spend from current user to <user#>\n" .
       "cancel <spend#>: Cancel a spend. <spend#> is the outbox timestamp\n" .
       "xfer <asset#> <amount> <toacct> [<fromacct>]: Transfer from <fromacct> to <toacct>" .
@@ -334,6 +335,17 @@ while (true) {
           $amt = $balance[$t->FORMATTEDAMOUNT];
           echo "  $assetname: $amt\n";
         }
+      }
+    }
+  } elseif ($cmd == 'fraction') {
+    $fractions = $client->getfraction();
+    if (is_string($fractions)) echo "Error: $fractions\n";
+    else {
+      foreach ($fractions as $assetid => $balance) {
+          $assetname = $balance[$t->ASSETNAME];
+          $scale = $balance[$t->SCALE];
+          $amt = $balance[$t->AMOUNT];
+          echo "$assetname: $amt scale $scale\n";
       }
     }
   } elseif ($cmd == 'spend') {

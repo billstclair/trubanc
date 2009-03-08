@@ -392,6 +392,7 @@ function do_admin() {
 function do_spend() {
   global $error;
   global $client;
+  global $fraction_asset;
 
   $t = $client->t;
   $u = $client->u;
@@ -466,6 +467,7 @@ function do_spend() {
             } elseif ($mintcoupon) {
               draw_coupon($client->lastspendtime);
             } else {
+              $fraction_asset = $assetid;
               draw_balance();
             }
           }
@@ -807,6 +809,7 @@ function draw_balance($spend_amount=false, $recipient=false, $note=false,
   global $error;
   global $onload, $body;
   global $iphone, $keephistory;
+  global $fraction_asset;
   
   $t = $client->t;
 
@@ -1186,6 +1189,14 @@ EOT;
       }
       $balcode .= "</table>\n</td></tr></table>\n";
       $enabled = ($keephistory ? 'enabled' : 'disabled');
+      if ($fraction_asset && $_COOKIE['debug']) {
+        $fraction = $client->getfraction($fraction_asset);
+        $amt = $fraction[$t->AMOUNT];
+        $scale = $fraction[$t->SCALE];
+        $balcode .= "Fractional balance: $amt";
+        if ($scale) $balcode .= " x 10<sup>-$scale</sup>";
+        $balcode .= "<br/>\n";
+      }
       $balcode .= <<<EOT
 <br/>
 <a href="./?cmd=rawbalance">Show raw balance</a>
@@ -1475,6 +1486,26 @@ EOT;
       }
       $body .= "</table><br/>\n";
     }
+
+    $key = $client->userfractionkey();
+    $assetids = $db->contents($key);
+    if (count($assetids) > 0) {
+      $body .= '<br/><b>=== Fractional Balances ===</b><br/>
+<table border="1">
+';
+      foreach($assetids as $assetid) {
+        $asset = $client->getasset($assetid);
+        $assetname = $asset[$t->ASSETNAME];
+        $msg = $db->get("$key/$assetid");
+        $body .= <<<EOT
+<tr>
+<td valign="top">$assetname</td>
+<td><pre>$msg</pre></td>
+</tr>
+EOT;
+      }
+      $body .= "</table><br/>\n";
+    }  
   }
 }
 

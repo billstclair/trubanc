@@ -662,7 +662,7 @@ class server {
         if ($percent) {
           if ($fraction) {
             $time = $state['time'];
-            $fracfee = $u->storage_fee($fraction, $fractime, $time, $percent, $digits);
+            $fracfee = $u->storagefee($fraction, $fractime, $time, $percent, $digits);
           }
           $assetinfo['percent'] = $percent;
           $assetinfo['issuer'] = $issuer;
@@ -678,7 +678,7 @@ class server {
       $storagefee = $assetinfo['storagefee'];
       $amttime = $acctargs[$t->TIME];
       $time = $state['time'];
-      $fee = $u->storage_fee($amount, $amttime, $time, $percent, $digits);
+      $fee = $u->storagefee($amount, $amttime, $time, $percent, $digits);
       $assetinfo['storagefee'] = bcadd($storagefee, $fee, $digits);
     }
     $charges[$asset] = $assetinfo;
@@ -889,9 +889,9 @@ class server {
     $db->unlock($lock);
     // This is outside the customer lock to avoid deadlock with the issuer account.
     if ($ok && $storagefee) {
-      $err = $this->post_storage_fee($assetid, $issuer, $storagefee, $digits);
+      $err = $this->post_storagefee($assetid, $issuer, $storagefee, $digits);
       if ($err) {
-        $this->debugmsg("post_storage_fee failed: $err");
+        $this->debugmsg("post_storagefee failed: $err");
       }
     }
     return $res;
@@ -972,7 +972,7 @@ class server {
                    'accts' => $accts,
                    'oldneg' => $oldneg,
                    'newneg' => $newneg,
-                   'time' => $time );
+                   'time' => $time);
     $outboxhashreq = false;
     $balancehashreq = false;
     for ($i=1; $i<count($reqs); $i++) {
@@ -1070,7 +1070,6 @@ class server {
           $fraction = $assetinfo['fraction'];
           $digits = $assetinfo['digits'];
           $bal = $bals[$assetid];
-          $bal = bcadd($bal, $fraction, $digits);
           $bal = bcsub($bal, $storagefee, $digits);
           $u->normalize_balance($bal, $fraction, $digits);
           $bals[$assetid] = $bal;
@@ -1121,7 +1120,7 @@ class server {
     // Check that the balances in the spend message, match the current balance,
     // minus amount spent minus fees.
     foreach ($bals as $balasset => $balamount) {
-      if ($balamount != 0) {
+      if (bccomp($balamount, 0) != 0) {
         $name = $this->lookup_asset_name($balasset);
         if (!$first) $errmsg .= ', ';
         $first = false;
@@ -1259,16 +1258,16 @@ class server {
   }
 
   // Credit storage fee to an asset issuer
-  function post_storage_fee($assetid, $issuer, $storagefee, $digits) {
+  function post_storagefee($assetid, $issuer, $storagefee, $digits) {
     $db = $this->db;
 
     $lock = $db->lock($this->accttimekey($issuer));
-    $res = $this->post_storage_fee_internal($assetid, $issuer, $storagefee, $digits);
+    $res = $this->post_storagefee_internal($assetid, $issuer, $storagefee, $digits);
     $db->unlock($lock);
     return $res;
   }
 
-  function post_storage_fee_internal($assetid, $issuer, $storagefee, $digits) {
+  function post_storagefee_internal($assetid, $issuer, $storagefee, $digits) {
     $db = $this->db;
     $t = $this->t;
     $u = $this->u;
@@ -2177,6 +2176,19 @@ class server {
           $res .= $bal;
         }
       }
+    }
+
+    // Get the fractions
+    $assetids = array();
+    if ($assetid) $assetids[] = $assetid;
+    else {
+      foreach ($assetnames as $name) $assetids[] = $name;
+    }
+      
+    foreach($assetids as $assetid) {
+      $fractionkey = $this->fractionbalancekey($id, $assetid);
+      $fraction = $db->get($fractionkey);
+      if ($fraction) $res .= ".$fraction";
     }
 
     $balancehash = $db->get($this->balancehashkey($id));

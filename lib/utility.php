@@ -286,7 +286,7 @@ class utility {
   // $percent is the storage fee rate, in percent/year
   // $digits is the precision for the arithmetic
   // Returns the storage fee, and subtracts it from $balance
-  function storage_fee($balance, $baltime, $now, $percent, $digits) {
+  function storagefee($balance, $baltime, $now, $percent, $digits) {
     if (!$percent) return 0;
 
     $SECSPERYEARPCT = bcmul(60 * 60 * 24 * 365, 100, 0);
@@ -328,18 +328,18 @@ $digits = $ut->fraction_digits($percent);
 echo "digits: $digits\n";
 $fraction = 0;
 $time = 60*60*24;
-$balfee = $ut->storage_fee($balance, 0, $time, $percent, $digits);
-$fracfee = $ut->storage_fee($fraction, 0, $time, $percent, $digits);
+$balfee = $ut->storagefee($balance, 0, $time, $percent, $digits);
+$fracfee = $ut->storagefee($fraction, 0, $time, $percent, $digits);
 $ut->normalize_balance($balance, $fraction, $digits);
 $fee = bcadd($balfee, $fracfee, $digits);
 echo "Fee: $fee, balance: $balance, fraction: $fraction\n";
-$balfee = $ut->storage_fee($balance, 0, $time, $percent, $digits);
-$fracfee = $ut->storage_fee($fraction, 0, $time, $percent, $digits);
+$balfee = $ut->storagefee($balance, 0, $time, $percent, $digits);
+$fracfee = $ut->storagefee($fraction, 0, $time, $percent, $digits);
 $ut->normalize_balance($balance, $fraction, $digits);
 $fee = bcadd($balfee, $fracfee, $digits);
 echo "Fee: $fee, balance: $balance, fraction: $fraction\n";
-$balfee = $ut->storage_fee($balance, 0, $time * 363, $percent, $digits);
-$fracfee = $ut->storage_fee($fraction, 0, $time * 363, $percent, $digits);
+$balfee = $ut->storagefee($balance, 0, $time * 363, $percent, $digits);
+$fracfee = $ut->storagefee($fraction, 0, $time * 363, $percent, $digits);
 $ut->normalize_balance($balance, $fraction, $digits);
 $fee = bcadd($balfee, $fracfee, $digits);
 echo "Fee: $fee, balance: $balance, fraction: $fraction\n";

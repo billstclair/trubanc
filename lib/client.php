@@ -1141,6 +1141,55 @@ class client {
     return $res;
   }
 
+  // Get the fraction balance for a particular assetid, or all assetids,
+  // if $assetid is false. Result is:
+  // array($assetid => array($t->AMOUNT => $amount,
+  //                         $t->SCALE => $scale
+  //                         $t->ASSETNAME => $assetname))
+  // Amounts are raw, not scaled.
+  // If an $assetid is specified, does not wrap the outer array around the result.
+  function getfraction($assetid=false) {
+    $t = $this->t;
+    $db = $this->db;
+
+    if (!$this->current_bank()) return "In getfraction(): Bank not set";
+    if ($err = $this->initbankaccts()) return $err;
+
+    $lock = $db->lock($this->userreqkey());
+    $res = $this->getfraction_internal($assetid);
+    $db->unlock($lock);
+
+    return $res;
+  }
+
+  function getfraction_internal($inassetid) {
+    $t = $this->t;
+    $db = $this->db;
+
+    if ($inassetid) $assetids = array($inassetid);
+    else $assetids = $db->contents($this->userfractionkey());
+    $res = array();
+    foreach ($assetids as $assetid) {
+      $key = $this->userfractionkey($assetid);
+      $msg = $db->get($key);
+      if ($msg) {
+        $args = $this->unpack_bankmsg($msg, $t->ATFRACTION);
+        if (is_string($args)) return "While unpacking fraction msg: $args";
+        $args = $args[$t->MSG];
+        $fraction = $args[$t->AMOUNT];
+        $asset = $this->getasset($assetid);
+        if (is_string($asset)) return "Error getting asset: $asset";
+        $scale = $asset[$t->SCALE];
+        $assetname = $asset[$t->ASSETNAME];
+        $res[$assetid] = array($t->AMOUNT => $fraction,
+                               $t->SCALE => $scale,
+                               $t->ASSETNAME => $assetname);
+      }      
+    }
+    if ($inassetid) return ($res[$inassetid]);
+    return $res;
+  }
+
   // Enable or disable history
   function keephistory($enable) {
     $this->keephistory = $enable;
@@ -1218,8 +1267,8 @@ class client {
     $percent = $this->storageinfo($assetid, $fraction, $fractime);
     if ($percent) {
       $digits = $u->fraction_digits($percent);
-      $fracfee = $u->storage_fee($fraction, $fractime, $time, $percent, $digits);
-      $storagefee = $u->storage_fee($oldamount, $oldtime, $time, $percent, $digits);
+      $fracfee = $u->storagefee($fraction, $fractime, $time, $percent, $digits);
+      $storagefee = $u->storagefee($oldamount, $oldtime, $time, $percent, $digits);
       $storagefee = bcadd($storagefee, $fracfee, $digits);
       $baseoldamount = $oldamount;
       $oldamount = bcsub($oldamount, $storagefee, $digits);
@@ -1240,7 +1289,7 @@ class client {
     if ($id == $toid) {
       $oldtoamount = $this->userbalanceandtime($toacct, $assetid, $totime);
       if ($percent) {
-        $tofee = $u->storage_fee($oldtoamount, $totime, $time, $percent, $digits);
+        $tofee = $u->storagefee($oldtoamount, $totime, $time, $percent, $digits);
         $storagefee = $bcadd($storagefee, $tofee, $digits);
         $oldtoamount = $bcsub($oldtoamount, $tofee, $digits);
       }
@@ -2221,6 +2270,8 @@ class client {
 
     $percent = $asset[$t->PERCENT];
         
+    if (!$percent) return;
+
     $key = $this->userfractionkey($assetid);
     $msg = $db->get($key);
     if ($msg) {
@@ -2336,8 +2387,10 @@ class client {
     return $this->userbalancekey();
   }
 
-  function userfractionkey($assetid) {
-    return $this->userbankkey($this->t->FRACTION) . "/$assetid";
+  function userfractionkey($assetid=false) {
+    $key = $this->userbankkey($this->t->FRACTION);
+    if ($assetid) $key .= "/$assetid";
+    return $key;
   }
 
   function userbalancekey($acct=false, $assetid=false) {
@@ -2620,6 +2673,12 @@ class client {
             $db->put($key, '');
           }
         }
+        $frackey = $this->userfractionkey();
+        $assetids = $db->contents($frackey);
+        foreach ($assetids as $assetid) {
+          $key = "$frackey/$assetid";
+          $db->put($key, '');
+        }
         $outboxkey = $this->useroutboxkey();
         $outtimes = $db->contents($outboxkey);
         foreach ($outtimes as $outtime) {
@@ -2674,6 +2733,7 @@ class client {
         $reqs = array();
       }
       $balances = array();
+      $fractions = array();
       $balancehash = false;
       foreach ($reqs as $req) {
         $args = $this->match_bankreq($req);
@@ -2695,6 +2755,14 @@ class client {
           $balances[$acct][$assetid] = $parser->get_parsemsg($req);
         } else if ($request == $t->ATBALANCEHASH) {
           $balancehash = $parser->get_parsemsg($req);
+        } else if ($request == $t->ATFRACTION) {
+          if ($msgargs[$t->REQUEST] != $t->FRACTION) {
+            return "Bank wrapped a non-fraction request with @fraction";
+          }
+          $assetid = $msgargs[$t->ASSET];
+          if (!$assetid) return "Bank wrapped fraction missing asset ID";
+          $fraction = $parser->get_parsemsg($req);
+          $fractions[$assetid] = $fraction;
         }
       }
 
@@ -2759,6 +2827,11 @@ class client {
         foreach ($assets as $assetid => $msg) {
           $db->put($this->userbalancekey($acct, $assetid), $msg);
         }
+      }
+
+      foreach ($fractions as $assetid => $fraction) {
+        $key = $this->userfractionkey($assetid);
+        $db->put($key, $fraction);
       }
 
       if ($balancehash) {
