@@ -1243,7 +1243,7 @@ class client {
     }
 
     if ($id == $toid && $acct == $toacct) {
-      return "Transfer from and  to the same ($acct). Nothing to do.";
+      return "Transfer from and to the same acct ($acct). Nothing to do.";
     }
 
     $amount = $this->unformat_asset_value($formattedamount, $assetid);
@@ -1288,10 +1288,10 @@ class client {
 
     if ($id == $toid) {
       $oldtoamount = $this->userbalanceandtime($toacct, $assetid, $totime);
-      if ($percent) {
+      if ($percent && $oldtoamount) {
         $tofee = $u->storagefee($oldtoamount, $totime, $time, $percent, $digits);
-        $storagefee = $bcadd($storagefee, $tofee, $digits);
-        $oldtoamount = $bcsub($oldtoamount, $tofee, $digits);
+        $storagefee = bcadd($storagefee, $tofee, $digits);
+        $oldtoamount = bcsub($oldtoamount, $tofee, $digits);
       }
       $newtoamount = bcadd($oldtoamount, $amount, $digits);
       if ($percent) $u->normalize_balance($newtoamount, $fraction, $digits);
