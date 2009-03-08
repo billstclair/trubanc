@@ -149,6 +149,8 @@ class server {
     if (is_string($args)) return 0;
     if ($args[$t->REQUEST] != $t->STORAGE) return 0;
     $issuer = $args[$t->CUSTOMER];
+    if ($issuer == $id) return 0;
+
     $percent = $args[$t->PERCENT];
     
     $fraction = 0;
@@ -663,7 +665,7 @@ class server {
           if ($fraction) {
             $time = $state['time'];
             $fracfee = $u->storagefee($fraction, $fractime, $time, $percent, $digits);
-          }
+          } else $fracfee = 0;
           $assetinfo['percent'] = $percent;
           $assetinfo['issuer'] = $issuer;
           $assetinfo['fraction'] = $fraction;
