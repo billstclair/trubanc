@@ -1217,11 +1217,7 @@ class client {
     $res = $this->spend_internal($toid, $assetid, $formattedamount, $acct, $note);
     if ($res) {
       // Storage fee may have changed. Reload the asset.
-      $asset = $this->getasset($assetid);
-      if (!is_string($asset)) {
-        $percent = $asset[$t->PERCENT];
-        $asset = $this->getasset($assetid, true);
-        if ($percent != $asset[$t->PERCENT]);
+      if ($this->reload_asset_return_percent_changed_p($assetid)) {
         $res = $this->spend_internal($toid, $assetid, $formattedamount, $acct, $note);
       }
     }
@@ -1502,6 +1498,18 @@ class client {
     }
 
     return false;    
+  }
+
+  // Reload an asset from the server.
+  // Return true if the storage percent changed.
+  function reload_asset_return_percent_changed_p($assetid) {
+    $t = $this->t;
+
+    $asset = $this->getasset($assetid);
+    if (is_string($asset)) return false;
+    $percent = $asset[$t->PERCENT];
+    $asset = $this->getasset($assetid, true);
+    return ($percent != $asset[$t->PERCENT]);
   }
 
   function spendreject($time, $note=false) {
@@ -1875,6 +1883,8 @@ class client {
     $history = '';
     $hist = '';
 
+    $charges = array();
+
     foreach ($directions as $dir) {
       $time = $dir[$t->TIME];
       $request = $dir[$t->REQUEST];
@@ -1897,15 +1907,18 @@ class client {
       $inreq = $in[$t->REQUEST];
       if ($inreq == $t->SPEND) {
         $id = $in[$t->ID];
+        $assetid = $in[$t->ASSET];
         $msgtime = $in[$t->MSGTIME];
+        $amount = $in[$t->AMOUNT];
         if ($msg != '') $msg .= '.';
         if ($request == $t->SPENDACCEPT) {
-          $deltas[$acct][$in[$t->ASSET]] =
-            bcadd($deltas[$acct][$in[$t->ASSET]], $in[$t->AMOUNT]);
+          $deltas[$acct][$assetid] =
+            bcadd($deltas[$acct][$assetid], $amount);
           $smsg = $this->custmsg($t->SPENDACCEPT, $bankid, $msgtime, $id, $note);
           $msgs[$smsg] = true;
           $msg .= $smsg;
           if ($inmsg) $hist .= ".$smsg.$inmsg";
+          $this->do_storagefee($charges, $amount, $msgtime, $time, $assetid);
         } elseif ($request == $t->SPENDREJECT) {
           if ($fee) {
             $deltas[$acct][$fee[$t->ASSET]] =
@@ -1927,8 +1940,11 @@ class client {
         $outfee = $out[1];      // change when we have more than one fee
         if ($inreq == $t->SPENDREJECT) {
           // For rejected spends, we get our money back
-          $deltas[$acct][$outspend[$t->ASSET]] =
-            bcadd($deltas[$acct][$outspend[$t->ASSET]], $outspend[$t->AMOUNT]);
+          $assetid = $outspend[$t->ASSET];
+          $amount = $outspend[$t->AMOUNT];
+          $deltas[$acct][$assetid] = bcadd($deltas[$acct][$assetid], $amount);
+          // And we have to pay for storage on the amount.
+          $this->do_storagefee($charges, $amount, $msgtime, $time, $assetid);
         } elseif ($outfee) {
           // For accepted spends, we get our tranfee back
           $deltas[$t->MAIN][$outfee[$t->ASSET]] =
@@ -1962,6 +1978,10 @@ class client {
         if ((!$oldamount) && !($oldamount==="0")) {
           $deltas[$t->MAIN][$feeasset] = bcsub($deltas[$t->MAIN][$feeasset], 1);
         }
+        if (bccomp($oldamount, 0) != 0) {
+          $oldtime = $balance[$acct][$asset][$t->TIME];
+          $this->do_storagefee($charges, $oldamount, $oldtime, $time, $asset);
+        }
       }
     }
 
@@ -1987,6 +2007,21 @@ class client {
     $msgs[$balancehash] = true;
     $msg = $msg . ".$balancehash";
 
+    // Add storage and fraction messages
+    $fracmsgs = array();
+    foreach ($charges as $assetid => $assetinfo) {
+      $storagefee = $assetinfo['storagefee'];
+      if ($storagefee) {
+        $fraction = $assetinfo['fraction'];
+        $storagefeemsg = $this->custmsg($t->STORAGEFEE, $bankid, $time, $asetid, $storagefee);
+        $msgs[$storagefeemsg] = true;
+        $fracmsg = $this->custmsg($t->FRACTION, $bankid, $time, $assetid, $fraction);
+        $msgs[$fracmsg] = true;
+        $msg .= ".$storagefeemsg.$fracmsg";
+        $fracmsgs[$assetid] = $fracmsg;
+      }
+    }
+
     // Send request to server
     $msg = $server->process($msg);
 
@@ -2000,6 +2035,10 @@ class client {
         if (!$recursive) {
           // Force reload of balances and outbox
           if ($err = $this->forceinit()) return $err;
+          // Force reload of assets
+          foreach ($assetlist as $assetid) {
+            reload_asset_return_percent_changed_p($assetid);
+          }
           return $this->processinbox_internal($directions, true);
         }
         return "Error from processinbox request: $args";
@@ -2030,6 +2069,11 @@ class client {
       }
     }
 
+    foreach($fracmsgs as $assetid => $fracmsg) {
+      $key = $this->userfractionkey($assetid);
+      $db->put($key, $fracmsg);
+    }
+
     if ($outboxhash) {
       foreach($outbox_deletions as $outbox_time) {
         $db->put($this->useroutboxkey($outbox_time), '');
@@ -2045,6 +2089,9 @@ class client {
     }
 
     return false;
+  }
+
+  function do_storagefee(&$charges, $amount, $msgtime, $time, $assetid) {
   }
 
   // Get the outbox contents.

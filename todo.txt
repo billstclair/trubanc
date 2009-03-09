@@ -6,16 +6,20 @@ Storage fees:
   STORAGEFEE displayed in user interface, for SPEND and PROCESSINBOX
   Sync command in user interface.
 
+The current, not original, asset issuer should be allowed to change the storage fee.
+
 Accept only the [url,number] form for coupons. Give a reasonable error
 message if the user misses copying part of the coupon (e.g. the
 opening or closing square bracket).
 
 Transaction fees. Fixed as amount and asset.
 
+Lisp wrapper around the OpenSSL command line.
+  If this works, do a whole server in Lisp.
+
 Currently, transaction fees go only to bank. Could give asset issuer a cut.
 Currently, storage fees go only to asset issuer. Could give bank a cut.
-Currently, transaction fees are paid by spender. Could charge
-  recipient, instead or as well
+Currently, transaction fees are paid by spender. Could charge recipient, instead or as well.
 
 Time zone preference for client.
 
