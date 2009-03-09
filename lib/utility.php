@@ -292,9 +292,9 @@ class utility {
     $SECSPERYEARPCT = bcmul(60 * 60 * 24 * 365, 100, 0);
 
     $baltime = bcadd($baltime, 0, 0); // truncate
-    $now = bcadd($now, 0, 0);         // truncate
+    $time = bcadd($now, 0, 0);         // truncate
     $fee = bcmul($balance, $percent, $digits);
-    $fee = bcmul($fee, bcsub($now, $baltime), $digits);
+    $fee = bcmul($fee, bcsub($time, $baltime), $digits);
     $fee = bcdiv($fee, $SECSPERYEARPCT, $digits);
     if (bccomp($fee, 0) < 0) $fee = 0;
     return $fee;

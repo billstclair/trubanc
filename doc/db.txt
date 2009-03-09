@@ -431,9 +431,15 @@ Process Inbox
   (<id>,spend|accept,<bankid>,<id4>,<time4#>,note:<note42>).
   (<id>,spend|reject,<bankid,<id5>,<time5#>,note:<note52>).
   (<id>,balance,<bankid>,<time12#>,<assetid>,<amount>,acct:<acct>).
+  (<id>,storagefee,<bankid>,<time12#>,<assetid>,<storageamount>).
+  (<id>,fraction,<bankid>,<time12#>,<assetid>,<fractionamount>).
   (<id>,balance,<bankid>,<time12#>,assetid2>,<amount2>,acct:<acct2>).
+  (<id>,storagefee,<bankid>,<time12#>,<assetid2>,<storageamount2>).
+  (<id>,fraction,<bankid>,<time12#>,<assetid2>,<fractionamount2>).
   ...
   (<id>,balance,<bankid>,<time12#>,<assetidN>,<amount3>,acct:<acctN>).
+  (<id>,storagefee,<bankid>,<time12#>,<assetidN>,<storageamountN>).
+  (<id>,fraction,<bankid>,<time12#>,<assetidN>,<fractionamountN>).
   (<id>,outboxhash,<bankid>,<time12#>,<outboxcount>,<outboxhash>).
   (<id>,balancehash,<bankid>,<time12#>,<balancecount>,<balancehash>)
 

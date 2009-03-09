@@ -1559,17 +1559,31 @@ class server {
 
     $id = $args[$t->CUSTOMER];
     $lock = $db->lock($this->accttimekey($id));
-    $res = $this->do_processinbox_internal($args, $reqs, $msg);
+    $res = $this->do_processinbox_internal($args, $reqs, $msg, $ok, $charges);
     $db->unlock($lock);
+    // This is outside the customer lock to avoid deadlock with the issuer account.
+    if ($ok && $charges) {
+      foreach ($charges as $assetid => $assetinfo) {
+        $issuer = $assetinfo['issuer'];
+        $storagefee = $assetinfo['storagefee'];
+        $digits = $assetinfo['digits'];
+        $err = $this->post_storagefee($assetid, $issuer, $storagefee, $digits);
+        if ($err) {
+          $this->debugmsg("post_storagefee failed: $err");
+        }
+      }
+    }
     return $res;
   }
 
-  function do_processinbox_internal($args, $reqs, $msg) {
+  function do_processinbox_internal($args, $reqs, $msg, &$ok, &$charges) {
     $t = $this->t;
     $u = $this->u;
     $db = $this->db;
     $bankid = $this->bankid;
     $parser = $this->parser;
+
+    $ok = false;
 
     // $t->PROCESSINBOX => array($t->BANKID,$t->TIME,$t->TIMELIST),
     $id = $args[$t->CUSTOMER];
@@ -1585,6 +1599,8 @@ class server {
     $fees = array();
     $accepts = array();
     $rejects = array();
+    $storagemsgs = array();
+    $fracmsgs = array();
 
     $inboxkey = $this->inboxkey($id);
     foreach ($inboxtimes as $inboxtime) {
@@ -1638,6 +1654,7 @@ class server {
 
     $oldneg = array();
     $newneg = array();
+    $tobecharged = array();     // amount/time pairs for accepted spends
 
     // Credit the spend amounts for rejected spends, but do NOT
     // refund the transaction fees
@@ -1651,10 +1668,14 @@ class server {
       $spendargs = $spendfeeargs[0];
       $asset = $spendargs[$t->ASSET];
       $amt = $spendargs[$t->AMOUNT];
+      $spendtime = $spendargs[$t->TIME];
       if (bccomp($amt, 0) < 0) {
         $oldneg[$asset] = $spendargs;
       }
       $bals[$asset] = bcadd($bals[$asset], $amt);
+      $tobecharged[] = array($t->AMOUNT => $amt,
+                             $t->TIME => $outboxtime,
+                             $t->ASSET => $asset);
     }
 
     $inboxmsgs = array();
@@ -1673,6 +1694,8 @@ class server {
 
     $outboxhashreq = false;
     $balancehashreq = false;
+    $fracamts = array();
+    $storageamts = array();
 
     // Go through the rest of the processinbox items, collecting
     // accept and reject instructions and balances.
@@ -1701,10 +1724,14 @@ class server {
           // Accepting the payment. Credit it.
           $itemasset = $itemargs[$t->ASSET];
           $itemamt = $itemargs[$t->AMOUNT];
+          $itemtime = $itemargs[$t->TIME];
           if (bccomp($itemamt, 0) < 0 && $itemargs[$t->CUSTOMER] != $bankid) {
             $state['oldneg'][$itemasset] = $itemargs;
           }
           $state['bals'][$itemasset] = bcadd($state['bals'][$itemasset], $itemamt);
+          $tobecharged[] = array($t->AMOUNT => $itemamt,
+                                 $t->TIME = $itemtime,
+                                 $t->ASSET = $itemasset);
           $res .= '.' . $this->bankmsg($t->ATSPENDACCEPT, $reqmsg);
         } else {
           // Rejecting the payment. Credit the fee.
@@ -1728,6 +1755,32 @@ class server {
           $inboxmsg = $this->bankmsg($t->INBOX, $inboxtime, $reqmsg);
         }
         if ($inboxtime) $inboxmsgs[] = array($otherid, $inboxtime, $inboxmsg);
+      } elseif ($request == $t->STORAGEFEE) {
+        if ($time != $args[$t->TIME]) {
+          $argstime = $args[$t->TIME];
+          return $this->failmsg($msg, "Time mismatch in storagefee item, was: $argstime, sb: $time");
+        }
+        $storageasset = $args[$t->ASSET];
+        $storageamt = $args[$t->AMOUNT];
+        if ($storagemsgs[$storageasset]) {
+          return $this->failmsg($msg, "Duplicate storage fee for asset: $storageasset");
+        }
+        $storageamts[$storageasset] = $storageamt;
+        $storagemsg = $this->bankmsg($t->ATSTORAGEFEE, $reqmsg);
+        $storagemsgs[$storageasset] = $storagemsg;
+      } elseif ($request == $t->FRACTION) {
+        if ($time != $args[$t->TIME]) {
+          $argstime = $args[$t->TIME];
+          return $this->failmsg($msg, "Time mismatch in fraction item, was: $argstime, sb: $time");
+        }
+        $fracasset = $args[$t->ASSET];
+        $fracamt = $args[$t->AMOUNT];
+        if ($fracmsgs[$fracasset]) {
+          return $this->failmsg($msg, "Duplicate fraction balance for asset: $fracasset");
+        }
+        $fracamts[$fracasset] = $fracamt;
+        $fracmsg = $this->bankmsg($t->ATFRACTION, $reqmsg);
+        $fracmsgs[$fracasset] = $fracmsg;
       } elseif ($request == $t->OUTBOXHASH) {
         if ($outboxhashreq) {
           return $this->failmsg($msg, $t->OUTBOXHASH . " appeared multiple times");
@@ -1741,7 +1794,8 @@ class server {
         $outboxcnt = $args[$t->COUNT];
       } elseif ($request == $t->BALANCE) {
         if ($time != $args[$t->TIME]) {
-          return $this->failmsg($msg, "Time mismatch in balance item");
+          $argstime = $args[$t->TIME];
+          return $this->failmsg($msg, "Time mismatch in balance item, was: $argstime, sb: $time");
         }
         $errmsg = $this->handle_balance_msg($id, $reqmsg, $args, $state);
         if ($errmsg) return $this->failmsg($msg, $errmsg);
@@ -1771,6 +1825,7 @@ class server {
     $accts = $state['accts'];
     $oldneg = $state['oldneg'];
     $newneg = $state['newneg'];
+    $charges = $state['charges'];
 
     // Check that we have exactly as many negative balances after the transaction
     // as we had before.
@@ -1786,6 +1841,66 @@ class server {
     // Charge the new balance file tokens
     $tokenid = $this->tokenid;
     $bals[$tokenid] = bcsub($bals[$tokenid], $tokens);
+
+    // Work the storage fees into the balances
+    $storagefees = array();
+    $fractions = array();
+    if ($charges) {
+      // Add storage fees for accepted spends and affirmed rejects
+      foreach ($tobecharged as $item) {
+        $itemamt = $item[$t->AMOUNT];
+        $itemtime = $item[$t->TIME];
+        $itemasset = $item[$t->ASSET];
+        $assetinfo = $charges[$itemasset];
+        if ($assetinfo && ($itemasset != $tokenid)) {
+          $percent = $assetinfo['percent'];
+          if ($percent) {
+            $digits = $assetinfo['digits'];
+            $itemfee = $u->storagefee($itemamt, $itemtime, $time, $percent, $digits);
+            $storagefee = bcadd($assetinfo['storagefee'], $itemfee, $digits);
+            $assetinfo['storagefee'] = $storagefee;
+            $charges[$itemaset] = $assetinfo;            
+          }
+        }
+      }
+      foreach ($charges as $itemasset => $assetinfo) {
+        $percent = $assetinfo['digits'];
+        if ($percent) {
+          $digits = $assetinfo['digits'];
+          $storagefee = $assetinfo['storagefee'];
+          $bal = bcsub($bals[$itemasset], $storagefee, $digits);
+          $fraction = bcadd($fractions[$itemasset], $assetinfo['fraction'], $digits);
+          $u->normalize_balance($bal, $fraction, $digits);
+          $bals[$itemasset] = $bal;
+          $assetinfo['fraction'] = $fraction;
+          $charges[$itemasset] = $assetinfo;
+          $storagefees[$itemasset] = bcadd($storagefees[$itemasset], $storagefee, $digits);
+          $fractions[$itemasset] = $fraction;
+        }
+      }
+    }
+
+    foreach ($storageamts as $storageasset => $storageamt) {
+      $storagefee = $storagefees[$storageasset];
+      if (bccomp($storageamt, $storagefee) != 0) {
+        return $this->failmsg($msg, "Storage fee mismatch, sb: $storageamt, was: $storagefee");
+      }
+      unset($storagefees[$storageasset]);
+    }
+    if (count($storagefees) > 0) {
+      return $this->failmsg($msg, "Storage fees missing for some assets");      
+    }
+
+    foreach ($fracamts as $fracasset => $fracamt) {
+      $fraction = $fractions[$fracasset];
+      if (bccomp($fracamt, $fraction) != 0) {
+        return $this->failmsg($msg, "Fraction mismatch, sb: $fracamt, was: $fraction");
+      }
+      unset($fractions[$fracamt]);
+    }
+    if (count($fractions) > 0) {
+      return $this->failmsg($msg, "Fraction balances missing for some assets");
+    }
 
     $errmsg = "";
     $first = true;
@@ -1891,6 +2006,15 @@ class server {
       $db->put($this->balancehashkey($id), $balancehash_item);
     }
 
+    // Update fractions, and add fraction and storagefee messages to result
+    foreach ($storagemsgs as $storagemsg) $res .= ".$storagemsg";
+    foreach ($fracmsgs as $fracasset => $fracmsg) {
+      $res .= ".$fracmsg";
+      $key = $this->fractionbalancekey($id, $fracasset);
+      $db->put($key, $fracmsg);
+    }
+    
+    $ok = true;
     return $res;
   }
 
