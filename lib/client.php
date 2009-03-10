@@ -1054,6 +1054,7 @@ class client {
   //                         array($t->ASSET => $assetid,
   //                               $t->ASSETNAME => $assetname,
   //                               $t->AMOUNT => $amount,
+  //                               $t->TIME => $time,
   //                               $t->FORMATTEDAMOUNT => $formattedamount),
   //                         ...),
   //          ...)
@@ -1116,7 +1117,7 @@ class client {
       else $assetids = $db->contents($this->userbalancekey($acct));
       $assets = array();
       foreach ($assetids as $assetid) {
-        $amount = $this->userbalance($acct, $assetid);
+        $amount = $this->userbalanceandtime($acct, $assetid, $time);
         if (!is_numeric($amount)) return "While gathering balances: $amount";
         $asset = $this->getasset($assetid);
         if (is_string($asset)) {
@@ -1129,6 +1130,7 @@ class client {
         $assets[$assetid] = array($t->ASSET => $assetid,
                                   $t->ASSETNAME => $assetname,
                                   $t->AMOUNT => $amount,
+                                  $t->TIME => $time,
                                   $t->FORMATTEDAMOUNT => $formattedamount);
       }
       uasort($assets, array('client', 'comparebalances'));
@@ -1217,7 +1219,7 @@ class client {
     $res = $this->spend_internal($toid, $assetid, $formattedamount, $acct, $note);
     if ($res) {
       // Storage fee may have changed. Reload the asset.
-      if ($this->reload_asset_return_percent_changed_p($assetid)) {
+      if ($this->reload_asset_p($assetid)) {
         $res = $this->spend_internal($toid, $assetid, $formattedamount, $acct, $note);
       }
     }
@@ -1400,7 +1402,7 @@ class client {
     // Prepare storage fee related message components
     if ($percent) {
       $storagefeemsg = $this->custmsg($t->STORAGEFEE, $bankid, $time, $assetid, $storagefee);
-      $fractionmsg = $this->custmsg($t->FRACTION, $bankid, $time, $assetid, $fraction);
+      $fracmsg = $this->custmsg($t->FRACTION, $bankid, $time, $assetid, $fraction);
     }
 
     // Send request to server, and get response
@@ -1410,7 +1412,7 @@ class client {
     if ($tobalance) $msg .= ".$tobalance";
     if ($outboxhash) $msg .= ".$outboxhash";
     if ($balancehash) $msg .= ".$balancehash";
-    if ($percent) $msg .= ".$storagefeemsg.$fractionmsg";
+    if ($percent) $msg .= ".$storagefeemsg.$fracmsg";
     $msg = $server->process($msg);
 
     $reqs = $parser->parse($msg);
@@ -1435,7 +1437,7 @@ class client {
     }
     if ($percent) {
       $msgs[$storagefeemsg] = true;
-      $msgs[$fractionmsg] = true;
+      $msgs[$fracmsg] = true;
     }
 
     $coupon = false;
@@ -1489,7 +1491,7 @@ class client {
     $this->lastspendtime = $time;
 
     if ($percent) {
-      $db->put($this->userfractionkey($assetid), $msgs[$fractionmsg]);
+      $db->put($this->userfractionkey($assetid), $msgs[$fracmsg]);
     }
 
     if ($this->keephistory) {
@@ -1502,7 +1504,7 @@ class client {
 
   // Reload an asset from the server.
   // Return true if the storage percent changed.
-  function reload_asset_return_percent_changed_p($assetid) {
+  function reload_asset_p($assetid) {
     $t = $this->t;
 
     $asset = $this->getasset($assetid);
@@ -1912,13 +1914,13 @@ class client {
         $amount = $in[$t->AMOUNT];
         if ($msg != '') $msg .= '.';
         if ($request == $t->SPENDACCEPT) {
+          $this->do_storagefee($charges, $amount, $msgtime, $trans, $assetid);
           $deltas[$acct][$assetid] =
             bcadd($deltas[$acct][$assetid], $amount);
           $smsg = $this->custmsg($t->SPENDACCEPT, $bankid, $msgtime, $id, $note);
           $msgs[$smsg] = true;
           $msg .= $smsg;
           if ($inmsg) $hist .= ".$smsg.$inmsg";
-          $this->do_storagefee($charges, $amount, $msgtime, $time, $assetid);
         } elseif ($request == $t->SPENDREJECT) {
           if ($fee) {
             $deltas[$acct][$fee[$t->ASSET]] =
@@ -1942,9 +1944,9 @@ class client {
           // For rejected spends, we get our money back
           $assetid = $outspend[$t->ASSET];
           $amount = $outspend[$t->AMOUNT];
+          $this->do_storagefee($charges, $amount, $msgtime, $trans, $assetid);
           $deltas[$acct][$assetid] = bcadd($deltas[$acct][$assetid], $amount);
           // And we have to pay for storage on the amount.
-          $this->do_storagefee($charges, $amount, $msgtime, $time, $assetid);
         } elseif ($outfee) {
           // For accepted spends, we get our tranfee back
           $deltas[$t->MAIN][$outfee[$t->ASSET]] =
@@ -1975,12 +1977,13 @@ class client {
     foreach ($deltas as $acct => $amounts) {
       foreach ($amounts as $asset => $amount) {
         $oldamount = $balance[$acct][$asset][$t->AMOUNT];
-        if ((!$oldamount) && !($oldamount==="0")) {
-          $deltas[$t->MAIN][$feeasset] = bcsub($deltas[$t->MAIN][$feeasset], 1);
-        }
         if (bccomp($oldamount, 0) != 0) {
           $oldtime = $balance[$acct][$asset][$t->TIME];
-          $this->do_storagefee($charges, $oldamount, $oldtime, $time, $asset);
+          $this->do_storagefee($charges, $oldamount, $oldtime, $trans, $asset);
+          $balance[$acct][$asset][$t->AMOUNT] = $oldamount;
+        }
+        if ((!$oldamount) && !($oldamount==="0")) {
+          $deltas[$t->MAIN][$feeasset] = bcsub($deltas[$t->MAIN][$feeasset], 1);
         }
       }
     }
@@ -2010,12 +2013,13 @@ class client {
     // Add storage and fraction messages
     $fracmsgs = array();
     foreach ($charges as $assetid => $assetinfo) {
-      $storagefee = $assetinfo['storagefee'];
-      if ($storagefee) {
+      $percent = $assetinfo['percent'];
+      if ($percent) {
+        $storagefee = $assetinfo['storagefee'];
         $fraction = $assetinfo['fraction'];
-        $storagefeemsg = $this->custmsg($t->STORAGEFEE, $bankid, $time, $asetid, $storagefee);
+        $storagefeemsg = $this->custmsg($t->STORAGEFEE, $bankid, $trans, $assetid, $storagefee);
         $msgs[$storagefeemsg] = true;
-        $fracmsg = $this->custmsg($t->FRACTION, $bankid, $time, $assetid, $fraction);
+        $fracmsg = $this->custmsg($t->FRACTION, $bankid, $trans, $assetid, $fraction);
         $msgs[$fracmsg] = true;
         $msg .= ".$storagefeemsg.$fracmsg";
         $fracmsgs[$assetid] = $fracmsg;
@@ -2036,8 +2040,8 @@ class client {
           // Force reload of balances and outbox
           if ($err = $this->forceinit()) return $err;
           // Force reload of assets
-          foreach ($assetlist as $assetid) {
-            reload_asset_return_percent_changed_p($assetid);
+          foreach ($charges as $assetid => $assetinfo) {
+            $this->reload_asset_p($assetid);
           }
           return $this->processinbox_internal($directions, true);
         }
@@ -2071,7 +2075,7 @@ class client {
 
     foreach($fracmsgs as $assetid => $fracmsg) {
       $key = $this->userfractionkey($assetid);
-      $db->put($key, $fracmsg);
+      $db->put($key, $msgs[$fracmsg]);
     }
 
     if ($outboxhash) {
@@ -2091,7 +2095,41 @@ class client {
     return false;
   }
 
-  function do_storagefee(&$charges, $amount, $msgtime, $time, $assetid) {
+  // Add storage fee for $amount/$msgtime to $charges[$assetid]['storagefee']
+  // and set $charges[$assetid]['fraction'] to the fractional balance.
+  function do_storagefee(&$charges, &$amount, $msgtime, $time, $assetid) {
+    $u = $this->u;
+
+    if (bccomp($amount, 0) > 0) {
+      $assetinfo = $charges[$assetid];
+      if (!$assetinfo) {
+        $assetinfo = array();
+        $percent = $this->storageinfo($assetid, $fraction, $fractime);
+        if ($percent) {
+          $digits = $u->fraction_digits($percent);
+          if ($fraction) {
+            $fracfee = $u->storagefee($fraction, $fractime, $time, $percent, $digits);
+          } else $fracfee = 0;
+          $assetinfo['percent'] = $percent;
+          $assetinfo['fraction'] = bcsub($fraction, $fracfee, $digits);
+          $assetinfo['storagefee'] = $fracfee;
+          $assetinfo['digits'] = $digits;
+        }
+        $charges[$assetid] = $assetinfo;
+      }
+      $percent = $assetinfo['percent'];
+      if ($percent) {
+        $digits = $assetinfo['digits'];
+        $fee = $u->storagefee($amount, $msgtime, $time, $percent, $digits);
+        $storagefee = bcadd($assetinfo['storagefee'], $fee, $digits);
+        $assetinfo['storagefee'] = $storagefee;
+        $amount = bcsub($amount, $fee, $digits);
+        $fraction = $assetinfo['fraction'];
+        $u->normalize_balance($amount, $fraction, $digits);
+        $assetinfo['fraction'] = $fraction;
+        $charges[$assetid] = $assetinfo;
+      }
+    }
   }
 
   // Get the outbox contents.

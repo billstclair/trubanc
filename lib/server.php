@@ -627,6 +627,7 @@ class server {
     if (!$acctmsg) {
       if ($id != $bankid) $state['tokens']++;
       $amount = 0;
+      $acctargs = false;
     } else {
       $acctargs = $this->unpack_bankmsg($acctmsg, $t->ATBALANCE, $t->BALANCE);
       if (is_string($acctargs) || !$acctargs ||
@@ -662,6 +663,7 @@ class server {
       if ($asset != $tokenid) {
         $percent = $this->storageinfo($id, $asset, $issuer, $fraction, $fractime);
         if ($percent) {
+          $digits = $u->fraction_digits($percent);
           if ($fraction) {
             $time = $state['time'];
             $fracfee = $u->storagefee($fraction, $fractime, $time, $percent, $digits);
@@ -670,18 +672,18 @@ class server {
           $assetinfo['issuer'] = $issuer;
           $assetinfo['fraction'] = $fraction;
           $assetinfo['storagefee'] = $fracfee;
-          $assetinfo['digits'] = $u->fraction_digits($percent);
+          $assetinfo['digits'] = $digits;
         }
       }
     }
     $percent = $assetinfo['percent'];
     if ($percent && bccomp($amount, 0) > 0) {   // no charges for asset issuer
       $digits = $assetinfo['digits'];
-      $storagefee = $assetinfo['storagefee'];
-      $amttime = $acctargs[$t->TIME];
+      $accttime = $acctargs[$t->TIME];
       $time = $state['time'];
-      $fee = $u->storagefee($amount, $amttime, $time, $percent, $digits);
-      $assetinfo['storagefee'] = bcadd($storagefee, $fee, $digits);
+      $fee = $u->storagefee($amount, $accttime, $time, $percent, $digits);
+      $storagefee = bcadd($assetinfo['storagefee'], $fee, $digits);
+      $assetinfo['storagefee'] = $storagefee;
     }
     $charges[$asset] = $assetinfo;
     $state['charges'] = $charges;
@@ -699,7 +701,7 @@ class server {
     $file = $this->debugfile;
     if ($debugdir && $file) {
       $db = new fsdb($debugdir);
-      $db->put($file, $db->get($file) . "$msg\n");
+      $db->put($file, $db->get($file) . "$msg");
     }
   }
 
@@ -893,7 +895,7 @@ class server {
     if ($ok && $storagefee) {
       $err = $this->post_storagefee($assetid, $issuer, $storagefee, $digits);
       if ($err) {
-        $this->debugmsg("post_storagefee failed: $err");
+        $this->debugmsg("post_storagefee failed: $err\n");
       }
     }
     return $res;
@@ -1066,9 +1068,9 @@ class server {
     if ($charges) {
       $assetinfo = $charges[$assetid];
       if ($assetinfo) {
-        $storagefee = $assetinfo['storagefee'];
-        if ($storagefee) {
-          $issuer = $assetinfo['issuer'];
+        $percent = $assetinfo['storagefee'];
+        if ($percent) {
+          $storagefee = $assetinfo['storagefee'];
           $fraction = $assetinfo['fraction'];
           $digits = $assetinfo['digits'];
           $bal = $bals[$assetid];
@@ -1569,7 +1571,7 @@ class server {
         $digits = $assetinfo['digits'];
         $err = $this->post_storagefee($assetid, $issuer, $storagefee, $digits);
         if ($err) {
-          $this->debugmsg("post_storagefee failed: $err");
+          $this->debugmsg("post_storagefee failed: $err\n");
         }
       }
     }
@@ -1674,7 +1676,7 @@ class server {
       }
       $bals[$asset] = bcadd($bals[$asset], $amt);
       $tobecharged[] = array($t->AMOUNT => $amt,
-                             $t->TIME => $outboxtime,
+                             $t->TIME => $spendtime,
                              $t->ASSET => $asset);
     }
 
@@ -1730,8 +1732,8 @@ class server {
           }
           $state['bals'][$itemasset] = bcadd($state['bals'][$itemasset], $itemamt);
           $tobecharged[] = array($t->AMOUNT => $itemamt,
-                                 $t->TIME = $itemtime,
-                                 $t->ASSET = $itemasset);
+                                 $t->TIME => $itemtime,
+                                 $t->ASSET => $itemasset);
           $res .= '.' . $this->bankmsg($t->ATSPENDACCEPT, $reqmsg);
         } else {
           // Rejecting the payment. Credit the fee.
@@ -1852,14 +1854,14 @@ class server {
         $itemtime = $item[$t->TIME];
         $itemasset = $item[$t->ASSET];
         $assetinfo = $charges[$itemasset];
-        if ($assetinfo && ($itemasset != $tokenid)) {
+        if ($assetinfo) {
           $percent = $assetinfo['percent'];
           if ($percent) {
             $digits = $assetinfo['digits'];
             $itemfee = $u->storagefee($itemamt, $itemtime, $time, $percent, $digits);
             $storagefee = bcadd($assetinfo['storagefee'], $itemfee, $digits);
             $assetinfo['storagefee'] = $storagefee;
-            $charges[$itemaset] = $assetinfo;            
+            $charges[$itemasset] = $assetinfo;            
           }
         }
       }
@@ -1874,7 +1876,7 @@ class server {
           $bals[$itemasset] = $bal;
           $assetinfo['fraction'] = $fraction;
           $charges[$itemasset] = $assetinfo;
-          $storagefees[$itemasset] = bcadd($storagefees[$itemasset], $storagefee, $digits);
+          $storagefees[$itemasset] = $storagefee;
           $fractions[$itemasset] = $fraction;
         }
       }
@@ -1896,7 +1898,7 @@ class server {
       if (bccomp($fracamt, $fraction) != 0) {
         return $this->failmsg($msg, "Fraction mismatch, sb: $fracamt, was: $fraction");
       }
-      unset($fractions[$fracamt]);
+      unset($fractions[$fracasset]);
     }
     if (count($fractions) > 0) {
       return $this->failmsg($msg, "Fraction balances missing for some assets");

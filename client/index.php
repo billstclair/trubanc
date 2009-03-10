@@ -501,7 +501,7 @@ function do_canceloutbox() {
 function do_processinbox() {
   global $error;
   global $client;
- 
+
   $t = $client->t;
 
   $spendcnt = mqpost('spendcnt');

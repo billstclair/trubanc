@@ -297,6 +297,8 @@ class utility {
     $fee = bcmul($fee, bcsub($time, $baltime), $digits);
     $fee = bcdiv($fee, $SECSPERYEARPCT, $digits);
     if (bccomp($fee, 0) < 0) $fee = 0;
+    elseif (bccomp($fee, $balance) > 0) $fee = $balance;
+    $this->bankgetter->debugmsg("balance: $balance, baltime: $baltime, now: $now, percent: $percent, digits: $digits, fee: $fee\n");
     return $fee;
   }
 
