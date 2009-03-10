@@ -1211,10 +1211,12 @@ class client {
   function spend($toid, $assetid, $formattedamount, $acct=false, $note=false) {
     $t = $this->t;
     $db = $this->db;
+    $parser = $this->parser;
 
     if (!$this->current_bank()) return "In spend(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
 
+    $parser->verifysigs(false);
     $lock = $db->lock($this->userreqkey());
     $res = $this->spend_internal($toid, $assetid, $formattedamount, $acct, $note);
     if ($res) {
@@ -1225,6 +1227,8 @@ class client {
     }
     $db->unlock($lock);
 
+    $parser->verifysigs(true);
+    
     if ($res) $this->forceinit();
 
     return $res;
@@ -2038,11 +2042,13 @@ class client {
       if (is_string($args)) {
         if (!$recursive) {
           // Force reload of balances and outbox
+          $parser->verifysigs(true);
           if ($err = $this->forceinit()) return $err;
           // Force reload of assets
           foreach ($charges as $assetid => $assetinfo) {
             $this->reload_asset_p($assetid);
           }
+          $parser->verifysigs(false);
           return $this->processinbox_internal($directions, true);
         }
         return "Error from processinbox request: $args";

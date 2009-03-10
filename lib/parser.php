@@ -21,6 +21,9 @@ class parser {
   var $errstr = false;
   var $errmsg = false;
 
+  var $alwaysverifysigs = false;
+  var $verifysigs = true;
+
   function parser($keydb, $ssl=false) {
     $this->keydb = $keydb;
     if (!$ssl) $ssl = new ssl();
@@ -28,11 +31,21 @@ class parser {
     $this->keydict = array();         // validated keys
   }
 
+  function verifysigs($newvalue=null) {
+    if ($newvalue === null) return $this->verifysigs;
+    $this->verifysigs = $newvalue;
+    return $newvalue;
+  }
+
   // Return an array or false if the parse could not be done,
   // or an ID couldn't be found, or a signature was bad.
   // left-paren, right-paren, comma, colon, and period are special chars.
   // They, and back-slash, are escaped by backslashes
-  function parse($str) {
+  // If $verifysigs is false, don't verify PGP signatures.
+  // If $verifysigs is unspecified of 'default', use $this->verifysigs
+  // as the value (default: true)
+  function parse($str, $verifysigs='default') {
+    if ($verifysigs == 'default') $verifysigs = $this->verifysigs;
     $tokens = $this->tokenize($str);
     $state = false;
     $res = array();
@@ -166,10 +179,12 @@ class parser {
               $this->errmsg = "No key for id: $id at $pos";
               return false;
             }
-            $ssl = $this->ssl;
-            if (!($ssl->verify($msg, $tok, $pubkey))) {
-              $this->errmsg = "Signature verification failed at $pos";
-              return false;
+            if ($verifysigs || $this->alwaysverifysigs) {
+              $ssl = $this->ssl;
+              if (!($ssl->verify($msg, $tok, $pubkey))) {
+                $this->errmsg = "Signature verification failed at $pos";
+                return false;
+              }
             }
           }
           $dict[$this->msgkey] = substr($str, $start, $pos + strlen($tok) - $start);
