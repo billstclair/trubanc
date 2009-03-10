@@ -1217,6 +1217,7 @@ class client {
     if ($err = $this->initbankaccts()) return $err;
 
     $parser->verifysigs(false);
+
     $lock = $db->lock($this->userreqkey());
     $res = $this->spend_internal($toid, $assetid, $formattedamount, $acct, $note);
     if ($res) {
@@ -1522,12 +1523,16 @@ class client {
     $t = $this->t;
     $db = $this->db;
 
+    $parser->verifysigs(false);
+
     if (!$this->current_bank()) return "In spendreject(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
 
     $lock = $db->lock($this->userreqkey());
     $res = $this->spendreject_internal($time, $note);
     $db->unlock($lock);
+
+    $parser->verifysigs(true);
 
     if ($res) $this->forceinit();
 
@@ -1854,13 +1859,18 @@ class client {
 
   function processinbox($directions) {
     $db = $this->db;
+    $parser = $this->parser;
 
     if (!$this->current_bank()) return "In processinbox(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
 
+    $parser->verifysigs(false);
+
     $lock = $db->lock($this->userreqkey());
     $res = $this->processinbox_internal($directions, false);
     $db->unlock($lock);
+
+    $parser->verifysigs(true);
 
     if ($res) $this->forceinit();
 

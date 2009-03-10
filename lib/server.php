@@ -888,6 +888,7 @@ class server {
     $parser = $this->parser;
 
     $parser->verifysigs(false);
+
     $id = $args[$t->CUSTOMER];
     $lock = $db->lock($this->accttimekey($id));
     $res = $this->do_spend_internal($args, $reqs, $msg,
@@ -900,7 +901,9 @@ class server {
         $this->debugmsg("post_storagefee failed: $err\n");
       }
     }
+
     $parser->verifysigs(true);
+
     return $res;
   }
 
@@ -1307,11 +1310,17 @@ class server {
   function do_spendreject($args, $reqs, $msg) {
     $t = $this->t;
     $db = $this->db;
+    $parser = $this->parser;
+
+    $parser->verifysigs(false);
 
     $id = $args[$t->CUSTOMER];
     $lock = $db->lock($this->accttimekey($id));
     $res = $this->do_spendreject_internal($args, $msg, $id);
     $db->unlock($lock);
+
+    $parser->verifysigs(true);
+
     return $res;
   }
 
@@ -1564,6 +1573,7 @@ class server {
     $parser = $this->parser;
 
     $parser->verifysigs(false);
+
     $id = $args[$t->CUSTOMER];
     $lock = $db->lock($this->accttimekey($id));
     $res = $this->do_processinbox_internal($args, $reqs, $msg, $ok, $charges);
@@ -1580,7 +1590,9 @@ class server {
         }
       }
     }
+
     $parser->verifysigs(true);
+
     return $res;
   }
 
