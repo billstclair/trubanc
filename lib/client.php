@@ -1522,6 +1522,7 @@ class client {
   function spendreject($time, $note=false) {
     $t = $this->t;
     $db = $this->db;
+    $parser = $this->parser;
 
     $parser->verifysigs(false);
 

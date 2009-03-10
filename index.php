@@ -30,18 +30,16 @@ if ($msg) {
   $ssl = new ssl();
   $server = new server($db, $ssl, false, $bank_name, $bankurl);
   if ($debugdir && $debugfile) $server->setdebugdir($debugdir, $debugfile);
+  $res = $server->process($msg);
   if ($debug) {
-    echo "msg: <pre>$msg</pre>\n";
-    echo "response: <pre>";
+    $res = "msg: <pre>$msg</pre>\nresponse: <pre>$res</pre>\n";
   }
-  echo $server->process($msg);
-  if ($debug) {
-    echo "</pre>\n";
-  }
-
 } else {
-  echo file_get_contents($index_file);
+  $res = file_get_contents($index_file);
 }
+
+header("Content-Length: " . strlen($res));
+echo $res;
 
 // Copyright 2008 Bill St. Clair
 //
