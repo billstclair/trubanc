@@ -1193,6 +1193,69 @@ class client {
     return $res;
   }
 
+  // Get the storagefee balance for a particular assetid, or all assetids,
+  // if $assetid is false. Result is:
+  // array($assetid => array($t->ASSET => $assetid,
+  //                         $t->ASSETNAME => $assetname
+  //                         $t->AMOUNT => $amount,
+  //                         $t->TIME => $time,
+  //                         $t->FORMATTEDAMOUNT => $formattedamount)
+  // If an $assetid is specified, does not wrap the outer array around the result.
+  function getstoragefee($assetid=false) {
+    $t = $this->t;
+    $db = $this->db;
+
+    if (!$this->current_bank()) return "In getfraction(): Bank not set";
+    if ($err = $this->initbankaccts()) return $err;
+
+    $lock = $db->lock($this->userreqkey());
+    $res = $this->getstoragefee_internal($assetid);
+    $db->unlock($lock);
+
+    return $res;
+  }
+
+  function getstoragefee_internal($inassetid) {
+    $t = $this->t;
+    $db = $this->db;
+    $u = $this->u;
+
+    $res = array();
+    $key = $this->userstoragefeekey();
+    if ($inassetid) $assetids = array($inassetid);
+    else $assetids = $db->contents($key);
+    foreach ($assetids as $assetid) {
+      $msg = $db->get("$key/$assetid");
+      $args = $this->unpack_bankmsg($msg, $t->STORAGEFEE);
+      if (is_string($args)) return ("Error parsing storage fee: $args");
+      $time = $args[$t->TIME];
+      $assetid = $args[$t->ASSET];
+      $amount = $args[$t->AMOUNT];
+      $amt = $amount;
+      $u->normalize_balance($amt, $fraction, 0);
+      $asset = $this->getasset($assetid);
+      if (is_string($asset)) {
+        $formattedamount = $amt;
+        $assetname = "Unknown asset";
+      } else {
+        $formattedamount = $this->format_asset_value($amt, $asset);
+        $assetname = $asset[$t->ASSETNAME];
+      }
+      $res[$assetid] = array($t->TIME => $time,
+                             $t->ASSET => $assetid,
+                             $t->ASSETNAME => $assetname,
+                             $t->AMOUNT => $amount,
+                             $t->TIME => $time,
+                             $t->FORMATTEDAMOUNT => $formattedamount);
+      uasort($res, array('client', 'comparebalances'));
+    }
+    if ($inassetid) {
+      if (count($res) == 0) $res = false;
+      else $res = $res[$inassetid];
+    }
+    return $res;
+  }
+
   // Enable or disable history
   function keephistory($enable) {
     $this->keephistory = $enable;
@@ -1800,6 +1863,7 @@ class client {
     if (!$reqs) return "While parsing getinbox return message: " . $parser->errmsg;
     $inbox = array();
     $times = array();
+    $storagefees = array();
     $last_time = false;
     foreach ($reqs as $req) {
       $args = $this->match_bankreq($req);
@@ -1812,7 +1876,7 @@ class client {
         $last_time = false;
       } elseif ($request == $t->INBOX) {
         $time = $args[$t->TIME];
-        if ($inbox[$time]) return "getinbox return included multiple entried for time: $time";
+        if ($inbox[$time]) return "getinbox return included multiple entries for time: $time";
         $inbox[$time] = $bankmsg;
         $last_time = $time;
       } elseif ($request == $t->ATTRANFEE) {
@@ -1820,6 +1884,9 @@ class client {
         $inbox[$last_time] .= ".$bankmsg";
       } elseif ($request == $t->TIME) {
         $times[] = $args[$t->TIME];
+      } elseif ($request == $t->STORAGEFEE) {
+        $assetid = $args[$t->ASSET];
+        $storagefees[$assetid] = $bankmsg;
       } elseif ($request != $t->COUPONNUMBERHASH) {
         return "Unknown request in getinbox return: $request";
       }
@@ -1839,6 +1906,11 @@ class client {
     }
     foreach ($inbox as $time => $msg) {
       $db->put("$key/$time", $msg);
+    }
+    foreach ($storagefees as $assetid => $storagefee) {
+      $key = $this->userstoragefeekey($assetid);
+      $this->debugmsg("db->put('$key', '$storagefee')\n");
+      $db->put($key, $storagefee);
     }
     if (count($times) > 0) {
       $db->put($this->usertimekey(), implode(',', $times));
@@ -2508,6 +2580,12 @@ class client {
     $key = $this->userbankkey($this->t->FRACTION);
     if ($assetid) $key .= "/$assetid";
     return $key;
+  }
+
+  function userstoragefeekey($assetid=false) {
+    $res = $this->userbankkey($this->t->STORAGEFEE);
+    if ($assetid) $res .= "/$assetid";
+    return $res;
   }
 
   function userbalancekey($acct=false, $assetid=false) {
@@ -3269,4 +3347,3 @@ class pubkeydb {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions
 // and limitations under the License.
-

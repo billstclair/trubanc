@@ -180,8 +180,10 @@ class server {
     return $this->accountdir($id) . $this->t->INBOX;
   }
 
-  function storagefeekey($id, $assetid) {
-    return $this->accountdir($id) . $this->t->STORAGEFEE . "/$assetid";
+  function storagefeekey($id, $assetid=false) {
+    $res = $this->accountdir($id) . $this->t->STORAGEFEE;
+    if ($assetid) $res .= "/$assetid";
+    return $res;
   }
 
   function outboxdir($id) {
@@ -1541,6 +1543,13 @@ class server {
         $err = "Inbox entry for wrong ID: " . $args[$t->ID];
       }
       if ($err) return $this->failmsg($msg, $err);
+    }
+
+    $key = $this->storagefeekey($id);
+    $assetids = $db->contents($key);
+    foreach ($assetids as $assetid) {
+      $storagefee = $db->get("$key/$assetid");
+      $res .= ".$storagefee";
     }
 
     // Update last time

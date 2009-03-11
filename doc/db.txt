@@ -622,6 +622,7 @@ Get balance
 (<bankid>,@fraction,(<id>,fraction,<bankid>,<timef2#>,<assetid>,<amountf2>).
 ...
 (<bankid>,@fraction,(<id>,fraction,<bankid>,<timefN#>,<assetid>,<amountfN>).
+(<bankid>,storagefee,<bankid>,<time#>,<assetid>,<amount>).
 (<bankid>,@balancehash,(<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>))
 
   Otherwise, bank returns:

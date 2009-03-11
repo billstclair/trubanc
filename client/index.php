@@ -1266,6 +1266,41 @@ $acctoptions
 EOT;
       }
 
+      $storagefeecode = '';
+      $storagefees = $client->getstoragefee();
+      if (is_string($storagefees)) {
+        $error = $storagefees;
+        $storagefees = array();
+      }
+      if (count($storagefees) > 0) {
+        $storagefeecode = <<<EOT
+<table border="1">
+<caption><b>=== Storage Fees ===</b></caption>
+<tr><td><table>
+
+EOT;
+        foreach ($storagefees as $assetid => $storagefee) {
+          $formattedamount = $storagefee[$t->FORMATTEDAMOUNT];
+          $assetname = $storagefee[$t->ASSETNAME];
+          $time = $storagefee[$t->TIME];
+          $timestr = hsc($time);
+          $date = datestr($time);
+          $storagefeecode .= <<<EOT
+<tr>
+<td align="right"><span style="margin-right: 5px">$formattedamount</span></td>
+<td><span style="margin-right: 5px">$assetname</span></td>
+<td>$date</td>
+</tr>
+
+EOT;
+        }
+        $storagefeecode .= <<<EOT
+</table></td></tr>
+</table>
+
+EOT;
+      }
+
       $spendcode = <<<EOT
 
 <table>
@@ -1360,7 +1395,7 @@ $spendcode
 </table>
 $closespend
 EOT;
-  $body = "$error<br/>$bankcode$inboxcode$fullspend$outboxcode$instructions";
+  $body = "$error<br/>$bankcode$inboxcode$fullspend$outboxcode$storagefeecode$instructions";
 }
 
 function draw_coupon($time = false) {

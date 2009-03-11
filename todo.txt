@@ -1,5 +1,5 @@
 Storage fees:
-  STORAGEFEE messages come over with GETBALANCE
+  STORAGEFEE messages come over with GETINBOX
     Stored on client. Displayed in GUI below balances
   STORAGEFEE becomes an inbox SPEND with STORAGEFEE|ACCEPT
     "Accept" buttons in GUI by each displayed storage fee
