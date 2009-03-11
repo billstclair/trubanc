@@ -21,7 +21,6 @@ $debugdir = mqreq('debugdir');
 $debugfile = mqreq('debugfile');
 
 if ($msg) {
-
   require_once "lib/fsdb.php";
   require_once "lib/ssl.php";
   require_once "lib/server.php";

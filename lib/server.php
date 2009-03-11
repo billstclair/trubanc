@@ -700,8 +700,8 @@ class server {
     $debugdir = $this->debugdir;
     $file = $this->debugfile;
     if ($debugdir && $file) {
-      $db = new fsdb($debugdir);
-      $db->put($file, $db->get($file) . "$msg");
+      $db = @new fsdb($debugdir);
+      if ($db) @$db->put($file, $db->get($file) . "$msg");
     }
   }
 

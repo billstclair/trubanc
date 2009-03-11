@@ -7,6 +7,7 @@ require_once "tokens.php";
 require_once "ssl.php";
 require_once "utility.php";
 require_once "parser.php";
+require_once "curl.php";
 
 class client {
 
@@ -1229,7 +1230,7 @@ class client {
     $db->unlock($lock);
 
     $parser->verifysigs(true);
-    
+
     if ($res) $this->forceinit();
 
     return $res;
@@ -1524,10 +1525,10 @@ class client {
     $db = $this->db;
     $parser = $this->parser;
 
-    $parser->verifysigs(false);
-
     if (!$this->current_bank()) return "In spendreject(): Bank not set";
     if ($err = $this->initbankaccts()) return $err;
+
+    $parser->verifysigs(false);
 
     $lock = $db->lock($this->userreqkey());
     $res = $this->spendreject_internal($time, $note);
@@ -2045,21 +2046,25 @@ class client {
     $msg = $server->process($msg);
 
     // Validate return from server
-    $reqs = $parser->parse($msg);
+    $reqs = $parser->parse($msg, true);
     if (!$reqs) return "Can't parse bank return from spend: $msg";
     $args = $this->match_bankreq($reqs[0], $t->ATPROCESSINBOX);
     if (is_string($args)) {
       $args = $this->match_bankreq($reqs[0]);
       if (is_string($args)) {
         if (!$recursive) {
-          // Force reload of balances and outbox
+
           $parser->verifysigs(true);
+
+          // Force reload of balances and outbox
           if ($err = $this->forceinit()) return $err;
           // Force reload of assets
           foreach ($charges as $assetid => $assetinfo) {
             $this->reload_asset_p($assetid);
           }
+
           $parser->verifysigs(false);
+
           return $this->processinbox_internal($directions, true);
         }
         return "Error from processinbox request: $args";
@@ -2198,7 +2203,7 @@ class client {
     $outbox = $db->contents($key);
     foreach ($outbox as $time) {
       $msg = $db->get("$key/$time");
-      $reqs = $parser->parse($msg);
+      $reqs = $parser->parse($msg, true);
       $items = array();
       if (!$reqs) return "In getoutbox, parse error: " . $parser->errmsg;
       foreach ($reqs as $req) {
@@ -2837,7 +2842,7 @@ class client {
 
       // Get account balances
       $msg = $this->sendmsg($t->GETBALANCE, $bankid, $reqnum);
-      $reqs = $parser->parse($msg);
+      $reqs = $parser->parse($msg, true);
       if (!$reqs) {
         if ($parser->errmsg) {
           return "While parsing getbalance: " . $parser->errmsg;
@@ -2881,7 +2886,7 @@ class client {
       // Get outbox
       $reqnum = bcadd($reqnum, 1);
       $msg = $this->sendmsg($t->GETOUTBOX, $bankid, $reqnum);
-      $reqs = $parser->parse($msg);
+      $reqs = $parser->parse($msg, true);
       if (!$reqs) return "While parsing getoutbox: " . $parser->errmsg;
       $outbox = array();
       $outboxhash = '';
@@ -3158,26 +3163,27 @@ class client {
 class serverproxy {
   var $url;
   var $client;
+  var $curl;
 
   function serverproxy($url, $client=false) {
     $this->url = $url;
     $this->client = $client;
   }
 
+  function getcurl() {
+    $curl = $this->curl;
+    if (!$curl) {
+      $curl = new curl();
+      $this->curl = $curl;
+    }
+    return $curl;
+  }
+
   // From http://us.php.net/manual/en/function.stream-context-create.php#72017
   // May be able to optimize this (with keep-alive) by using the cURL functions
-  function post($url, $post_variables=array()) {
-    $content = http_build_query($post_variables);
-    $content_length = strlen($content);
-    $options = array
-      ('http'=>array('method' => 'POST',
-                     'header' =>
-                     "User-Agent: Trubanc\r\n" .
-                     "Content-type: application/x-www-form-urlencoded\r\n" . 
-                     "Content-length: $content_length\r\n",
-                     'content' => $content));
-    $context = stream_context_create($options);
-    return @file_get_contents($url, false, $context);
+  function post($url, $data=array()) {
+    $curl = $this->getcurl();
+    return $curl->post($url, $data);
   }
 
   function process($msg) {
