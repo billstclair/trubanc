@@ -2368,13 +2368,13 @@ class server {
     }
 
     $res = '';
+    $assetnames = array();
     foreach ($acctkeys as $acctkey) {
-      if ($assetid) $assetkeys = array("$acctkey/$assetid");
-      else {
-        $assetnames = $db->contents($acctkey);
-        $assetkeys = array();
-        foreach ($assetnames as $name) $assetkeys[] = "$acctkey/$name";
-      }
+      if ($assetid) $assetnames[] = $assetid;
+      else $assetnames = $db->contents($acctkey);
+      $assetkeys = array();
+      foreach ($assetnames as $name) $assetkeys[] = "$acctkey/$name";
+
       foreach ($assetkeys as $assetkey) {
         $bal = $db->get($assetkey);
         if ($bal) {

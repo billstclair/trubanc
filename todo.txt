@@ -1,18 +1,47 @@
-Storage fees:
-  STORAGEFEE becomes an inbox SPEND with STORAGEFEE|ACCEPT
-    "Accept" button in GUI under the storage fee display
+$t->BATCHFEES command, to iterate over accounts, collecting storage fees.
+
+  (<id>,batchfees,<assetid>,<start>,<timelimit>,<frequency>)
+
+Returns:
+
+  (<bankid>,@batchfees,<amount>,<start2>,
+    (<id>,batchfees,<assetid>,<start>,<timelimit>,<frequency>))
+
+<assetid>     asset for which to collect fees.
+<start>       user ID at which to start processing
+<timelimit>   maximum seconds to process. Prevents web form timeout.
+<frequency>   how often the issuer runs this process. Balances newer than
+              (now - <frequency>) won't be processed.
+<start2>      user ID at which to continue processing
+
+This exposes that fsdb->contents() doesn't scale. If there are
+millions of accounts, the /account directory has millions of
+first-level subdirs. That's a lot of RAM to list. Need to split up
+abcdefgh... into ab/cd/efgh.... That turns 2**20 accounts into 2**16
+dirs of 2**4 accounts each. Use new fsdb->iterator() function to
+return an iterator:
+  iterator->next() - returns next item
+  iterator->init(start) - next next() will return start
+  iterator->peek() - returns next item, but doesn't advance
+
+Fees get credited to the issuer's $t->STORAGEFEE accumulators. We need
+a $t->BANKFEE accumulator for each account that accumulates the
+charges, per assetid. These look like part of the inbox for the
+getinbox and processinbox operations, but are separate so we don't
+need to find them while batching fees. They have non-integer amounts,
+which will require some tweaking to work properly.
+
+======================================================================
+
+The current, not original, asset issuer should be allowed to change the storage fee.
+
+Time the parser and the SSL signatures and everything else. Is this
+going to work as a real transaction processor?
 
 Sync command in user interface. Click link. Sync balances, outbox, and inbox with server.
   It would be better to do this automagically when something appears
   wrong, and I'm doing it in some places, but the user needs to be
   able to do it explicitly.
-
-The current, not original, asset issuer should be allowed to change the storage fee.
-
-keep-alive on server connection.
-
-Time the parser and the SSL signatures and everything else. Is this
-going to work as a real transaction processor?
 
 Real sync command that doesn't just overwrite the client, but notifies
 the server when the client has a more recent message for a balance or
@@ -63,8 +92,6 @@ Allow adding non-registered IDs to contact list in web client.
 Use titles on asset names in the UI to distinguish different assets with the same name. Need to print ID and owner. Probably need to mark certain assets as known in the "Assets" screen.
 
 Optimize server traffic.
-
-Keep-Alive to the server.
 
 Stand-alone non-HTTP server:
   http://www.van-steenbeek.net/?q=php_pcntl_fork
