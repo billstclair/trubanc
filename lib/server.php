@@ -2200,7 +2200,7 @@ class server {
     if ($id == $bankid) $tokens = 0;
 
     $bals = array();
-    if (!$exists) $bals[$assetid] > -1;
+    if (!$exists) $bals[$assetid] = -1;
     $acctbals = array();
     $accts = array();
     $oldneg = array();
