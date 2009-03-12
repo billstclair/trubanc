@@ -94,6 +94,7 @@ class utility {
                         $t->GETOUTBOX =>array($t->BANKID, $t->REQ),
                         $t->GETINBOX => array($t->BANKID, $t->REQ),
                         $t->PROCESSINBOX => array($t->BANKID,$t->TIME,$t->TIMELIST),
+                        $t->STORAGEFEES => array($t->BANKID,$t->REQ),
                         $t->GETTIME => array($t->BANKID, $t->TIME),
                         $t->COUPONENVELOPE => ARRAY($t->ID, $t->ENCRYPTEDCOUPON),
 
@@ -120,6 +121,7 @@ class utility {
                         $t->ATSTORAGEFEE => array($t->MSG),
                         $t->ATFRACTION => array($t->MSG),
                         $t->ATPROCESSINBOX => array($t->MSG),
+                        $t->ATSTORAGEFEES => array($t->MSG),
                         $t->ATSPENDACCEPT => array($t->MSG),
                         $t->ATSPENDREJECT => array($t->MSG),
                         $t->ATGETOUTBOX => array($t->MSG),

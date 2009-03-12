@@ -1078,6 +1078,7 @@ class server {
       if ($assetinfo) {
         $percent = $assetinfo['storagefee'];
         if ($percent) {
+          $issuer = $assetinfo['issuer'];
           $storagefee = $assetinfo['storagefee'];
           $fraction = $assetinfo['fraction'];
           $digits = $assetinfo['digits'];
@@ -2047,6 +2048,56 @@ class server {
     return $res;
   }
 
+  // Process a storagefees request
+  function do_storagefees($args, $reqs, $msg) {
+    $db = $this->db;
+
+    $lock = $db->lock($this->accttimekey($id));
+    $res = $this->do_storagefees_internal($msg, $args);
+    $db->unlock($lock);
+    return $res;
+  }
+
+  function do_storagefees_internal($msg, $args) {
+    $t = $this->t;
+    $db = $this->db;
+    $u = $this->u;
+    $bankid = $this->bankid;
+
+    $err = $this->checkreq($args, $msg);
+    if ($err) return $err;
+
+    $id = $args[$t->CUSTOMER];
+    $inboxkey = $this->inboxkey($id);
+    $key = $this->storagefeekey($id);
+    $assetids = $db->contents($key);
+    foreach ($assetids as $assetid) {
+      $storagefee = $db->get("$key/$assetid");
+      $args = $this->unpack_bankmsg($storagefee, $t->STORAGEFEE);
+      if (is_string($args)) {
+        return $this->failmsg($msg, "storagefee parse error: $args");
+      }
+      if ($assetid != $args[$t->ASSET]) {
+        $feeasset = $args[$t->ASSET];
+        return $this->failmsg($msg, "Asset mismatch, sb: $assetid, was: $feeasset");
+      }
+      $amount = $args[$t->AMOUNT];
+      $percent = $this->storageinfo($id, $asset, $issuer, $fraction, $fractime);
+      $digits = $u->fraction_digits($percent);
+      $u->normalize_balance($amount, $fraction, $digits);
+      if (bccomp($amount, 0, 0) > 0) {
+        $time = $this->gettime();
+        $storagefee = $this->bankmsg($t->STORAGEFEE, $bankid, $time, $assetid, $fraction);
+        $spend = $this->bankmsg($t->SPEND, $bankid, $time, $id, $assetid, $amount, "Storage fees");
+        $inbox = $this->bankmsg($t->INBOX, $time, $spend);
+        $db->put("$key/$assetid", $storagefee);
+        $db->put("$inboxkey/$time", $inbox);
+      }
+    }
+    
+    return $this->bankmsg($t->ATSTORAGEFEES, $msg);
+  }
+
   function get_outbox_args($id, $spendtime) {
     $t = $this->t;
     $u = $this->u;
@@ -2408,6 +2459,7 @@ class server {
                      $t->COUPONENVELOPE => $patterns[$t->COUPONENVELOPE],
                      $t->GETINBOX => $patterns[$t->GETINBOX],
                      $t->PROCESSINBOX => $patterns[$t->PROCESSINBOX],
+                     $t->STORAGEFEES => $patterns[$t->STORAGEFEES],
                      $t->GETASSET => array($t->BANKID,$t->REQ,$t->ASSET),
                      $t->ASSET => array($t->BANKID,$t->ASSET,$t->SCALE,$t->PRECISION,$t->ASSETNAME),
                      $t->GETOUTBOX => $patterns[$t->GETOUTBOX],

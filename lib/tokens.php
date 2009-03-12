@@ -40,6 +40,7 @@ class tokens {
   var $SPEND = 'spend';
   var $GETINBOX = 'getinbox';
   var $PROCESSINBOX = 'processinbox';
+  var $STORAGEFEES = 'storagefees';
   var $SPENDACCEPT = 'spend|accept';
   var $SPENDREJECT = 'spend|reject';
   var $AFFIRM = 'affirm';
@@ -60,6 +61,7 @@ class tokens {
   var $ATASSET = '@asset';
   var $ATGETINBOX = '@getinbox';
   var $ATPROCESSINBOX = '@processinbox';
+  var $ATSTORAGEFEES = 'atstoragefees';
   var $ATSPENDACCEPT = '@spend|accept';
   var $ATSPENDREJECT = '@spend|reject';
   var $ATGETOUTBOX = '@getoutbox';

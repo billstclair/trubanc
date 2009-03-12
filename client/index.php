@@ -111,6 +111,7 @@ elseif ($cmd == 'admin') do_admin();
 elseif ($cmd == 'spend') do_spend();
 elseif ($cmd == 'canceloutbox') do_canceloutbox();
 elseif ($cmd == 'processinbox') do_processinbox();
+elseif ($cmd == 'storagefees') do_storagefees();
 elseif ($cmd == 'dohistory') do_history();
 elseif ($cmd == 'togglehistory') do_togglehistory();
 elseif ($cmd == 'toggleinstructions') do_toggleinstructions();
@@ -546,6 +547,14 @@ function do_processinbox() {
     if ($err) $error = "error from processinbox: $err";
   }
 
+  draw_balance();
+}
+
+function do_storagefees() {
+  global $client;
+  global $error;
+
+  $error = $client->storagefees();
   draw_balance();
 }
 
@@ -1274,6 +1283,8 @@ EOT;
       }
       if (count($storagefees) > 0) {
         $storagefeecode = <<<EOT
+<form method="post" action="./" autocomplete="off">
+<input type="hidden" name="cmd" value="storagefees"/>
 <table border="1">
 <caption><b>=== Storage Fees ===</b></caption>
 <tr><td><table>
@@ -1297,6 +1308,8 @@ EOT;
         $storagefeecode .= <<<EOT
 </table></td></tr>
 </table>
+<input type="submit" name="accept" value="Move to Inbox"/>
+</form>
 
 EOT;
       }

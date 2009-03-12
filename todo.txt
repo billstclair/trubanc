@@ -1,8 +1,6 @@
 Storage fees:
-  STORAGEFEE messages come over with GETINBOX
-    Stored on client. Displayed in GUI below balances
   STORAGEFEE becomes an inbox SPEND with STORAGEFEE|ACCEPT
-    "Accept" buttons in GUI by each displayed storage fee
+    "Accept" button in GUI under the storage fee display
 
 Sync command in user interface. Click link. Sync balances, outbox, and inbox with server.
   It would be better to do this automagically when something appears

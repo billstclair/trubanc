@@ -1233,22 +1233,24 @@ class client {
       $amount = $args[$t->AMOUNT];
       $amt = $amount;
       $u->normalize_balance($amt, $fraction, 0);
-      $asset = $this->getasset($assetid);
-      if (is_string($asset)) {
-        $formattedamount = $amt;
-        $assetname = "Unknown asset";
-      } else {
-        $formattedamount = $this->format_asset_value($amt, $asset);
-        $assetname = $asset[$t->ASSETNAME];
+      if ($amt) {
+        $asset = $this->getasset($assetid);
+        if (is_string($asset)) {
+          $formattedamount = $amt;
+          $assetname = "Unknown asset";
+        } else {
+          $formattedamount = $this->format_asset_value($amt, $asset);
+          $assetname = $asset[$t->ASSETNAME];
+        }
+        $res[$assetid] = array($t->TIME => $time,
+                               $t->ASSET => $assetid,
+                               $t->ASSETNAME => $assetname,
+                               $t->AMOUNT => $amount,
+                               $t->TIME => $time,
+                               $t->FORMATTEDAMOUNT => $formattedamount);
       }
-      $res[$assetid] = array($t->TIME => $time,
-                             $t->ASSET => $assetid,
-                             $t->ASSETNAME => $assetname,
-                             $t->AMOUNT => $amount,
-                             $t->TIME => $time,
-                             $t->FORMATTEDAMOUNT => $formattedamount);
-      uasort($res, array('client', 'comparebalances'));
     }
+    uasort($res, array('client', 'comparebalances'));
     if ($inassetid) {
       if (count($res) == 0) $res = false;
       else $res = $res[$inassetid];
@@ -1909,7 +1911,6 @@ class client {
     }
     foreach ($storagefees as $assetid => $storagefee) {
       $key = $this->userstoragefeekey($assetid);
-      $this->debugmsg("db->put('$key', '$storagefee')\n");
       $db->put($key, $storagefee);
     }
     if (count($times) > 0) {
@@ -2185,6 +2186,40 @@ class client {
       $key = $this->userhistorykey();
       $db->put("$key/$trans", $history);
     }
+
+    return false;
+  }
+
+  // Tell server to move storage fees to inbox
+  // You need to call getinbox to see the new data (via its call to sync_inbox).
+  function storagefees() {
+    $db = $this->db;
+    $parser = $this->parser;
+
+    if (!$this->current_bank()) return "In storagefees(): Bank not set";
+    if ($err = $this->initbankaccts()) return $err;
+
+    $lock = $db->lock($this->userreqkey());
+    $res = $this->storagefees_internal();
+    $db->unlock($lock);
+
+    return $res;
+  }
+
+  function storagefees_internal() {
+    $t = $this->t;
+    $bankid = $this->bankid;
+    $server = $this->server;
+
+    $req = $this->getreq();
+    $msg = $this->custmsg($t->STORAGEFEES, $bankid, $req);
+
+    $bankmsg = $server->process($msg);
+
+    $args = $this->unpack_bankmsg($bankmsg);
+    if (is_string($args)) return "Server error: $args";
+    $request = $args[$t->REQUEST];
+    if ($request != $t->ATSTORAGEFEES) return "Unknown response type: $request";
 
     return false;
   }

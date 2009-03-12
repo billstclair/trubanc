@@ -66,7 +66,7 @@ or:
 <center>
 <p style="font-size: 75%;">Copyright &copy; 
 <a href="https://billstclair.com/loom/">
-Bill St. Clair</a>, 2008. All rights reserved.</p>
+Bill St. Clair</a>, 2008-2009. All rights reserved.</p>
 </center>
 </body>
 </html>
