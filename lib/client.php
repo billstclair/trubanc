@@ -3336,10 +3336,7 @@ class serverproxy {
 
     $debugfile = '';
     if ($client->showprocess) {
-      $debugdir = realpath($db->dir);
-      $debugfile = 'serverdebug/' . $client->newsessionid();
-      $vars['debugdir'] = $debugdir;
-      $vars['debugfile'] = $debugfile;
+      $vars['debugmsgs'] = 'true';
     }
 
     $dbgmsg = $this->trimmsg($msg);
@@ -3347,8 +3344,13 @@ class serverproxy {
 
     $res = $this->post($url, $vars);
 
-    if ($debugfile) {
-      $text = $db->get($debugfile);
+    if (substr($res, 0, 2) == '<<') {
+      $pos = strpos($res, ">>\n");
+      if ($pos === FALSE) $text = '';
+      else {
+        $text = substr($res, 2, $pos-2);
+        $res = substr($res, $pos+3);
+      }
       if ($text) {
         $db->put($debugfile, '');
         $marker = "===times===\n";

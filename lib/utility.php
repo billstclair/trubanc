@@ -96,7 +96,7 @@ class utility {
                         $t->PROCESSINBOX => array($t->BANKID,$t->TIME,$t->TIMELIST),
                         $t->STORAGEFEES => array($t->BANKID,$t->REQ),
                         $t->GETTIME => array($t->BANKID, $t->TIME),
-                        $t->COUPONENVELOPE => ARRAY($t->ID, $t->ENCRYPTEDCOUPON),
+                        $t->COUPONENVELOPE => array($t->ID, $t->ENCRYPTEDCOUPON),
 
                         // Bank signed messages
                         $t->FAILED => array($t->MSG, $t->ERRMSG),

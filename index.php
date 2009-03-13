@@ -17,8 +17,7 @@ function mqreq($x) {
 
 $msg = mqreq('msg');
 $debug = mqreq('debug');
-$debugdir = mqreq('debugdir');
-$debugfile = mqreq('debugfile');
+$debugmsgs = mqreq('debugmsgs');
 
 if ($msg) {
   require_once "lib/fsdb.php";
@@ -29,24 +28,32 @@ if ($msg) {
   $db = new fsdb($dbdir);
   $ssl = new ssl();
   $server = new server($db, $ssl, false, $bank_name, $bankurl);
-  if ($debugdir && $debugfile) {
-    $server->setdebugdir($debugdir, $debugfile);
+  if ($debugmsgs) {
+    $server->setdebugmsgs($debugmsgs);
     perf_init();
     $perf_idx = perf_start('The rest');
   }
-  $res = $server->process($msg);
-  if ($debug) {
-    $res = "msg: <pre>$msg</pre>\nresponse: <pre>$res</pre>\n";
-  }
 
-  // Put performance info in debugging file
-  if ($debugdir && $debugfile) {
+  // Do the dirty deed
+  $res = $server->process($msg);
+
+  // Add debugging info, if it's there
+  if ($debugmsgs) {
     perf_stop($perf_idx);
     $times = perf_times();
     if (count($times) > 0) {
       $server->debugmsg("===times===\n" . serialize($times));
     }
+    if ($server->debugstr) {
+      // Should probably escape ">>\n", but live dangerously
+      $res = "<<" . $server->debugstr . ">>\n$res";
+    }
   }
+  if ($debug) {
+    $res = htmlspecialchars($res); 
+    $res = "msg: <pre>$msg</pre>\nresponse: <pre>$res</pre>\n";
+  }
+
 } else {
   $res = file_get_contents($index_file);
 }

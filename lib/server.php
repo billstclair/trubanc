@@ -28,9 +28,8 @@ class server {
   var $privkey;
   var $bankid;
 
-  // Debugging. See setdebugdir() and debugmsg()
-  var $debugdb;
-  var $debugfile;
+  // Debugging. See setdebugmsgs()
+  var $debugmsgs;
 
   var $unpack_reqs_key = 'unpack_reqs';
 
@@ -693,18 +692,13 @@ class server {
   }
 
   /*** Debugging ***/
-  function setdebugdir($debugdir, $debugfile) {
-    $this->debugfile = $debugfile;
-    $this->debugdb = @new fsdb($debugdir);
-    $this->debugstr = '';
+  function setdebugmsgs($debugmsgs) {
+    $this->debugmsgs = $debugmsgs;
   }
 
   function debugmsg($msg) {
-    $this->debugstr .= $msg;
-    $db = $this->debugdb;
-    $debugfile = $this->debugfile;
-    if ($db && $debugfile) {
-      @$db->put($debugfile, $this->debugstr);
+    if ($this->debugmsgs) {
+      $this->debugstr .= $msg;
     }
   }
 
