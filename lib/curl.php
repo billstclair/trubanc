@@ -65,7 +65,7 @@ class curl {
     curl_setopt($process, CURLOPT_TIMEOUT, 30);
     if ($this->proxy) curl_setopt($process, CURLOPT_PROXY, $this->proxy);
     curl_setopt($process, CURLOPT_RETURNTRANSFER, 1);
-    curl_setopt($process, CURLOPT_FOLLOWLOCATION, 1);
+    //curl_setopt($process, CURLOPT_FOLLOWLOCATION, 1);
     curl_setopt($process, CURLOPT_HTTPGET, 1);
     $return = curl_exec($process);
     return $return;
@@ -85,7 +85,7 @@ class curl {
     curl_setopt($process, CURLOPT_POST, 1);
     curl_setopt($process, CURLOPT_POSTFIELDS, http_build_query($data));
     curl_setopt($process, CURLOPT_RETURNTRANSFER, 1);
-    curl_setopt($process, CURLOPT_FOLLOWLOCATION, 1);
+    //curl_setopt($process, CURLOPT_FOLLOWLOCATION, 1);
     $return = curl_exec($process);
     return $return;
   }
