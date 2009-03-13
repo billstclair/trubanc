@@ -329,9 +329,58 @@ class parser {
     return $res;
   }
 
+  // Remove the signatures out of a message
+  function remove_signatures($msg) {
+    $res = '';
+    while ($msg) {
+      $tail = strstr($msg, "):\n");
+      $extralen = 1;
+      $matchlen = 3;
+      $tail2 = strstr($msg, "\\)\\:\n");
+      if (strlen($tail2) > strlen($tail)) {
+        $tail = $tail2;
+        $extralen = 2;
+        $matchlen = 5;
+      }
+      $i = strlen($msg) - strlen($tail);
+      $res .= substr($msg, $idx, $i + $extralen);
+      $msg = substr($tail, $matchlen);
+      $dotpos = strpos($msg, '.');
+      $leftpos = strpos($msg, '(');
+      $commapos = strpos($msg, ',');
+      if ($dotpos === FALSE) $dotpos = $leftpos;
+      elseif (!($leftpos === FALSE)) $dotpos = min($dotpos, $leftpos);
+      if ($dotpos === FALSE) $dotpos = $commapos;
+      elseif (!($commapos === FALSE)) $dotpos = min($dotpos, $commapos);
+      $parenpos = strpos($msg, ')');
+      if (!($parenpos === false) &&
+          ($dotpos === FALSE || $parenpos < $dotpos)) $msg = substr($msg, $parenpos);
+      elseif ($dotpos) {
+        $res .= "\n";
+        $msg = substr($msg, $dotpos);
+      } else break;
+    }
+    return str_replace(",(", ",\n(", $res);
+  }
+
 }
 
 // Test code
+/*
+$p = new parser(false);
+echo "RES: " . $p->remove_signatures("(foo,bar,bletch,(1,2,3):
+fjdkf
+fjdkf
+jfkd
+):
+jdfksal
+jfdkla;
+.(a,b,c):
+fjkdsal
+fjkdsla");
+echo "\n";
+*/
+
 /*
 $parser = new parser(false);
 $pattern = array('x', 'y', 'bletch'=>1);

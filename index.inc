@@ -1,13 +1,13 @@
 <html>
 <head>
 <title>Trubanc</title>
-<link rel="shortcut icon" href="site-icon.png"/>
+<link rel="shortcut icon" href="site-icon.ico"/>
 </head>
 <body>
 <center>
 <h1>Trubanc</h1>
 <p>
-<img src="trubanc-logo.jpg" alt="Trubanc" width="376" height="355"/>
+<img src="trubanc-logo.gif" alt="Trubanc" width="300" height="295"/>
 <p>
 <table width="75%"><tr><td>
 <a href="http://Trubanc.com/">Trubanc</a> is an anonymous,

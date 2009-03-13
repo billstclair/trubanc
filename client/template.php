@@ -17,13 +17,13 @@ if (!$body) $body = 'This is the template for Trubanc web client pages';
 <head>
 <title><? echo $title; ?></title>
 <meta name="viewport" content="width=device-width"/>
-<link rel="apple-touch-icon" href="../trubanc-logo-50x47.jpg"/>
-<link rel="shortcut icon" href="../trubanc-logo-50x47.jpg"/>
+<link rel="apple-touch-icon" href="../site-icon.ico"/>
+<link rel="shortcut icon" href="../site-icon.ico"/>
 </head>
 <body<? if ($onload) echo " onload='$onload'"; ?>>
 <p>
 <a href="../">
-<img style="vertical-align: middle; border: 1px solid gray;" src="../trubanc-logo-50x47.jpg" alt="Trubanc" width="50" height="47"/></a>
+<img style="vertical-align: middle;border: 1px white" src="../trubanc-logo-50x49.gif" alt="Trubanc" width="50" height="49"/></a>
 <b><? echo $bankname; ?></b>
 <? if ($menu) echo "&nbsp;&nbsp;$menu"; ?>
 </p>

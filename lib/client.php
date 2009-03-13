@@ -3323,7 +3323,8 @@ class serverproxy {
       $vars['debugfile'] = $debugfile;
     }
 
-    $client->debugmsg("===SENT: $msg\n");
+    $dbgmsg = $this->trimmsg($msg);
+    $client->debugmsg("<b>===SENT</b>: $dbgmsg\n");
 
     $res = $this->post($url, $vars);
 
@@ -3331,12 +3332,44 @@ class serverproxy {
       $text = $db->get($debugfile);
       if ($text) {
         $db->put($debugfile, '');
-        $client->debugmsg("===SERVER SAID: $text");
+        $client->debugmsg("<b>===SERVER SAID</b>: $text");
       }
     }
-    $client->debugmsg("===RETURNED: $res\n");
+    
+    $dbgres = $this->trimmsg($res);
+    $client->debugmsg("<b>===RETURNED</b>: $dbgres\n");
 
     return $res;
+  }
+
+  function trimmsg($msg) {
+    $client = $this->client;
+
+    if ($client->showprocess) {
+      $parser = $client->parser;
+      $msg = $parser->remove_signatures($msg);
+      $tokens = $parser->tokenize($msg);
+      $res = '';
+      foreach ($tokens as $token) {
+        if (strlen($token) == 1) $res .= $token;
+        elseif ($this->ishex($token)) {
+          $res .= $token;
+        } else {
+          $res .= "<b>$token</b>";
+        }
+      }
+      return $res;
+    }
+    return $msg;
+  }
+
+  function ishex($str) {
+    $len = strlen($str);
+    for ($i=0; $i<$len; $i++) {
+      $c = substr($str, $i, 1);
+      if (strpos("0123456789abcdef", $c) === FALSE) return false;
+    }
+    return true;
   }
 }
 
