@@ -24,19 +24,34 @@ if ($msg) {
   require_once "lib/fsdb.php";
   require_once "lib/ssl.php";
   require_once "lib/server.php";
+  require_once "lib/perf.php";
 
   $db = new fsdb($dbdir);
   $ssl = new ssl();
   $server = new server($db, $ssl, false, $bank_name, $bankurl);
-  if ($debugdir && $debugfile) $server->setdebugdir($debugdir, $debugfile);
+  if ($debugdir && $debugfile) {
+    $server->setdebugdir($debugdir, $debugfile);
+    perf_init();
+    $perf_idx = perf_start('The rest');
+  }
   $res = $server->process($msg);
   if ($debug) {
     $res = "msg: <pre>$msg</pre>\nresponse: <pre>$res</pre>\n";
+  }
+
+  // Put performance info in debugging file
+  if ($debugdir && $debugfile) {
+    perf_stop($perf_idx);
+    $times = perf_times();
+    if (count($times) > 0) {
+      $server->debugmsg("===times===\n" . serialize($times));
+    }
   }
 } else {
   $res = file_get_contents($index_file);
 }
 
+// Here's the output
 header("Content-Length: " . strlen($res));
 echo $res;
 

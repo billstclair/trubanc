@@ -29,7 +29,7 @@ class server {
   var $bankid;
 
   // Debugging. See setdebugdir() and debugmsg()
-  var $debugdir;
+  var $debugdb;
   var $debugfile;
 
   var $unpack_reqs_key = 'unpack_reqs';
@@ -694,16 +694,17 @@ class server {
 
   /*** Debugging ***/
   function setdebugdir($debugdir, $debugfile) {
-    $this->debugdir = $debugdir;
     $this->debugfile = $debugfile;
+    $this->debugdb = @new fsdb($debugdir);
+    $this->debugstr = '';
   }
 
   function debugmsg($msg) {
-    $debugdir = $this->debugdir;
-    $file = $this->debugfile;
-    if ($debugdir && $file) {
-      $db = @new fsdb($debugdir);
-      if ($db) @$db->put($file, $db->get($file) . "$msg");
+    $this->debugstr .= $msg;
+    $db = $this->debugdb;
+    $debugfile = $this->debugfile;
+    if ($db && $debugfile) {
+      @$db->put($debugfile, $this->debugstr);
     }
   }
 

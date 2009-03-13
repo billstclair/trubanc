@@ -2,6 +2,8 @@
 
   // fsdb.php - File System Database
 
+require_once "perf.php";
+
 class fsdb {
 
   var $dir = false;
@@ -32,7 +34,7 @@ class fsdb {
     return @mkdir($path, $mode);
   }
 
-  function normalize_key ($key) {
+  function normalize_key($key) {
     if ($key[0] == '/') return substr($key, 1);
     return $key;
   }
@@ -44,6 +46,13 @@ class fsdb {
   }
 
   function put($key, $value) {
+    $idx = perf_start('fsdb->put');
+    $res = $this->put_internal($key, $value);
+    perf_stop($idx);
+    return $res;
+  }
+
+  function put_internal($key, $value) {
     if ($value === false) $value = '';
     $blank = ($value === '');
     $filename = $this->filename($key);
@@ -71,6 +80,13 @@ class fsdb {
   }
       
   function get($key) {
+    $idx = perf_start('fsdb->get');
+    $res = $this->get_internal($key);
+    perf_stop($idx);
+    return $res;
+  }
+
+  function get_internal($key) {
     $filename = $this->filename($key);
     $fp = @fopen($filename, 'r');
     if (!$fp) return false;

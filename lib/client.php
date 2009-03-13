@@ -48,6 +48,9 @@ class client {
   // Set true to keep history of spend & processinbox
   var $keephistory = false;
 
+  // Used to accumulate timing information from server (perf.php)
+  var $server_times = array();
+
   // $db is an object that does put(key, value), get(key), contents(key),
   // & subdir(subkey), as in fsdb.php
   // $ssl is an object that does the protocol of ssl.php
@@ -3271,6 +3274,22 @@ class client {
     if ($showfun) @$showfun($x);
   }
 
+  function server_times() {
+    return $this->server_times;
+  }
+
+  function accumulate_server_times($times) {
+    $this->server_times = $this->accumulate_times($times, $this->server_times);
+  }
+
+  function accumulate_times($from, $into) {
+    foreach ($from as $name => $stats) {
+      $into[$name]['cnt'] += $stats['cnt'];
+      $into[$name]['time'] = bcadd($into[$name]['time'], $stats['time'], perf_precision());
+    }
+    return $into;
+  }
+
 }
 
 class serverproxy {
@@ -3332,7 +3351,14 @@ class serverproxy {
       $text = $db->get($debugfile);
       if ($text) {
         $db->put($debugfile, '');
-        $client->debugmsg("<b>===SERVER SAID</b>: $text");
+        $marker = "===times===\n";
+        $pos = strpos($text, $marker);
+        if (!($pos === FALSE)) {
+          $times = @unserialize(substr($text, $pos + strlen($marker)));
+          if ($times) $client->accumulate_server_times($times);
+          $text = substr($text, 0, $pos);
+        }
+        if ($text) $client->debugmsg("<b>===SERVER SAID</b>: $text");
       }
     }
     

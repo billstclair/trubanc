@@ -2,6 +2,8 @@
 
   // SSL key creation, signing, and verification
 
+require_once "perf.php";
+
 class ssl {
   // Make a new private key, as a PEM-encoded string
   function make_privkey($bits=3072, $passphrase=false) {
@@ -66,6 +68,13 @@ class ssl {
   // Sign a message with a private key.
   // Return the signature, base64-encoded
   function sign($msg, $privkey, $passphrase=false) {
+    $idx = perf_start('ssl->sign');
+    $res = $this->sign_internal($msg, $privkey, $passphrase);
+    perf_stop($idx);
+    return $res;
+  }
+
+  function sign_internal($msg, $privkey, $passphrase) {
     $free = false;
     if (is_string($privkey)) {
       $privkey = $this->load_private_key($privkey, $passphrase);
@@ -79,7 +88,10 @@ class ssl {
   // Verify that a message was signed with the private key corresponding
   // to a public key.
   function verify($msg, $signature, $pubkey) {
-    return openssl_verify($msg, base64_decode($signature), $pubkey) == 1;
+    $idx = perf_start('ssl->verify');
+    $res = openssl_verify($msg, base64_decode($signature), $pubkey) == 1;
+    perf_stop($idx);
+    return $res;
   }
 
   // $pubkey is a public key string.

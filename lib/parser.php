@@ -9,6 +9,7 @@
   //  0 => The public key id
 
 require_once "ssl.php";
+require_once "perf.php";
 
 class parser {
 
@@ -45,6 +46,13 @@ class parser {
   // If $verifysigs is unspecified of 'default', use $this->verifysigs
   // as the value (default: true)
   function parse($str, $verifysigs='default') {
+    $idx = perf_start('parser->parse');
+    $res = $this->parse_internal($str, $verifysigs);
+    perf_stop($idx);
+    return $res;
+  }
+
+  function parse_internal($str, $verifysigs) {
     if ($verifysigs == 'default') $verifysigs = $this->verifysigs;
     $tokens = $this->tokenize($str);
     $state = false;
@@ -220,6 +228,13 @@ class parser {
   }
 
   function tokenize($str) {
+    $idx = perf_start('parser->tokenize');
+    $res = $this->tokenize_internal($str);
+    perf_stop($idx);
+    return $res;
+  }
+
+  function tokenize_internal($str) {
     $res = array();
     $i = 0;
     $realstart = false;

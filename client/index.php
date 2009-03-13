@@ -10,6 +10,7 @@ require_once "../lib/fsdb.php";
 require_once "../lib/ssl.php";
 require_once "../lib/client.php";
 require_once "../lib/timestamp.php";
+require_once "../lib/perf.php";
 
 function mq($x) {
   if (get_magic_quotes_gpc()) return stripslashes($x);
@@ -59,7 +60,12 @@ $timestamp = new timestamp();
 $iphone = strstr($_SERVER['HTTP_USER_AGENT'], 'iPhone');
 $history = false;
 
-if ($_COOKIE['debug']) $client->showprocess = 'appenddebug';
+
+if ($_COOKIE['debug']) {
+  $client->showprocess = 'appenddebug';
+  perf_init();
+  $perf_idx = perf_start('The rest');
+}
 
 $default_menuitems = array('balance' => 'Balance',
                            'contacts' => 'Contacts',
@@ -131,8 +137,44 @@ else draw_login();
 
 // Use $title, $body, and $onload, $debug to fill the page template.
 if ($debug) $debug = "<b>=== Debug log ===</b><br/><pre>$debug</pre>\n";
+
+if ($client->showprocess) {
+  perf_stop($perf_idx);
+  $client->debugmsg("<table><tr><td>\n");
+  $times = draw_times(null, '=== Client Timing ===');
+  $server_times = $client->server_times();
+  if ($server_times) {
+    $client->debugmsg("</td><td>");
+    draw_times($server_times, '=== Server Timing ===');
+    $times = $client->accumulate_times($times, $server_times);
+    $client->debugmsg("</td><td>");
+    draw_times($times, '=== Totals ===');
+  }
+  $client->debugmsg("</tr></table\n");
+}
+
+// Here's where the output happens
 include "template.php";
 return;
+
+function draw_times($times, $caption) {
+  global $client;
+
+  $times = perf_times($times);
+  if (count($times) > 0) {
+    $client->debugmsg('<table border="1">
+<caption><b>' . $caption . '</b></caption>
+<tr><th>Function</th><th>Count</th><th>Time</th></tr>
+');
+    foreach($times as $name => $stats) {
+      $cnt = $stats['cnt'];
+      $time = $stats['time'];
+      $client->debugmsg("<tr><td>$name</td><td>$cnt</td><td>$time</td></tr>\n");
+    }
+    $client->debugmsg("</table>\n");
+  }
+  return $times;
+}
 
 function settitle($subtitle) {
   global $title;
