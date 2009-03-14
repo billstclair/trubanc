@@ -272,11 +272,14 @@ function do_login() {
       if ($coupon) {
         $err = $client->parsecoupon($coupon, $bankid, $url, $coupon_number);
         if ($err) {
-          $error = "Invalid coupon: $err";
+          // See if "coupon" is just a URL, meaning the user
+          // already has an account at that bank.
+          $err2 = $client->verifybank($coupon, $bankid);
+          if ($err2) $error = "Invalid coupon: $err";
         } else {
           $error = $client->verifycoupon($coupon, $bankid, $url);
         }
-      } elseif ($require_coupon) {
+      } elseif ($require_coupon && !privkey) {
         $error = "Bank coupon required for registration";
       }
 

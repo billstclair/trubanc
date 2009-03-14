@@ -28,3 +28,79 @@ server. The directories should not be directly servable by
 Apache. Otherwise, people will be able to snoop on the "database", and
 steal your bank's PGP private key, and information about customer
 accounts. That would be bad.
+
+If your installation doesn't allow you to have writable files anywhere
+BUT the web server directory, you can create an .htaccess file in the
+database directories, or a parent directory, containing the following,
+to deny access to the database files from a web browser:
+
+  RewriteEngine On
+  RewriteRule .* - [F]
+
+To test your server installation, and generate the bank's private key,
+aim your browser at:
+
+  http://your-server.com/path/to/trubanc/?debug=true&msg=(0%2Cbankid%2C0):0
+
+You should, after a few seconds to generate a key, output that looks
+like:
+
+  msg:
+
+  (0,bankid,0):0
+
+  response:
+
+  (e65307d484d2cd09edd73e5b5ab0d5fb3fdee6e2,register,e65307d484d2cd09edd73e5b5ab0d5fb3fdee6e2,
+  -----BEGIN PUBLIC KEY-----
+  MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA2oeklsujqTF+QBBFMpB7
+  w0yPAaM3u3hs9tUjm8tI8YqSvlvqxs52iiBmq4dIGXaS7ywHbM/w/lVe7QQ17U4J
+  zBczp6XTq2OwG8k8rt1H7YMBoTYcRrfVGwIbgMackaWUTB84kk11M0ZdY+j98tjK
+  +TeQXv6zLW7o4YuwbJ1ydNVa+4uja0lmUNVctV0iTpiM1pqAusPfOe1O1b2zD2wF
+  mBQGvPYRJn+LHPLozuuXwGEECI99sxNQkmnLskn/yAWe0vpENv5OHS6ODxY84Vfs
+  dfQQH4Xqm8sVnmNIdIvZPYkBodoRYeIqjAfTNa4Fabi+M4SZ4szT6Mdy0AHXpMNU
+  l5BE1cjIyXlHtFqowKSi9YkpgFHu9RLsuqwntty6aMFyKKm/gVqCMEAEa3SZ06KA
+  FjhtT0KcoUHkQOdfbL5lcX7XBZsPWEEQ8ierxDnB2wRHu1L44k3zcSaEQ3Ox985J
+  xe/QqlMgEo0e1cYgCKU9pa4Ftvve7FU8arJLuPV6srmpAgMBAAE=
+  -----END PUBLIC KEY-----
+  ,Trubanc):
+  vwdpDBQkC2eHsMg2co1hQLYA2E7W8TZYKxrHl3lvvH7AuYkHcPT8tp1nTtgm/u0b
+  TDtYwf3SmSr5DacMZIZXYhZGlqQMAmchN2+ybO83iBgoY2Dikz+lYUo4rTK60kw5
+  IukUV1UTXayFodQDqL/y6sAVZxSX9HUqHhS1pu+As+aoVDmwmDNbH1ZMJMO+hGtb
+  MEmha1Kada5ds/yDW5mN1l2G1lfNt5NT7OF7goL8/3v1off8u8p503aYDRqzz2te
+  9iBTGcJKeq2B9BUq3A3g6ZOpuc34Ba1Zzzvh3gXtQTzwt633hoUrpxh6lxLR3uig
+  5c9+VMGiuoe5Drj78j9/w3yTjiZ5pGXdLqrIL8055FW0OWqMdrU+3ps4E6vZpmNt
+  pp/bds4KExWiPTEDt03y29NhUkEARomjxbdalUdCfHQ+60ftvsH15cegpjBLUOpo
+  vLa+a3RbXrPQZQUxxQl9lQdq1tAwPwPQDwI3z8VGhaNtgoY3OpawypmZDArWr3UH
+
+Some PHP SAFE_MODE installations will require you to set the
+permission on the database directories to 2777, and enable
+safe_mode_gid. If you see an error like the following, on entering the
+URL above:
+
+  Can't open for write: dbs/serverdb/pubkey/36a6db2903b42d35e753d44d95636490b0fb7b2c 
+
+Then you should remove the server database directory, recreate it, and
+change its permissions to 2777.
+
+Once you've seen the "BEGIN PUBLIC KEY" output above, your server is
+working correctly. In order to get new users, you'll need a client
+account for the server, so that you can mint coupons for them. To do
+that, aim your browser at either the client on your web host, via
+https, or a client installation on your PC. On the login page, click
+the "Register a new account" link. On the registration page, enter a
+new "Passphrase" for the bank's account, and again as the
+"Verification", enter the server URL as the "Coupon", and paste the
+server private key (see below) into the large text box at the bottom
+of the page. Then click the "Create Account" button. You should see
+the "Balance" screen with a "-0" balance for your bank's "Usage
+Tokens".
+
+After you've initialized your Trubanc server, and seen the "BEGIN
+PUBLIC KEY" output above, you can find the bank private key in the
+"privkey" file in the server database directory. Yes, there it is, in
+plaintext. Much like SSL private keys in normal web server
+environments. I plan to make a stand-alone server, that will require
+the bank's passphrase to be entered when you start it up, and store
+the plaintext bank private key only in RAM, but I haven't done that
+yet.

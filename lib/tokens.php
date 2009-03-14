@@ -82,6 +82,7 @@ class tokens {
   var $SCALE = 'scale';
   var $PRECISION = 'precision';
   var $PERCENT = 'percent';
+  var $TIMELIST = 'timelist';
   var $HASH = 'hash';
   var $MSG = 'msg';
   var $ERRMSG = 'errmsg';
