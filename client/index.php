@@ -1902,7 +1902,7 @@ function properly_configured_p() {
   } elseif (!$dbdir) {
     $error = 'The $dbdir variable is not set in settings.php';
   } elseif (!file_exists($template_file)) {
-    $error = 'The template file, $template_file, does not exist;
+    $error = "The template file, $template_file, does not exist";
   }
 
   if ($error) {
