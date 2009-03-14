@@ -28,6 +28,10 @@ class server {
   var $privkey;
   var $bankid;
 
+  // True to always verify sigs. False to disable for DB access during
+  // expensive operations.
+  var $alwaysverifysigs = true;
+
   // Debugging. See setdebugmsgs()
   var $debugmsgs;
 
@@ -43,6 +47,7 @@ class server {
     $this->t = new tokens();
     $this->pubkeydb = $db->subdir($this->t->PUBKEY);
     $this->parser = new parser($this->pubkeydb, $ssl);
+    $this->parser->alwaysverifysigs = $this->alwaysverifysigs;
     $this->u = new utility($this->t, $this->parser, $this);
     $this->timestamp = new timestamp();
     $this->bankname = $bankname;

@@ -243,6 +243,7 @@ function do_login() {
     $key = $client->getprivkey($passphrase);
     if (!$key) $error = "No key for passphrase";
     draw_login($key);
+    return;
   } elseif ($newacct) {
     $login = false;
     $privkey = mqpost('privkey');

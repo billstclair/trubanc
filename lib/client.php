@@ -61,6 +61,7 @@ class client {
     $this->t = new tokens();
     $this->pubkeydb = new pubkeydb($this, $db->subdir($this->t->PUBKEY));
     $this->parser = new parser($this->pubkeydb, $ssl);
+    $this->parser->alwaysverifysigs = true;
     $this->u = new utility($this->t, $this->parser, $this);
   }
 

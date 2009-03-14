@@ -1,8 +1,5 @@
 The current, not original, asset issuer should be allowed to change the storage fee.
 
-Time the parser and the SSL signatures and everything else. Is this
-going to work as a real transaction processor?
-
 ======================================================================
 
 $t->BATCHFEES command, to iterate over accounts, collecting storage fees.
