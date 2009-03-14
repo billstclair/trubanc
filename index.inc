@@ -63,6 +63,10 @@ or:
 <code>
 <span style="margin-left: 15px;">git clone git://github.com/billstclair/trubanc.git trubanc</span>
 </code>
+</p>
+<p>The code is also in
+<a href="trubanc.tar.gz">http://trubanc.com/trubanc.tar.gz</a>. See
+<a href="INSTALL">INSTALL</a> for installation instructions.</p>
 <center>
 <p style="font-size: 75%;">Copyright &copy; 
 <a href="https://billstclair.com/loom/">

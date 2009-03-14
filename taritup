@@ -1,0 +1,2 @@
+cd ..
+tar -X trubanc/tar.exclude -czf trubanc/trubanc.tar.gz trubanc

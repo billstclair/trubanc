@@ -4,7 +4,9 @@
   // Trubanc main page
 
 // Define $dbdir, $bank_name, $index_file, $bankurl
-require_once "settings.php";
+if (file_exists("settings.php")) require_once "settings.php";
+
+if (!properly_configured_p()) return;
 
 function mq($x) {
   if (get_magic_quotes_gpc()) return stripslashes($x);
@@ -62,7 +64,52 @@ if ($msg) {
 header("Content-Length: " . strlen($res));
 echo $res;
 
-// Copyright 2008 Bill St. Clair
+// Test for proper configuration. Return true if so.
+// If not, output an information page, and return false.
+function properly_configured_p() {
+  global $index_file, $dbdir, $bank_name;
+  global $error;
+
+  $dir = realpath(dirname($_SERVER['SCRIPT_FILENAME']));
+
+  if (!file_exists('settings.php')) {
+    $error = "The file 'settings.php' was not found in $dir<br>" .
+             "Copy settings.php.tmpl to settings.php, and change the variables.";
+  } elseif (!$index_file) {
+    $error = 'The $index_file variable is not set in settings.php';
+  } elseif (!file_exists($index_file)) {
+    $error = "\$index_file = '$index_file', but that file does not exist";
+  } elseif (!$dbdir) {
+    $error = 'The $dbdir variable is not set in settings.php';
+  } elseif (!is_dir($dbdir)) {
+    $error = "\$dbdir, '$dbdir', is not a directory";
+  } elseif (!is_writable($dbdir)) {
+    $error = "The \$dbdir directory, '$dbdir', is not writable";
+  } elseif (!$bank_name) {
+    $error = 'The $bank_name variable is not set in settings.php';
+  }
+
+  if ($error) {
+?>
+<html>
+<head>
+<title>Trubanc Server Misconfigured</title>
+</head>
+<head>
+This Trubanc server is misconigured. Read the
+<a href="INSTALL">INSTALL</a> directions.
+<p>
+<? echo $error; ?>
+</head>
+</html>
+<?      
+    return false;
+  }
+
+  return true;  
+}
+
+// Copyright 2008-2009 Bill St. Clair
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.

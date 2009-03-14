@@ -1,4 +1,4 @@
 #!/bin/bash
-rsyncit -av --exclude=settings.php ./
-ssh $TRUBANC chgrp web /home/public/index.php /home/public/client/index.php
+./taritup
+./webpush
 ./gitpush

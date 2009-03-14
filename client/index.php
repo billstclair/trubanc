@@ -4,7 +4,10 @@
   // A Trubanc web client
 
 // Define $dbdir, $require_coupon
-require_once "settings.php";
+if (file_exists('settings.php')) require_once "settings.php";
+if (!$template_file) $template_file = "template.php";
+
+if (!properly_configured_p()) return;
 
 require_once "../lib/fsdb.php";
 require_once "../lib/ssl.php";
@@ -154,7 +157,7 @@ if ($client->showprocess) {
 }
 
 // Here's where the output happens
-include "template.php";
+include $template_file;
 return;
 
 function draw_times($times, $caption) {
@@ -1883,6 +1886,43 @@ function draw_admin($name=false, $tokens=false) {
   $onload = "document.forms[0].name.focus()";
 
   $body = 'No admin stuff yet';
+}
+
+// Test for proper configuration. Return true if so.
+// If not, output an information page, and return false.
+function properly_configured_p() {
+  global $dbdir, $template_file;
+  global $error;
+
+  $dir = realpath(dirname($_SERVER['SCRIPT_FILENAME']));
+
+  if (!file_exists('settings.php')) {
+    $error = "The file 'settings.php' was not found in $dir<br>" .
+             "Copy settings.php.tmpl to settings.php, and change the variables.";
+  } elseif (!$dbdir) {
+    $error = 'The $dbdir variable is not set in settings.php';
+  } elseif (!file_exists($template_file)) {
+    $error = 'The template file, $template_file, does not exist;
+  }
+
+  if ($error) {
+?>
+<html>
+<head>
+<title>Trubanc Client Misconfigured</title>
+</head>
+<head>
+Your Trubanc client is misconigured. Read the <a
+href="../INSTALL">INSTALL</a> directions.
+<p>
+<? echo $error ?>
+</head>
+</html>
+<?      
+    return false;
+  }
+
+  return true;  
 }
 
 // Copyright 2008 Bill St. Clair

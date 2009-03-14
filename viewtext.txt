@@ -13,7 +13,9 @@ css/docstyle.css|Style sheet for the docs
 
 lib/curl.php|HTTP get and post with keep-alive
 lib/fsdb.php|The "File System Database" used by Trubanc
+lib/LoomRandom.php|Random number generator
 lib/parser.php|Parser for the protocol strings
+lib/perf.php|Performance timing
 lib/ssl.php|Interface to PHP's SSL wrapper
 lib/timestamp.php|An ever-increasing timestamp
 lib/tokens.php|All the names used in the database and protocol
@@ -27,6 +29,7 @@ lib/client.php|The client API
 lib/clientest.php|Test code for the client API
 
 client/index.php|The web client
+client/history.php|Web client history display
 client/settings.php.tmpl|Template for web client settings
 client/template.php|Web client page template
 client/debug.php|Toggles debug mode in the web client

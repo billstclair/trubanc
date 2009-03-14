@@ -1,0 +1,30 @@
+This file contains instructions for installing a Trubanc server and client.
+
+1) Get the contents of http://trubanc.com/trubanc.tar.gz into your web
+   service directory. Or get it with git:
+
+   git clone git://github.com/billstclair/trubanc.git trubanc
+
+2) Copy settings.php.tmpl to settings.php, and edit it for your environment
+
+3) To modify the home page, create a new home page HTML file (NOT
+   index.html), and set the $index_file value in settings.php to
+   its name. This file must be plain HTML. PHP will not be
+   interpreted.
+
+4) Copy client/settings.php.tmpl to client/settings.php, and edit it.
+
+5) To modify the appearance of the client web page, copy
+   client/template.php into a new php file in the same directory,
+   change it, preserving the functionality of the variables documented
+   at the top of the file, and set $template_file in
+   client/settings.php to its name.
+
+Notes
+=====
+
+$dbdir for both client and server must be writable by the web
+server. The directories should not be directly servable by
+Apache. Otherwise, people will be able to snoop on the "database", and
+steal your bank's PGP private key, and information about customer
+accounts. That would be bad.
