@@ -14,7 +14,17 @@ This file contains instructions for installing a Trubanc server and client.
 
 4) Copy client/settings.php.tmpl to client/settings.php, and edit it.
 
-5) To modify the appearance of the client web page, copy
+5) Aim your web browser at bankinit.php under your Trubanc URL to
+   create client accounts for the bank and an administrator. For
+   example, if your Trubanc server is at http://example.com/, and your
+   browser at:
+
+   http://example.com/bankinit.php
+   
+   Follow the instructions there. Make sure to pick good passphrases,
+   so that it's unlikely that anyone can break in.
+
+6) To modify the appearance of the client web page, copy
    client/template.php into a new php file in the same directory,
    change it, preserving the functionality of the variables documented
    at the top of the file, and set $template_file in
@@ -22,6 +32,16 @@ This file contains instructions for installing a Trubanc server and client.
 
 Notes
 =====
+
+Step 5 above initializes the server and client databases, adds the
+server to the client database, with a passphrase you select, and
+creates an adminiatrator account with 10,000 usage tokens initially
+spent from the bank.
+
+I recommend that you use the bank's account only to spend usage tokens
+to the administrator account. Use the administrator account to create
+new user coupons and to conduct other bank business. Also use the
+administrator account to issue any bank-owned assets.
 
 $dbdir for both client and server must be writable by the web
 server. The directories should not be directly servable by
@@ -119,17 +139,3 @@ set the $ssl_domain variable in settings.php for client and/or
 server.
 
   $ssl_domain = "example.com";
-
-To create a client account for the bank, go to the following URL:
-
-  http://example.com/path/to/trubank/bankinit.php
-
-This initialized the server and client databases, adds the server to
-the client database, with a passphrase you select, and creates an
-adminiatrator account with 10,000 usage tokens initially spend from
-the bank.
-
-I recommend that you use the bank's account only to spend usage tokens
-to the administrator account. Use the administrator account to create
-new user coupons and to conduct other bank business. Also use the
-administrator account to issue any bank-owned assets.
