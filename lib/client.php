@@ -472,7 +472,8 @@ class client {
       }
       if ($bankid != $args[$t->CUSTOMER]) {
         $this->bankid = false;
-        return "bankid changed since we last contacted this bank";
+        $new = $args[$t->CUSTOMER];
+        return "bankid changed since we last contacted this bank, old: $bankid, new: $new";
       }
       if ($args[$t->REQUEST] != $t->REGISTER ||
           $args[$t->BANKID] != $bankid) {
@@ -552,6 +553,7 @@ class client {
     $keyid = $ssl->pubkey_id($pubkey);
     if ($keyid != $id) return "Server's pubkey wrong";
     $db->put($this->userbankkey($t->PUBKEYSIG) . "/$id", $msg);
+    $db->put($this->userbankkey($t->REQ), -1);
 
     return false;
   }

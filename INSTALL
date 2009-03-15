@@ -40,7 +40,7 @@ to deny access to the database files from a web browser:
 To test your server installation, and generate the bank's private key,
 aim your browser at:
 
-  http://your-server.com/path/to/trubanc/?debug=true&msg=(0%2Cbankid%2C0):0
+  http://example.com/path/to/trubanc/?debug=true&msg=(0%2Cbankid%2C0):0
 
 You should, after a few seconds to generate a key, output that looks
 like:
@@ -96,11 +96,40 @@ of the page. Then click the "Create Account" button. You should see
 the "Balance" screen with a "-0" balance for your bank's "Usage
 Tokens".
 
-After you've initialized your Trubanc server, and seen the "BEGIN
-PUBLIC KEY" output above, you can find the bank private key in the
-"privkey" file in the server database directory. Yes, there it is, in
-plaintext. Much like SSL private keys in normal web server
-environments. I plan to make a stand-alone server, that will require
-the bank's passphrase to be entered when you start it up, and store
-the plaintext bank private key only in RAM, but I haven't done that
-yet.
+You will probably want to use SSL (https, encrypted connection) for
+your client, and, until I make Trubanc support client/server
+encryption internally, your server. After you install your SSL
+certificate, and assuming your server is in the "trubanc" directory,
+you can create an .htaccess file at the top-level of your site,
+containing the following, to enable HTTPS for only the client. Remove
+"client/" to enable it for the client and server.
+
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on
+  RewriteRule ^trubanc/client/(.*) https://example.com/trubanc/client/$1 [R,L]
+
+Or, if your server is at the top-level of your site:
+
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on
+  RewriteRule ^client/(.*) https://client/$1 [R,L]
+
+If the RewriteRule doesn't work in your Apache installation, you can
+set the $ssl_domain variable in settings.php for client and/or
+server.
+
+  $ssl_domain = "example.com";
+
+To create a client account for the bank, go to the following URL:
+
+  http://example.com/path/to/trubank/bankinit.php
+
+This initialized the server and client databases, adds the server to
+the client database, with a passphrase you select, and creates an
+adminiatrator account with 10,000 usage tokens initially spend from
+the bank.
+
+I recommend that you use the bank's account only to spend usage tokens
+to the administrator account. Use the administrator account to create
+new user coupons and to conduct other bank business. Also use the
+administrator account to issue any bank-owned assets.

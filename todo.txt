@@ -1,13 +1,3 @@
-Bank can make coupons, but never sees them because it has no
-outbox. Looks like the bank will need to store coupon spends in the
-outbox, sans outboxhash. And remove them when the coupon is accepted.
-Probably easiest to do this by making the bank always store outbox
-items, but never spend|accept or spend|reject in the inbox.
-
-Would be nice to have a command line bank initialization function that
-would create a client bank account from the server bank private key
-and a passphrase.
-
 The current, not original, asset issuer should be allowed to change the storage fee.
 
 ======================================================================

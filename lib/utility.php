@@ -322,7 +322,6 @@ class utility {
 }
 
 // Test code
-
 /*
 $ut = new utility(false, false, false);
 $balance = 365;

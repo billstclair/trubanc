@@ -3,11 +3,14 @@
   // client/index.php
   // A Trubanc web client
 
-// Define $dbdir, $require_coupon
+require_once "../lib/weblib.php";
+
+// Define $dbdir, $require_coupon, $ssl_domain
 if (file_exists('settings.php')) require_once "settings.php";
 if (!$template_file) $template_file = "template.php";
 
-if (!properly_configured_p()) return;
+die_unless_client_properly_configured();
+maybe_forward_to_ssl($ssl_domain);
 
 require_once "../lib/fsdb.php";
 require_once "../lib/ssl.php";
@@ -842,6 +845,8 @@ function contact_namestr($contact) {
 function id_namestr($fromid, &$contact, $you=false) {
   global $client;
 
+  if ($fromid == 'coupon') return $fromid;
+
   if ($you && $fromid == $client->id) return $you;
 
   $contact = $client->getcontact($fromid);
@@ -1363,6 +1368,11 @@ EOT;
 EOT;
       }
 
+      $disablemint = '';
+      if ($client->id == $client->bankid) {
+        $selectmint = '';
+        $disablemint = ' disabled="disabled"';
+      }
       $spendcode = <<<EOT
 
 <table>
@@ -1372,7 +1382,7 @@ EOT;
 </tr><tr>
 <td><b>Recipient:</b></td>
 <td>$recipopts
-<input type="checkbox" name="mintcoupon"$selectmint>Mint coupon</input></td>
+<input type="checkbox" name="mintcoupon"$selectmint$disablemint>Mint coupon</input></td>
 </tr><tr>
 <td><b>Note:</b></td>
 <td><textarea name="note" cols="40" rows="10">$note</textarea></td>
@@ -1889,43 +1899,6 @@ function draw_admin($name=false, $tokens=false) {
   $onload = "document.forms[0].name.focus()";
 
   $body = 'No admin stuff yet';
-}
-
-// Test for proper configuration. Return true if so.
-// If not, output an information page, and return false.
-function properly_configured_p() {
-  global $dbdir, $template_file;
-  global $error;
-
-  $dir = realpath(dirname($_SERVER['SCRIPT_FILENAME']));
-
-  if (!file_exists('settings.php')) {
-    $error = "The file 'settings.php' was not found in $dir<br>" .
-             "Copy settings.php.tmpl to settings.php, and change the variables.";
-  } elseif (!$dbdir) {
-    $error = 'The $dbdir variable is not set in settings.php';
-  } elseif (!file_exists($template_file)) {
-    $error = "The template file, $template_file, does not exist";
-  }
-
-  if ($error) {
-?>
-<html>
-<head>
-<title>Trubanc Client Misconfigured</title>
-</head>
-<head>
-Your Trubanc client is misconigured. Read the <a
-href="../INSTALL">INSTALL</a> directions.
-<p>
-<? echo $error ?>
-</head>
-</html>
-<?      
-    return false;
-  }
-
-  return true;  
 }
 
 // Copyright 2008 Bill St. Clair
