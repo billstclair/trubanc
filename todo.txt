@@ -1,3 +1,49 @@
+Enable history by default.
+
+Backup mechanism. Real-time logging and replication.
+
+Change your passphrase.
+
+==========
+
+Vending machines. Automatic trades.
+
+Create or change vending machine trade. Deletes if no vendin or vendout:
+
+(<id>,defvend,<bankid>,<time#>,expires=<expirationtime#>,note=<description>).
+  (<id>,vendin,<bankid>,<time#>,<assetid1>,<amount1>).
+  (<id>,vendin,<bankid>,<time#>,<assetid2>,<amount2>).
+  ...
+  (<id>,vendin,<bankid>,<time#>,<assetidN>,<amountN>).
+  (<id>,vendout,<bankid>,<time#>,<assetid-o1>,<amount-o1>).
+  (<id>,vendout,<bankid>,<time#>,<assetid-o2>,<amount-o2>).
+  ...
+  (<id>,vendout,<bankid>,<time#>,assetid-oN>,<amount-oN>).
+
+(<id>,vendacct,<bankid>,<time#>,<acct>)
+Trade with vending machine:
+
+(<id>,vend,<bankid>,<time#>,<id2>,<vendtime#>,<count>).
+  (<id>,spend,<bankid>,<time>,<assetid1>,<amount1>).
+  (<id>,spend,<bankid>,<time>,assetid2>,<amount2>).
+  ...
+  (<id>,spend,<bankid>,<time>,assetidN>,<amountN>).
+  (<id>,tranfee,<bankid>,<time#>,<tokenid>,<amount2fee>).
+  (<id>,storagefee,<bankid>,<time#>,<assetid>,<storageamount>).
+  (<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>).
+  (<id>,fraction,<bankid>,<time#>,<assetid>,<fractionamount>).
+  (<id>,balance,<bankid>,<time#>,<assetid2>,<amount2>,acct:<acct2>).
+  (<id>,fraction,<bankid>,<time#>,<assetid2>,<fractionamount2>).
+  ...
+  (<id>,balance,<bankid>,<time#>,<assetidN>,<amountN>,acct:<acctN>).
+  (<id>,fraction,<bankid>,<time#>,<assetidN>,<fractionamountN>).
+  (<id>,balancehash,<bankid>,<time#>,<balancecount>,<balancehash>)
+
+
+======================================================================
+
+Client command to change passphrase.
+
 The current, not original, asset issuer should be allowed to change the storage fee.
 
 ======================================================================

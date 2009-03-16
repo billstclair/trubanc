@@ -16,7 +16,7 @@ This file contains instructions for installing a Trubanc server and client.
 
 5) Aim your web browser at bankinit.php under your Trubanc URL to
    create client accounts for the bank and an administrator. For
-   example, if your Trubanc server is at http://example.com/, and your
+   example, if your Trubanc server is at http://example.com/, aim your
    browser at:
 
    http://example.com/bankinit.php

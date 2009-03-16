@@ -101,7 +101,9 @@ if ($session) {
 
 if ($client->id) {
   $keephistory = $client->userpreference('keephistory');
-  $client->keephistory($keephistory);
+  // Default is to keep history
+  if (!$keephistory) $keephistory = 'keep';
+  $client->keephistory($keephistory == 'keep');
 
   setbank();
 
@@ -618,11 +620,11 @@ function do_history() {
 function do_togglehistory() {
   global $client, $keephistory, $error;
 
-  $keephistory = ($keephistory ? '' : 'keep');
-  $client->keephistory($keephistory);
+  $keephistory = ($keephistory == 'keep' ? 'forget' : 'keep');
+  $client->keephistory($keephistory == 'keep');
 
   $client->userpreference('keephistory', $keephistory);
-  $error = ($keephistory ? "History enabled" : "History disabled");
+  $error = ($keephistory == 'keep' ? "History enabled" : "History disabled");
 
   draw_balance();
 }
@@ -891,7 +893,7 @@ function draw_balance($spend_amount=false, $recipient=false, $note=false,
       if ($client->userreq($bid) != -1) {
         $bname = $b[$t->NAME];
         $burl = $b[$t->URL];
-        $bankopts = "<option value=\"$bid\">$bname $burl</option>\n";
+        $bankopts .= "<option value=\"$bid\">$bname $burl</option>\n";
       }
     }
   }
@@ -1251,7 +1253,7 @@ EOT;
         }
       }
       $balcode .= "</table>\n</td></tr></table>\n";
-      $enabled = ($keephistory ? 'enabled' : 'disabled');
+      $enabled = ($keephistory == 'keep' ? 'enabled' : 'disabled');
       if ($fraction_asset && $_COOKIE['debug']) {
         $fraction = $client->getfraction($fraction_asset);
         $amt = $fraction[$t->AMOUNT];
@@ -1401,7 +1403,7 @@ EOT;
 EOT;
       $onload = "document.forms[0].amount.focus()";
       $closespend = "</form>\n";
-      $historytext = ($keephistory ? "Disable" : "Enable") . " history";
+      $historytext = ($keephistory == 'keep' ? "Disable" : "Enable") . " history";
       $instructions = '<p><a href="./?cmd=togglehistory">' .
                       $historytext . "</a>\n";
       if (hideinstructions()) {

@@ -75,6 +75,19 @@ $dbdir/
                  (<bankid>,@tranfee,(<id>,tranfee,<bankid>,<time4#>,<tokenid>,<amount4fee>))
       storagefee/  -- accumulators for storage fees. <amount>s have fractions
         <assetid>=(<bankid>,storagefee,<bankid>,<time#>,<assetid>,<amount>)
+      vendacct=(<bankid>,@vendacct,(<id>,vendacct,<bankid>,<time#>,<acct>))
+      defvend/
+        <time>=(<bankid>,@defvend,(<id>,defvend,<bankid>,<time2#>,expires=<time#>,note=<note>).
+               (<id>,vendin,<bankid>,<time#>,<assetid1>,<amount1>).
+               (<id>,vendin,<bankid>,<time#>,<assetid2>,<amount2>).
+               ...
+               (<id>,vendin,<bankid>,<time#>,<assetidN>,<amountN>).
+               (<id>,vendout,<bankid>,<time#>,<assetid-o1>,<amount-o1>).
+               (<id>,vendout,<bankid>,<time#>,<assetid-o2>,<amount-o2>).
+               ...
+               (<id>,vendout,<bankid>,<time#>,assetid-oN>,<amount-oN>))
+      vendpool/
+        <assetid>=(<bankid>,spend,<bankid>,<time#>,<id>,<assetid>,<amount>)
       transaction/
         (<bankid>,@spend,(<id>,spend,<time#>,<id2>,<bankid>,<assetid>,<amount>,note:<note>))...
           or
@@ -272,7 +285,7 @@ Spend
   (<id>,storagefee,<bankid>,<time#>,<assetid>,<storageamount>).
   (<id>,balance,<bankid>,<time#>,<assetid>,<amount>,acct:<acct>).
   (<id>,fraction,<bankid>,<time#>,<assetid>,<fractionamount>).
-  (<id>,balance,<bankid>,<time#>,<assetid2>,<amount2>,acct:<acct2>).
+  (<id>,balance,<bankid>,<time#>,<assetid2>,<amount2>,acct:<acctN>).
   ...
   (<id>,balance,<bankid>,<time#>,<assetidN>,<amountN>,acct:<acctN>).
   (<id>,outboxhash,<bankid>,<time#>,<outboxcount>,<outboxhash>).
@@ -742,10 +755,12 @@ Redeeming Coupons
 Switching Asset Issuance
 ------------------------
 
-TO DO.
+Asset issuance is switched by doing a negative spend of the whole
+negative amount from the <acct> holding the negative amount. This can
+move issuance to another <acct> or to another customer.
 
 
-// Copyright 2008 Bill St. Clair
+// Copyright 2008-2009 Bill St. Clair
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
