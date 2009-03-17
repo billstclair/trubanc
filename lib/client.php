@@ -1,4 +1,4 @@
-<?PHP
+<?php
 
   // client.php
   // A Trubanc client API. Talks the protocol of server.php

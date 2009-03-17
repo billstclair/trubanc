@@ -1,4 +1,4 @@
-<?PHP
+<?php
 
   // clientest.php
   // Test code for the Trubanc client

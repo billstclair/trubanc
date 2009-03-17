@@ -1,4 +1,4 @@
-<?PHP
+<?php
 
   // Initialize the server database and create a client account for the bank
 
@@ -208,12 +208,12 @@ Use the bank's account only to spend usage tokens to the administration account.
 Use the administration account to mint coupons, and to conduct other
 bank business.</p>
 
-<p style="color: red;"><? echo $error; ?></p>
+<p style="color: red;"><?php echo $error; ?></p>
 <form method="post" action="./bankinit.php" autocomplete="off">
 <input type="hidden" name="drawadmin" value="true"/>
-<input type="hidden" name="bankpass" value="<? echo $bankpass; ?>"/>
-<input type="hidden" name="random" value="<? echo hsc($random); ?>"/>
-<input type="hidden" name="sig" value="<? echo hsc($sig); ?>"/>
+<input type="hidden" name="bankpass" value="<?php echo $bankpass; ?>"/>
+<input type="hidden" name="random" value="<?php echo hsc($random); ?>"/>
+<input type="hidden" name="sig" value="<?php echo hsc($sig); ?>"/>
 <table>
 <tr>
 <td><b>Admin Passphrase:</b></td>
@@ -226,7 +226,7 @@ bank business.</p>
 <tr>
 <tr>
 <td><b>Name (optional):</b></td>
-<td><input type="text" name="name" size="40" value="<? echo $name; ?>"/></td>
+<td><input type="text" name="name" size="40" value="<?php echo $name; ?>"/></td>
 </tr>
 <tr>
 <td></td>
@@ -239,7 +239,7 @@ bank business.</p>
   }
 
 ?>
-<p style="color: red;"><? echo $error; ?></p>
+<p style="color: red;"><?php echo $error; ?></p>
 <form method="post" action="./bankinit.php" autocomplete="off">
 <table>
 <tr>

@@ -1,4 +1,4 @@
-<?PHP
+<?php
 
   // History display and update for Trubanc client
 

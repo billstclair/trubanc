@@ -1,4 +1,4 @@
-<?PHP
+<?php
 
   // Shared functions for top-level web forms
 
@@ -51,10 +51,10 @@ function die_unless_server_properly_configured() {
 This Trubanc server is misconigured. Read the
 <a href="INSTALL">INSTALL</a> directions.
 <p>
-<? echo $error; ?>
+<?php echo $error; ?>
 </head>
 </html>
-<?      
+<?php      
     die();
   }
 }
@@ -93,10 +93,10 @@ function die_unless_client_properly_configured($return_error=false) {
 Your Trubanc client is misconigured. Read the <a
 href="../INSTALL">INSTALL</a> directions.
 <p>
-<? echo $error ?>
+<?php echo $error ?>
 </head>
 </html>
-<?      
+<?php      
     die();
   }
 

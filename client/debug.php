@@ -1,4 +1,4 @@
-<?PHP
+<?php
 
   // Toggle client debugging output
 
@@ -16,7 +16,7 @@ if ($_COOKIE['debug']) {
 <title>Toggle Trubanc Client Debugging</title>
 </head>
 <body>
-<? echo "$msg\n"; ?>
+<?php echo "$msg\n"; ?>
 </body>
 </html>
 

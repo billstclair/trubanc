@@ -1,4 +1,4 @@
-<?PHP
+<?php
 
   // tokens.php
   // tokenize the protocol strings

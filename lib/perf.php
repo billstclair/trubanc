@@ -1,4 +1,4 @@
-<?PHP
+<?php
 
   // perf.php
   // Code performance monitor

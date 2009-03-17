@@ -1,4 +1,4 @@
-<?PHP
+<?php
 
   // parser.php
   // Parse "(id,[key:]value,...):signature" into an array, verifying signatures

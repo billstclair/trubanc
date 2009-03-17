@@ -1,4 +1,4 @@
-<?PHP
+<?php
 
   // crypto.php
   // Simple tests for crypto functions

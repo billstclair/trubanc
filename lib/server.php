@@ -1,4 +1,4 @@
-<?PHP
+<?php
 
   // server.php
   // Implement the server protocol

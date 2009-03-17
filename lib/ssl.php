@@ -1,4 +1,4 @@
-<?PHP
+<?php
 
   // SSL key creation, signing, and verification
 

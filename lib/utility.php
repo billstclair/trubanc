@@ -1,4 +1,4 @@
-<?PHP
+<?php
 
   // utility.php
   // Utility functions, bundled in a class

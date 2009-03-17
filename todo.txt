@@ -1,8 +1,9 @@
-Enable history by default.
+Change "<?" to "<?PHP" throughout. Some PHP configurations don't recognize "<?".
 
 Backup mechanism. Real-time logging and replication.
 
-Client command to change passphrase.
+Client command to change passphrase. Server request to change name
+associated with account.
 
 The current, not original, asset issuer should be allowed to change the storage fee.
 

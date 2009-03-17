@@ -94,14 +94,14 @@ function searchBody($match) {
 ?>
 <html>
 <head>
-<title><? echo htmlspecialchars($title); ?></title>
+<title><?php echo htmlspecialchars($title); ?></title>
 </head>
 <body>
 <?
 if ($file != '') {
 ?>
 <div style="font-family: courier">
-<? echo $text; ?>
+<?php echo $text; ?>
 </div>
 <?
 } else {
