@@ -33,7 +33,7 @@ if (!$body) $body = 'This is the template for Trubanc web client pages';
 <?php echo $debug; ?>
 </body>
 </html>
-<?
+<?php
 
 // Copyright 2008 Bill St. Clair
 //

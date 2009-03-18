@@ -188,7 +188,7 @@ function doit() {
 <p>Your bank is now ready for business. You may now login as administrator in the
 <a href="client/">Client interface</a>, accept your initial tokens from
 the bank, and start inviting customers.</p>
-<?
+<?php
               return;
             }
           }
@@ -234,7 +234,7 @@ bank business.</p>
 </tr>
 </table>
 </form>
-<?
+<?php
     return;
   }
 
@@ -256,7 +256,7 @@ bank business.</p>
 </tr>
 </table>
 </form>
-<?
+<?php
 }
 
 function pagehead() {
@@ -269,7 +269,7 @@ function pagehead() {
 <body onload="document.forms[0].passphrase.focus()">
 <p>This page initializes your bank, creates the bank private key,
 and creates a client account for the bank.</p>
-<?
+<?php
 }
 
 function pagetail() {
@@ -279,5 +279,5 @@ function pagetail() {
 ?>
 </body>
 </html>
-<?
+<?php
 }

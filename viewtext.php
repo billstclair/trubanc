@@ -97,13 +97,13 @@ function searchBody($match) {
 <title><?php echo htmlspecialchars($title); ?></title>
 </head>
 <body>
-<?
+<?php
 if ($file != '') {
 ?>
 <div style="font-family: courier">
 <?php echo $text; ?>
 </div>
-<?
+<?php
 } else {
   echo "You may view the following files.<br>Click on a file name or click a radio button and click one of the buttons below the list.<p>\n";
   echo "<form action='#1' method='get'>\n";
@@ -116,7 +116,7 @@ if ($file != '') {
 </body>
 </html>
 
-<?
+<?php
 
 // Copyright 2008 Bill St. Clair
 //

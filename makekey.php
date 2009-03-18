@@ -15,7 +15,7 @@ $passphrase = mq($_REQUEST['passphrase']);
 <title>Public Key Forge</title>
 </head>
 <body>
-<?
+<?php
 if ($keysize && is_numeric($keysize)) {
 
 $ssl = new ssl();
