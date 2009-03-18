@@ -2126,7 +2126,7 @@ class client {
 
     // Validate return from server
     $reqs = $parser->parse($msg, true);
-    if (!$reqs) return "Can't parse bank return from spend: $msg";
+    if (!$reqs) return "Can't parse bank return from processinbox: $msg";
     $args = $this->match_bankreq($reqs[0], $t->ATPROCESSINBOX);
     if (is_string($args)) {
       $args = $this->match_bankreq($reqs[0]);
@@ -2459,7 +2459,7 @@ class client {
     $u = $this->u;
     if (!$bankid) $bankid = $this->bankid;
 
-    $args = $u->match_pattern($req);
+    $args = $u->match_pattern($req, $bankid);
     if (is_string($args)) return "While matching: $args";
     if ($args[$t->CUSTOMER] != $bankid) return "Return message not from bank";
     if ($args[$t->REQUEST] == $t->FAILED) return $args[$t->ERRMSG];

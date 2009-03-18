@@ -133,7 +133,7 @@ class utility {
     return $this->patterns;
   }
 
-  function match_pattern($req) {
+  function match_pattern($req, $bankid=false) {
     $t = $this->t;
     $parser = $this->parser;
     $patterns = $this->patterns();
@@ -147,7 +147,7 @@ class utility {
         $parser->formatpattern($pattern) . " $msg";
     }
     $argsbankid = $args[$t->BANKID];
-    $bankid = $this->bankgetter->bankid();
+    if (!$bankid) $bankid = $this->bankgetter->bankid();
     if (array_key_exists($t->BANKID, $args) && $bankid && $argsbankid != $bankid) {
       return "bankid mismatch, sb: $bankid, was: $argsbankid";
     }
