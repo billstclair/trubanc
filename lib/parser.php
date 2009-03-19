@@ -158,7 +158,7 @@ class parser {
               return false;
             }
             $keydict = $this->keydict;
-            $pubkey = $keydict[$id];
+            $pubkey = @$keydict[$id];
             if (!$pubkey && ($dict[1] == 'register' || $dict[1] == 'bankid')) {
               // May be the first time we've seen this ID.
               // If it's a key definition message, we've got all we need.
@@ -271,7 +271,7 @@ class parser {
 
   // Return the message string that parsed into the array in $parse
   function get_parsemsg($parse) {
-    return $parse[$this->msgkey];
+    return @$parse[$this->msgkey];
   }
 
   // Return just the message part of a signed message, not including the signature.
@@ -314,8 +314,8 @@ class parser {
         $name = $key;
         $optional = true;
       }
-      $val = $parse[$i];
-      if ($val === NULL) $val = $parse[$name];
+      $val = @$parse[$i];
+      if ($val === NULL) $val = @$parse[$name];
       if (!$optional && $val === NULL) return false;
       if (!($val === NULL)) {
         $res[$name] = $val;
@@ -327,7 +327,7 @@ class parser {
     foreach ($parse as $key => $value) {
       if ($key != $msgkey && $res[$key] === NULL) return false;
     }
-    $res[$msgkey] = $parse[$msgkey];
+    $res[$msgkey] = @$parse[$msgkey];
     return $res;
   }
 

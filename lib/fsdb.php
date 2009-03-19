@@ -69,7 +69,7 @@ class fsdb {
         die("Can't open for write: $filename\n");
       }
     }
-    if (!$this->locks[$key]) flock($fp, LOCK_EX);
+    if (!@$this->locks[$key]) flock($fp, LOCK_EX);
     if ($blank) {
       @unlink($filename);
       // Should delete the empty directories in the path, too.
@@ -90,7 +90,7 @@ class fsdb {
     $filename = $this->filename($key);
     $fp = @fopen($filename, 'r');
     if (!$fp) return false;
-    if (!$this->locks[$key]) flock($fp, LOCK_SH);
+    if (!@$this->locks[$key]) flock($fp, LOCK_SH);
     $size = filesize($filename);
     if ($size == 0) $value = '';
     else $value = fread($fp, $size);
@@ -100,7 +100,7 @@ class fsdb {
 
   function lock($key, $create=false) {
     $locks = $this->locks;
-    $lock = $locks[$key];
+    $lock = @$locks[$key];
     if ($lock) {
       $lock[2]++;
       return $lock;

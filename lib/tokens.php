@@ -91,6 +91,7 @@ class tokens {
   var $BANKURL = 'bankurl';
   var $ENCRYPTEDCOUPON = 'encryptedcoupon';
   var $COUPONNUMBERHASH = 'couponnumberhash';
+  var $ISSUER = 'issuer';
 
   // Client database keys
   var $BANK = 'bank';

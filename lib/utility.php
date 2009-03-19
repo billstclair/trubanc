@@ -146,12 +146,12 @@ class utility {
       return "Request doesn't match pattern for '" . $req[1] . "': " .
         $parser->formatpattern($pattern) . " $msg";
     }
-    $argsbankid = $args[$t->BANKID];
+    $argsbankid = @$args[$t->BANKID];
     if (!$bankid) $bankid = $this->bankgetter->bankid();
     if (array_key_exists($t->BANKID, $args) && $bankid && $argsbankid != $bankid) {
       return "bankid mismatch, sb: $bankid, was: $argsbankid";
     }
-    if (strlen($args[$t->NOTE]) > 4096) {
+    if (strlen(@$args[$t->NOTE]) > 4096) {
       return "Note too long. Max: 4096 chars";
     }
     return $args;
@@ -214,7 +214,6 @@ class utility {
   // $acctbals is array($acct => array($assetid => $msg))
   function balancehash($db, $id, $unpacker, $acctbals) {
     $t = $this->t;
-    $u = $this->u;
 
     $hash = '';
     $hashcnt = 0;

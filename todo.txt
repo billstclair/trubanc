@@ -1,4 +1,7 @@
-Change "<?" to "<?PHP" throughout. Some PHP configurations don't recognize "<?".
+safeidx($array, $idx) doesn't warn if $idx is not in array. Sprinkle liberally.
+Or just put @ before suspect accessors.
+
+Ship with clientdb and serverdb directories inside of dbs.
 
 Backup mechanism. Real-time logging and replication.
 

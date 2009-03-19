@@ -27,6 +27,7 @@ class server {
 
   var $privkey;
   var $bankid;
+  var $commands = false;
 
   // True to always verify sigs. False to disable for DB access during
   // expensive operations.
@@ -230,7 +231,7 @@ class server {
     if (!$asset) return false;
     $res = $this->unpack_bankmsg($asset, $t->ATASSET, $t->ASSET);
     if (is_string($res)) return $res;
-    $req1 = $res[$this->unpack_reqs_key][1];
+    $req1 = @$res[$this->unpack_reqs_key][1];
     if ($req1) {
       $args = $u->match_pattern($req1);
       if (is_string($args)) return "While matching asset storage fee: $args";
@@ -616,7 +617,7 @@ class server {
     if (!$this->is_acct_name($acct)) {
       return "<acct> may contain only letters and digits: $acct";
     }
-    if ($state['acctbals'][$acct][$asset]) {
+    if (@$state['acctbals'][$acct][$asset]) {
       return $this->failmsg($msg, "Duplicate acct/asset balance pair");
     }
     $state['acctbals'][$acct][$asset] = $msg;
@@ -660,9 +661,9 @@ class server {
     //               'fraction' => <Fraction balance after fraction storage charge>,
     //               'digits' => <Digits of precision to keep on fraction>
     //               'storagefee' => <Total storage fee for asset>))
-    $charges = $state['charges'];
+    $charges = @$state['charges'];
     if (!$charges) $state['charges'] = $charges = array();
-    $assetinfo = $charges[$asset];
+    $assetinfo = @$charges[$asset];
     if (!$assetinfo) {
       $assetinfo = array();
       $tokenid = $this->tokenid;
@@ -682,7 +683,7 @@ class server {
         }
       }
     }
-    $percent = $assetinfo['percent'];
+    $percent = @$assetinfo['percent'];
     if ($percent && bccomp($amount, 0) > 0) {   // no charges for asset issuer
       $digits = $assetinfo['digits'];
       $accttime = $acctargs[$t->TIME];
@@ -716,7 +717,7 @@ class server {
     $parser = $this->parser;
 
     $bankid = $this->bankid;
-    $coupon = $args[$t->COUPON];
+    $coupon = @$args[$t->COUPON];
 
     // $t->BANKID => array($t->PUBKEY)
     $msg = $db->get($t->PUBKEYSIG . "/$bankid");
@@ -850,15 +851,6 @@ class server {
 
   // Process a time request
   function do_gettime($args, $reqs, $msg) {
-    $db = $this->db;
-
-    $lock = $db->lock($this->accttimekey($id));
-    $res = $this->do_gettime_internal($msg, $args);
-    $db->unlock($lock);
-    return $res;
-  }
-
-  function do_gettime_internal($msg, $args) {
     $t = $this->t;
     $db = $this->db;
 
@@ -866,8 +858,14 @@ class server {
     if ($err) return $err;
 
     $id = $args[$t->CUSTOMER];
+
+    $lock = $db->lock($this->accttimekey($id));
+
     $time = $this->gettime();
     $db->put($this->accttimekey($id), $time);
+
+    $db->unlock($lock);
+
     return $this->bankmsg($t->TIME, $id, $time);
   }
 
@@ -990,7 +988,7 @@ class server {
     for ($i=1; $i<count($reqs); $i++) {
       $req = $reqs[$i];
       $reqargs = $u->match_pattern($req);
-      if (is_string($req_args)) return $this->failmsg($msg, $reqargs); // match error
+      if (is_string($reqargs)) return $this->failmsg($msg, $reqargs); // match error
       $reqid = $reqargs[$t->CUSTOMER];
       $request = $reqargs[$t->REQUEST];
       $reqtime = $reqargs[$t->TIME];
@@ -1591,12 +1589,14 @@ class server {
     // This is outside the customer lock to avoid deadlock with the issuer account.
     if ($ok && $charges) {
       foreach ($charges as $assetid => $assetinfo) {
-        $issuer = $assetinfo['issuer'];
-        $storagefee = $assetinfo['storagefee'];
-        $digits = $assetinfo['digits'];
-        $err = $this->post_storagefee($assetid, $issuer, $storagefee, $digits);
-        if ($err) {
-          $this->debugmsg("post_storagefee failed: $err\n");
+        $issuer = @$assetinfo['issuer'];
+        $storagefee = @$assetinfo['storagefee'];
+        $digits = @$assetinfo['digits'];
+        if ($assetid) {
+          $err = $this->post_storagefee($assetid, $issuer, $storagefee, $digits);
+          if ($err) {
+            $this->debugmsg("post_storagefee failed: $err\n");
+          }
         }
       }
     }
@@ -1758,7 +1758,7 @@ class server {
           if (bccomp($itemamt, 0) < 0 && $itemargs[$t->CUSTOMER] != $bankid) {
             $state['oldneg'][$itemasset] = $itemargs;
           }
-          $state['bals'][$itemasset] = bcadd($state['bals'][$itemasset], $itemamt);
+          $state['bals'][$itemasset] = bcadd(@$state['bals'][$itemasset], $itemamt);
           $tobecharged[] = array($t->AMOUNT => $itemamt,
                                  $t->TIME => $itemtime,
                                  $t->ASSET => $itemasset);
@@ -1897,9 +1897,9 @@ class server {
         $percent = $assetinfo['digits'];
         if ($percent) {
           $digits = $assetinfo['digits'];
-          $storagefee = $assetinfo['storagefee'];
-          $bal = bcsub($bals[$itemasset], $storagefee, $digits);
-          $fraction = bcadd($fractions[$itemasset], $assetinfo['fraction'], $digits);
+          $storagefee = @$assetinfo['storagefee'];
+          $bal = bcsub(@$bals[$itemasset], $storagefee, $digits);
+          $fraction = bcadd(@$fractions[$itemasset], @$assetinfo['fraction'], $digits);
           $u->normalize_balance($bal, $fraction, $digits);
           $bals[$itemasset] = $bal;
           $assetinfo['fraction'] = $fraction;
@@ -2356,8 +2356,8 @@ class server {
 
     // $t->GETBALANCE => array($t->BANKID,$t->REQ,$t->ACCT=>1,$t->ASSET=>1));
     $id = $args[$t->CUSTOMER];
-    $acct = $args[$t->ACCT];
-    $assetid = $args[$t->ASSET];
+    $acct = @$args[$t->ACCT];
+    $assetid = @$args[$t->ASSET];
 
     if ($acct) $acctkeys = array($this->acctbalancekey($id, $acct));
     else {
@@ -2497,11 +2497,13 @@ class server {
                             "Request doesn't match pattern: " .
                             $parser->formatpattern($pattern));
     }
-    $argsbankid = $args[$t->BANKID];
-    if (array_key_exists($t->BANKID, $args) && $argsbankid != $this->bankid) {
-      return $this->failmsg($msg, "bankid mismatch");
+    if (array_key_exists($t->BANKID, $args)) {
+      $argsbankid = $args[$t->BANKID];
+      if ($argsbankid != $this->bankid) {
+        return $this->failmsg($msg, "bankid mismatch");
+      }
     }
-    if (strlen($args[$t->NOTE]) > 4096) {
+    if (strlen(@$args[$t->NOTE]) > 4096) {
       return $this->failmsg($msg, "Note too long. Max: 4096 chars");
     }
     return $this->$method($args, $parses, $msg);

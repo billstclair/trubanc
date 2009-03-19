@@ -832,7 +832,7 @@ class client {
       $db->unlock($lock);
       if (is_string($args)) return $args;
     }
-    $reqs = $args[$this->unpack_reqs_key][1];
+    $reqs = @$args[$this->unpack_reqs_key][1];
     $args = $args[$t->MSG];
     $percent = false;
     if ($reqs) {
@@ -1823,7 +1823,7 @@ class client {
         $item[$t->ID] = $args[$t->CUSTOMER];
         $item[$t->TIME] = $time;
         $item[$t->MSGTIME] = $args[$t->TIME];
-        $item[$t->NOTE] = $args[$t->NOTE];
+        $item[$t->NOTE] = @$args[$t->NOTE];
         if ($request == $t->SPEND || $request = $t->TRANFEE) {
           $assetid = $args[$t->ASSET];
           $amount = $args[$t->AMOUNT];
@@ -1884,7 +1884,7 @@ class client {
         $last_time = false;
       } elseif ($request == $t->INBOX) {
         $time = $args[$t->TIME];
-        if ($inbox[$time]) return "getinbox return included multiple entries for time: $time";
+        if (@$inbox[$time]) return "getinbox return included multiple entries for time: $time";
         $inbox[$time] = $bankmsg;
         $last_time = $time;
       } elseif ($request == $t->ATTRANFEE) {
@@ -1903,7 +1903,7 @@ class client {
     $key = $this->userinboxkey();
     $keys = $db->contents($key);
     foreach ($keys as $time) {
-      $inmsg = $inbox[$time];
+      $inmsg = @$inbox[$time];
       if ($inmsg) {
         $msg = $db->get("$key/$time");
         if ($msg != $inmsg) return "Inbox mismatch at time: $time";
@@ -1985,8 +1985,8 @@ class client {
     foreach ($directions as $dir) {
       $time = $dir[$t->TIME];
       $request = $dir[$t->REQUEST];
-      $note = $dir[$t->NOTE];
-      $acct = $dir[$t->ACCT];
+      $note = @$dir[$t->NOTE];
+      $acct = @$dir[$t->ACCT];
       if (!$acct) $acct = $t->MAIN;
 
       if ($timelist) $timelist .= '|';
@@ -1996,7 +1996,7 @@ class client {
       if (!$ins) return "No inbox entry for time: $time";
 
       $in = $ins[0];
-      $fee = $ins[1];        // will need generalization when I add multiple fees
+      $fee = @$ins[1];        // will need generalization when I add multiple fees
       $inmsg = $ins[$t->MSG];
 
       $trans = $this->gettime();
@@ -2011,7 +2011,7 @@ class client {
         if ($request == $t->SPENDACCEPT) {
           $this->do_storagefee($charges, $amount, $msgtime, $trans, $assetid);
           $deltas[$acct][$assetid] =
-            bcadd($deltas[$acct][$assetid], $amount);
+            bcadd(@$deltas[$acct][$assetid], $amount);
           $smsg = $this->custmsg($t->SPENDACCEPT, $bankid, $msgtime, $id, $note);
           $msgs[$smsg] = true;
           $msg .= $smsg;
@@ -2071,7 +2071,7 @@ class client {
     $feeasset = $tranfee[$t->ASSET];
     foreach ($deltas as $acct => $amounts) {
       foreach ($amounts as $asset => $amount) {
-        $oldamount = $balance[$acct][$asset][$t->AMOUNT];
+        $oldamount = @$balance[$acct][$asset][$t->AMOUNT];
         if (bccomp($oldamount, 0) != 0) {
           $oldtime = $balance[$acct][$asset][$t->TIME];
           $this->do_storagefee($charges, $oldamount, $oldtime, $trans, $asset);
@@ -2086,7 +2086,7 @@ class client {
     // Create balance, outboxhash, and balancehash messages
     foreach ($deltas as $acct => $amounts) {
       foreach ($amounts as $asset => $amount) {
-        $oldamount = $balance[$acct][$asset][$t->AMOUNT];
+        $oldamount = @$balance[$acct][$asset][$t->AMOUNT];
         $amount = bcadd($oldamount, $amount);
         $balmsg = $this->custmsg($t->BALANCE, $bankid, $trans, $asset, $amount, $acct);
         $msgs[$balmsg] = true;
@@ -2108,7 +2108,7 @@ class client {
     // Add storage and fraction messages
     $fracmsgs = array();
     foreach ($charges as $assetid => $assetinfo) {
-      $percent = $assetinfo['percent'];
+      $percent = @$assetinfo['percent'];
       if ($percent) {
         $storagefee = $assetinfo['storagefee'];
         $fraction = $assetinfo['fraction'];
@@ -2236,7 +2236,7 @@ class client {
     $u = $this->u;
 
     if (bccomp($amount, 0) > 0) {
-      $assetinfo = $charges[$assetid];
+      $assetinfo = @$charges[$assetid];
       if (!$assetinfo) {
         $assetinfo = array();
         $percent = $this->storageinfo($assetid, $fraction, $fractime);
@@ -2252,7 +2252,7 @@ class client {
         }
         $charges[$assetid] = $assetinfo;
       }
-      $percent = $assetinfo['percent'];
+      $percent = @$assetinfo['percent'];
       if ($percent) {
         $digits = $assetinfo['digits'];
         $fee = $u->storagefee($amount, $msgtime, $time, $percent, $digits);
@@ -2466,7 +2466,7 @@ class client {
     if ($request && $args[$t->REQUEST] != $request) {
       return "Wrong return type from bank; sb: $request, was: " . $args[$t->REQUEST];
     }
-    if ($args[$t->MSG]) {
+    if (@$args[$t->MSG]) {
       $msgargs = $u->match_pattern($args[$t->MSG]);
       if (is_string($msgargs)) return "While matching bank-wrapped msg: $msgargs";
       if (array_key_exists($t->BANKID, $msgargs) &&

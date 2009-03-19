@@ -24,11 +24,11 @@ function mq($x) {
 }
 
 function mqpost($x) {
-  return mq($_POST[$x]);
+  return mq(@$_POST[$x]);
 }
 
 function mqrequest($x) {
-  return mq($_REQUEST[$x]);
+  return mq(@$_REQUEST[$x]);
 }
 
 function hsc($x) {
@@ -67,7 +67,7 @@ $iphone = strstr($_SERVER['HTTP_USER_AGENT'], 'iPhone');
 $history = false;
 
 
-if ($_COOKIE['debug']) {
+if (@$_COOKIE['debug']) {
   $client->showprocess = 'appenddebug';
   perf_init();
   $perf_idx = perf_start('The rest');
@@ -86,7 +86,7 @@ $bankline = '';
 
 $error = false;
 
-$session = $_COOKIE['session'];
+$session = @$_COOKIE['session'];
 if ($session) {
   $err = $client->login_with_sessionid($session);
   if ($err) {
@@ -462,6 +462,7 @@ function do_spend() {
   $nickname = mqpost('nickname');
   $toacct = mqpost('toacct');
   $tonewacct = mqpost('tonewacct');
+  $acct2 = '';
 
   $error = false;
   if (!$recipient) {
@@ -488,7 +489,7 @@ function do_spend() {
     }
   }
   if ($error) {
-    draw_balance($amount, $recipient, $note, $toacct, $tonewacct);
+    draw_balance($amount, $recipient, $note, $toacct, $tonewacct, $nickname);
   } else {
     // Add contact if nickname specified
     if ($nickname) {
@@ -505,7 +506,7 @@ function do_spend() {
         $acctdotasset = explode('|', $acctdotasset);
         if (count($acctdotasset) != 2) {
           $error = "Bug: don't understand spentasset";
-          draw_balance($amount, $recipient, $note, $toacct, $tonewacct);
+          draw_balance($amount, $recipient, $note, $toacct, $tonewacct, $nickname);
         } else {
           $acctidx = $acctdotasset[0];
           $assetidx = $acctdotasset[1];
@@ -513,12 +514,12 @@ function do_spend() {
           $assetid = mqpost("assetid$acctidx|$assetidx");
           if (!$acct || !$assetid) {
             $error = "Bug: blank acct or assetid";
-            draw_balance($amount, $recipient, $note, $toacct, $tonewacct);
+            draw_balance($amount, $recipient, $note, $toacct, $tonewacct, $nickname);
           } else {
             if ($acct2) $acct = array($acct, $acct2);
             $error = $client->spend($recipient, $assetid, $amount, $acct, $note);
             if ($error) {
-              draw_balance($amount, $recipient, $note, $toacct, $tonewacct);
+              draw_balance($amount, $recipient, $note, $toacct, $tonewacct, $nickname);
             } elseif ($mintcoupon) {
               draw_coupon($client->lastspendtime);
             } else {
@@ -533,7 +534,7 @@ function do_spend() {
     }
     if (!$found) {
       $error = "Bug: can't find acct/asset to spend";
-      draw_balance($amount, $recipient, $note, $toacct, $tonewacct);
+      draw_balance($amount, $recipient, $note, $toacct, $tonewacct, $nickname);
     }
   }
 }
@@ -869,7 +870,7 @@ function datestr($time) {
 }
 
 function draw_balance($spend_amount=false, $recipient=false, $note=false,
-                      $toacct=false, $tonewacct=false) {
+                      $toacct=false, $tonewacct=false, $nickname=false) {
   global $client;
   global $error;
   global $onload, $body;
@@ -898,6 +899,7 @@ function draw_balance($spend_amount=false, $recipient=false, $note=false,
     }
   }
 
+  $bankcode = '';
   if ($bankopts) {
     $bankcode .= <<<EOT
 <form method="post" action="./" autocomplete="off">
@@ -1165,7 +1167,7 @@ EOT;
             $namestr = id_namestr($recip, $contact);
           }
           $cancelcode = '&nbsp;';
-          if (!$inboxspends[$time]) {
+          if (!@$inboxspends[$time]) {
             $cancelcode = <<<EOT
 <input type="hidden" name="canceltime$cancelcount" value="$timestr"/>
 <input type="submit" name="cancel$cancelcount" value="$label"/>

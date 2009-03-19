@@ -7,10 +7,10 @@
   // $body - Body html to include, default: template identification text
   // $onload - script to run onload, default: nothing
 
-if (!$title) $title = "A Trubanc Web Client";
-if (!$bankname) $bankname = "Trubanc";
-if (!$menu) $menu = '';
-if (!$body) $body = 'This is the template for Trubanc web client pages';
+if (!@$title) $title = "A Trubanc Web Client";
+if (!@$bankname) $bankname = "Trubanc";
+if (!@$menu) $menu = '';
+if (!@$body) $body = 'This is the template for Trubanc web client pages';
 
 ?>
 <html>

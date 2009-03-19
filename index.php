@@ -17,7 +17,7 @@ function mq($x) {
 }
 
 function mqreq($x) {
-  return mq($_REQUEST[$x]);
+  return mq(@$_REQUEST[$x]);
 }
 
 $msg = mqreq('msg');

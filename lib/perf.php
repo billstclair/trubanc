@@ -71,13 +71,13 @@ class perf {
     $now = $this->now();
     $end = count($this->stack) - 1;
 
-    $this->times[$name]['cnt']++;
+    $this->times[$name]['cnt'] = @$this->times[$name]['cnt'] + 1;
     if ($end >= 0) {
       $oname = $this->stack[$end][0];
       $time = $this->stack[$end][1];
       $delta = bcsub($now, $time, $this->PRECISION);
       $this->times[$oname]['time'] =
-        bcadd($this->time[$oname]['time'], $delta, $this->PRECISION);
+        bcadd(@$this->time[$oname]['time'], $delta, $this->PRECISION);
     }
     $this->stack[$end+1] = array($name, $now);
     return count($this->stack) - 1;
@@ -93,7 +93,7 @@ class perf {
     $delta = bcsub($delta, $this->correction, $this->PRECISION);
 
     $this->times[$name]['time'] =
-      bcadd($this->times[$name]['time'], $delta, $this->PRECISION);
+      bcadd(@$this->times[$name]['time'], $delta, $this->PRECISION);
     for ($i=$end; $i>=$idx; $i--) unset($this->stack[$i]);
     
     if ($i >= 0) {                                      
