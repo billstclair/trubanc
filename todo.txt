@@ -1,3 +1,12 @@
+If inbox has bank fees, the balance could go negative. Don't allow processinbox.
+This happens if the user rejects the initial spend of usage tokens.
+
+======================================================================
+
+Test for existence of cURL, bcmath, and OpenSSL libraries.
+
+======================================================================
+
 safeidx($array, $idx) doesn't warn if $idx is not in array. Sprinkle liberally.
 Or just put @ before suspect accessors.
 

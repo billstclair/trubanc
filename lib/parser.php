@@ -358,7 +358,7 @@ class parser {
         $matchlen = 5;
       }
       $i = strlen($msg) - strlen($tail);
-      $res .= substr($msg, $idx, $i + $extralen);
+      $res .= substr($msg, 0, $i + $extralen);
       $msg = substr($tail, $matchlen);
       $dotpos = strpos($msg, '.');
       $leftpos = strpos($msg, '(');

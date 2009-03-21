@@ -57,7 +57,7 @@ function debugmsg($x) {
   $client->debugmsg($x);
 }
 
-$cmd = mq($_REQUEST['cmd']);
+$cmd = @mq($_REQUEST['cmd']);
 
 $db = new fsdb($dbdir);
 $ssl = new ssl();
@@ -839,7 +839,7 @@ function contact_namestr($contact) {
 
   $t = $client->t;
 
-  $nickname = hsc($contact[$t->NICKNAME]);
+  $nickname = hsc(@$contact[$t->NICKNAME]);
   $name = hsc($contact[$t->NAME]);
   $recipid = hsc($contact[$t->ID]);
   return namestr($nickname, $name, $recipid);
@@ -945,6 +945,7 @@ EOT;
     // Maybe this should be hidden by getinbox()
     if (is_string($inbox)) $inbox = $client->getinbox();
 
+    $acctheader = '';
     if (is_string($inbox)) {
       $error = "Error getting inbox: $inbox";
       $inbox = array();
@@ -1004,7 +1005,7 @@ EOT;
         else {
           $assetid = $item[$t->ASSET];
           $assetname = hsc($item[$t->ASSETNAME]);
-          if (!$assets[$assetid]) {
+          if (!@$assets[$assetid]) {
             $assetname .= ' <span style="color: red;"><i>(new)</i></span>';
           }
           $amount = hsc($item[$t->FORMATTEDAMOUNT]);
@@ -1014,7 +1015,7 @@ EOT;
           $selname = "spend$spendcnt";
           $notename = "spendnote$spendcnt";
           $acctselname = "acct$spendcnt";
-          if (!$contact[$t->CONTACT]) {
+          if (!@$contact[$t->CONTACT]) {
             $namestr .= <<<EOT
 <br/>
 <input type="hidden" name="spendid$spendcnt" value="$fromid"/>
@@ -1033,6 +1034,7 @@ $seloptions
 </select>
 
 EOT;
+          $acctcode = '';
           if ($acctoptions) {
             $acctcode = <<<EOT
 <td><select name="$acctselname">
@@ -1074,7 +1076,7 @@ EOT;
         if (!$reply) $reply = '&nbsp;';
         else $reply = str_replace("\n", "<br/>\n", $reply);
         $selname = "nonspend$nonspendcnt";
-        if (!$contact[$t->CONTACT]) {
+        if (!@$contact[$t->CONTACT]) {
           $namestr .= <<<EOT
 <br/>
 <input type="hidden" name="nonspendid$nonspendcnt" value="$fromid"/>
@@ -1274,8 +1276,11 @@ EOT;
 EOT;
     }
 
+    $openspend = '';
     $spendcode = '';
     $closespend = '';
+    $instructions = '';
+    $storagefeecode = '';
     if ($gotbal) {
       $recipopts = '<select name="recipient">
 <option value="">Choose contact...</option>
@@ -1339,6 +1344,7 @@ EOT;
         $error = $storagefees;
         $storagefees = array();
       }
+      $storagefeecode = '';
       if (count($storagefees) > 0) {
         $storagefeecode = <<<EOT
 <form method="post" action="./" autocomplete="off">

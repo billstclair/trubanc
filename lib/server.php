@@ -143,9 +143,9 @@ class server {
     if ($msg) {
       $reqs = $parser->parse($msg);
       if (!$reqs) return 0;
+      $req = $reqs[1];
+      if (!$req) return 0;
     }
-    $req = $reqs[1];
-    if (!$req) return 0;
     $args = $u->match_pattern($req);
     if (is_string($args)) return 0;
     if ($args[$t->REQUEST] != $t->ATSTORAGE) return 0;
@@ -235,7 +235,7 @@ class server {
     if ($req1) {
       $args = $u->match_pattern($req1);
       if (is_string($args)) return "While matching asset storage fee: $args";
-      $res[$t->PERCENT] = $args[$t->PERCENT];
+      $res[$t->PERCENT] = @$args[$t->PERCENT];
     }
     return $res;
   }
@@ -542,7 +542,7 @@ class server {
     $balargs = $this->unpack_bankmsg($balmsg, $t->ATBALANCE, $t->BALANCE);
     if (is_string($balargs) || !$balargs) {
       return "Error unpacking bank balance: '$balargs'";
-    } elseif ($balargs[$t->ACCT] && $balargs[$t->ACCT] != $t->MAIN) {
+    } elseif (@$balargs[$t->ACCT] && $balargs[$t->ACCT] != $t->MAIN) {
       return "Bank balance message not for main account";
     } else {
       $bal = $balargs[$t->AMOUNT];
@@ -605,7 +605,7 @@ class server {
 
     $asset = $args[$t->ASSET];
     $amount = $args[$t->AMOUNT];
-    $acct = $args[$t->ACCT];
+    $acct = @$args[$t->ACCT];
     if (!$acct) $acct = $t->MAIN;
 
     $state['accts'][$acct] = true;
@@ -623,7 +623,7 @@ class server {
     $state['acctbals'][$acct][$asset] = $msg;
     $state['bals'][$asset] = bcsub($state['bals'][$asset], $amount);
     if (bccomp($amount, 0) < 0) {
-      if ($state['newneg'][$asset]) {
+      if (@$state['newneg'][$asset]) {
         return 'Multiple new negative balances for asset: $asset';
       }
       $state['newneg'][$asset] = $acct;
@@ -646,7 +646,7 @@ class server {
       $amount = $acctargs[$t->AMOUNT];
       $state['bals'][$asset] = bcadd($state['bals'][$asset], $amount);
       if (bccomp($amount,  0) < 0) {
-        if ($state['oldneg'][$asset]) {
+        if (@$state['oldneg'][$asset]) {
           return "Account corrupted. Multiple negative balances for asset: $asset";
         }
         $state['oldneg'][$asset] = $acct;
@@ -735,12 +735,16 @@ class server {
         $args = $this->unpack_bankmsg($coupon, $t->ATSPEND, $t->SPEND);
         if (is_string($args)) return $this->failmsg($msg, "Can't parse coupon: $args");
         $assetid = $args[$t->ASSET];
-        if ($assetid != $this->tokenid) {
-          return $this->failmsg($msg, "Coupon not for usage tokens");
-        }
         $amount = $args[$t->AMOUNT];
-        if ($amount < ($this->regfee + 10)) {
-          return $this->failmsg($msg, "Coupon for less than 10 tokens more than registration fee");
+        $id = $args[$t->CUSTOMER];
+        if (!$db->get($this->acctlastkey($id))) {
+          // Not already registered, coupon must be for usage tokens,
+          // and must be big enough to register with
+          if ($assetid != $this->tokenid) {
+            return $this->failmsg($msg, "Coupon not for usage tokens");
+          } elseif ($amount < ($this->regfee + 10)) {
+            return $this->failmsg($msg, "It costs " . $this->regfee . " usage tokens to register a new account.");
+          }
         }
         $msg = $this->bankmsg($t->COUPONNUMBERHASH, $coupon_number_hash);
       } else {
@@ -923,7 +927,7 @@ class server {
     $id2 = $args[$t->ID];
     $assetid = $args[$t->ASSET];
     $amount = $args[$t->AMOUNT];
-    $note = $args[$t->NOTE];
+    $note = @$args[$t->NOTE];
 
     // Burn the transaction, even if balances don't match.
     $err = $this->deq_time($id, $time);
@@ -1678,7 +1682,7 @@ class server {
       if ($feeargs) {
         $asset = $feeargs[$t->ASSET];
         $amt = $feeargs[$t->AMOUNT];
-        $bals[$asset] = bcadd($bals[$asset], $amt);
+        $bals[$asset] = bcadd(@$bals[$asset], $amt);
       }
     }
 
@@ -1702,7 +1706,7 @@ class server {
       if (bccomp($amt, 0) < 0) {
         $oldneg[$asset] = $spendargs;
       }
-      $bals[$asset] = bcadd($bals[$asset], $amt);
+      $bals[$asset] = bcadd(@$bals[$asset], $amt);
       $tobecharged[] = array($t->AMOUNT => $amt,
                              $t->TIME => $spendtime,
                              $t->ASSET => $asset);
@@ -1769,7 +1773,7 @@ class server {
           if ($feeargs) {
             $feeasset = $feeargs[$t->ASSET];
             $feeamt = $feeargs[$t->AMOUNT];
-            $state['bals'][$feeasset] = bcadd($state['bals'][$feeasset], $feeamt);
+            $state['bals'][$feeasset] = bcadd(@$state['bals'][$feeasset], $feeamt);
           }
           $res .= '.' . $this->bankmsg($t->ATSPENDREJECT, $reqmsg);
         }
@@ -1792,7 +1796,7 @@ class server {
         }
         $storageasset = $args[$t->ASSET];
         $storageamt = $args[$t->AMOUNT];
-        if ($storagemsgs[$storageasset]) {
+        if (@$storagemsgs[$storageasset]) {
           return $this->failmsg($msg, "Duplicate storage fee for asset: $storageasset");
         }
         $storageamts[$storageasset] = $storageamt;
@@ -1805,7 +1809,7 @@ class server {
         }
         $fracasset = $args[$t->ASSET];
         $fracamt = $args[$t->AMOUNT];
-        if ($fracmsgs[$fracasset]) {
+        if (@$fracmsgs[$fracasset]) {
           return $this->failmsg($msg, "Duplicate fraction balance for asset: $fracasset");
         }
         $fracamts[$fracasset] = $fracamt;
@@ -1870,7 +1874,7 @@ class server {
 
     // Charge the new balance file tokens
     $tokenid = $this->tokenid;
-    $bals[$tokenid] = bcsub($bals[$tokenid], $tokens);
+    $bals[$tokenid] = bcsub(@$bals[$tokenid], $tokens);
 
     // Work the storage fees into the balances
     $storagefees = array();
@@ -1894,7 +1898,7 @@ class server {
         }
       }
       foreach ($charges as $itemasset => $assetinfo) {
-        $percent = $assetinfo['digits'];
+        $percent = @$assetinfo['percent'];
         if ($percent) {
           $digits = $assetinfo['digits'];
           $storagefee = @$assetinfo['storagefee'];
@@ -2050,8 +2054,10 @@ class server {
 
   // Process a storagefees request
   function do_storagefees($args, $reqs, $msg) {
+    $t = $this->t;
     $db = $this->db;
 
+    $id = $args[$t->CUSTOMER];
     $lock = $db->lock($this->accttimekey($id));
     $res = $this->do_storagefees_internal($msg, $args);
     $db->unlock($lock);
@@ -2082,7 +2088,7 @@ class server {
         return $this->failmsg($msg, "Asset mismatch, sb: $assetid, was: $feeasset");
       }
       $amount = $args[$t->AMOUNT];
-      $percent = $this->storageinfo($id, $asset, $issuer, $fraction, $fractime);
+      $percent = $this->storageinfo($id, $assetid, $issuer, $fraction, $fractime);
       $digits = $u->fraction_digits($percent);
       $u->normalize_balance($amount, $fraction, $digits);
       if (bccomp($amount, 0, 0) > 0) {

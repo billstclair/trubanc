@@ -2,7 +2,7 @@
 
   // Toggle client debugging output
 
-if ($_COOKIE['debug']) {
+if (@$_COOKIE['debug']) {
   setcookie('debug', false);
   $msg = "Debugging disabled";
 } else {

@@ -89,6 +89,7 @@ function doit() {
 
     // Initialize client
     if (!$error) {
+      $dbdir = '';
       if (file_exists('client/settings.php')) require_once "client/settings.php";
       $dbdir = "client/$dbdir";
       $template_file = "client/$template_file";

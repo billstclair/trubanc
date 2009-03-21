@@ -789,7 +789,7 @@ class client {
       foreach ($accts as $acct) {
         $assetids = $db->contents("$key/$acct");
         foreach ($assetids as $assetid) {
-          if (!$res[$assetid]) {
+          if (!isset($res[$assetid])) {
             $asset = $this->getasset($assetid);
             if ($asset) $res[$assetid] = $asset;
           }
@@ -835,6 +835,7 @@ class client {
     $reqs = @$args[$this->unpack_reqs_key][1];
     $args = $args[$t->MSG];
     $percent = false;
+    $issuer = false;
     if ($reqs) {
       $args1 = $this->match_bankreq($reqs, $t->ATSTORAGE);
       if (is_string($args1)) return "While matching storage fee: $args1";
@@ -1195,7 +1196,7 @@ class client {
                                $t->ASSETNAME => $assetname);
       }      
     }
-    if ($inassetid) return ($res[$inassetid]);
+    if ($inassetid) return (@$res[$inassetid]);
     return $res;
   }
 
@@ -1813,7 +1814,7 @@ class client {
       foreach ($reqs as $req) {
         $args = $this->match_bankreq($req);
         if (is_string($args)) return "Inbox unpack error: $args";
-        if ($args[$t->TIME] != $time && $args[$t->TIME]) {
+        if (@$args[$t->TIME] && $args[$t->TIME] != $time) {
           return "Inbox message timestamp mismatch";
         }
         $args = $args[$t->MSG];
@@ -1825,8 +1826,8 @@ class client {
         $item[$t->MSGTIME] = $args[$t->TIME];
         $item[$t->NOTE] = @$args[$t->NOTE];
         if ($request == $t->SPEND || $request = $t->TRANFEE) {
-          $assetid = $args[$t->ASSET];
-          $amount = $args[$t->AMOUNT];
+          $assetid = @$args[$t->ASSET];
+          $amount = @$args[$t->AMOUNT];
           $asset = $this->getasset($assetid);
           $item[$t->ASSET] = $assetid;
           $item[$t->AMOUNT] = $amount;
@@ -1984,7 +1985,7 @@ class client {
 
     foreach ($directions as $dir) {
       $time = $dir[$t->TIME];
-      $request = $dir[$t->REQUEST];
+      $request = @$dir[$t->REQUEST];
       $note = @$dir[$t->NOTE];
       $acct = @$dir[$t->ACCT];
       if (!$acct) $acct = $t->MAIN;
@@ -2019,7 +2020,7 @@ class client {
         } elseif ($request == $t->SPENDREJECT) {
           if ($fee) {
             $deltas[$acct][$fee[$t->ASSET]] =
-              bcadd($deltas[$acct][$fee[$t->ASSET]], $fee[$t->AMOUNT]);
+              bcadd(@$deltas[$acct][$fee[$t->ASSET]], $fee[$t->AMOUNT]);
           }
           $smsg = $this->custmsg($t->SPENDREJECT, $bankid, $msgtime, $id, $note);
           $msgs[$smsg] = true;
@@ -2040,12 +2041,12 @@ class client {
           $assetid = $outspend[$t->ASSET];
           $amount = $outspend[$t->AMOUNT];
           $this->do_storagefee($charges, $amount, $msgtime, $trans, $assetid);
-          $deltas[$acct][$assetid] = bcadd($deltas[$acct][$assetid], $amount);
+          $deltas[$acct][$assetid] = bcadd(@$deltas[$acct][$assetid], $amount);
           // And we have to pay for storage on the amount.
         } elseif ($outfee) {
           // For accepted spends, we get our tranfee back
           $deltas[$t->MAIN][$outfee[$t->ASSET]] =
-            bcadd($deltas[$t->MAIN][$outfee[$t->ASSET]], $outfee[$t->AMOUNT]);
+            bcadd(@$deltas[$t->MAIN][$outfee[$t->ASSET]], $outfee[$t->AMOUNT]);
         }
         $outmsg = $out[$t->MSG];
         if ($outmsg) $hist .= ".$inmsg.$outmsg";
@@ -2336,7 +2337,7 @@ class client {
         $incnegs = false;
         if ($request == $t->SPEND) {
           $item[$t->ID] = $args[$t->ID];
-          $item[$t->NOTE] = $args[$t->NOTE];
+          $item[$t->NOTE] = @$args[$t->NOTE];
           $incnegs = ($args[$t->ID] != $this->bankid);
         } elseif ($request == $t->TRANFEE) {
           // Nothing special to do here
@@ -2986,7 +2987,7 @@ class client {
           }
           $assetid = $msgargs[$t->ASSET];
           if (!$assetid) return "Bank wrapped balance missing asset ID";
-          $acct = $msgargs[$t->ACCT];
+          $acct = @$msgargs[$t->ACCT];
           if (!$acct) $acct = $t->MAIN;
           $balances[$acct][$assetid] = $parser->get_parsemsg($req);
         } else if ($request == $t->ATBALANCEHASH) {
@@ -3287,8 +3288,8 @@ class client {
 
   function accumulate_times($from, $into) {
     foreach ($from as $name => $stats) {
-      $into[$name]['cnt'] += $stats['cnt'];
-      $into[$name]['time'] = bcadd($into[$name]['time'], $stats['time'], perf_precision());
+      $into[$name]['cnt'] = @$into[$name]['cnt'] + $stats['cnt'];
+      $into[$name]['time'] = bcadd(@$into[$name]['time'], @$stats['time'], perf_precision());
     }
     return $into;
   }

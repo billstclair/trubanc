@@ -230,7 +230,7 @@ class utility {
     foreach ($accts as $acct) {
       $newitems = array();
       $removed_names = array();
-      $newacct = $acctbals[$acct];
+      $newacct = @$acctbals[$acct];
       if ($newacct) {
         foreach ($newacct as $assetid => $msg) {
           $newitems[] = $msg;

@@ -35,7 +35,7 @@ class fsdb {
   }
 
   function normalize_key($key) {
-    if ($key[0] == '/') return substr($key, 1);
+    if (substr($key, 0, 1) == '/') return substr($key, 1);
     return $key;
   }
 
