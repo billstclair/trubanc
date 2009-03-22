@@ -1699,15 +1699,15 @@ class client {
     foreach ($reqs as $req) {
       $args = $u->match_pattern($req);
       if (is_string($args)) return "While matching history item: " . $args;
-      $inner = $args[$t->MSG];
+      $inner = @$args[$t->MSG];
       if ($inner) {
         $atrequest = $args[$t->REQUEST];
         $args = $u->match_pattern($inner);
         if (is_string($args)) return "While matching inner history item: $args";
         $args[$t->ATREQUEST] = $atrequest;
       }
-      $assetid = $args[$t->ASSET];
-      $amount = $args[$t->AMOUNT];
+      $assetid = @$args[$t->ASSET];
+      $amount = @$args[$t->AMOUNT];
       if ($assetid && !($amount === false)) {
         $asset = $this->getasset($assetid);
         if (!is_string($asset)) {

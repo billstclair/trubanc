@@ -90,7 +90,7 @@ EOT;
           $from = 'You';
           $toid = $item[$t->ID];
           $to = id_namestr($toid, $contact);
-          if (!$contact[$t->CONTACT] && $toid != $client->id && $toid != 'coupon') {
+          if (!@$contact[$t->CONTACT] && $toid != $client->id && $toid != 'coupon') {
             $to .= <<<EOT
 <br/>
 <input type="hidden" name="nickid$nickcnt" value="$toid"/>
@@ -101,7 +101,7 @@ EOT;
           }
           $amount = $item[$t->FORMATTEDAMOUNT];
           $assetname = $item[$t->ASSETNAME];
-          $note = $item[$t->NOTE];
+          $note = @$item[$t->NOTE];
           if (!$note) $note = '&nbsp;';
           $body .= <<<EOT
 <td>$datestr</td>
@@ -132,7 +132,7 @@ EOT;
                 $response = $item[$t->NOTE];
                 $toid = $item[$t->CUSTOMER];
                 $to = id_namestr($toid, $contact, 'You');
-                if (!$contact[$t->CONTACT] && $toid != $client->id && $toid != 'coupon') {
+                if (!@$contact[$t->CONTACT] && $toid != $client->id && $toid != 'coupon') {
                   $to .= <<<EOT
 <br/>
 <input type="hidden" name="nickid$nickcnt" value="$toid"/>
@@ -144,7 +144,7 @@ EOT;
               } elseif ($request == $t->SPEND) {
                 $fromid = $item[$t->CUSTOMER];
                 $from = id_namestr($fromid, $contact, 'You');
-                if (!$contact[$t->CONTACT] && $fromid != $client->id && $toid != 'coupon') {
+                if (!@$contact[$t->CONTACT] && $fromid != $client->id && $toid != 'coupon') {
                   $from .= <<<EOT
 <br/>
 <input type="hidden" name="nickid$nickcnt" value="$fromid"/>
@@ -173,7 +173,7 @@ EOT;
                 }
                 $amount = $item[$t->FORMATTEDAMOUNT];
                 $assetname = $item[$t->ASSETNAME];
-                $note = $item[$t->NOTE];
+                $note = @$item[$t->NOTE];
                 if ($item[$t->ATREQUEST] == $t->ATSPEND) {
                   $req = $cancelp ? "=$req" : "@$req";
                 }

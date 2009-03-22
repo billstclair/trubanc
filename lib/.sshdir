@@ -1,2 +1,3 @@
 #!/bin/bash
-echo "$TRUBANC:/home/htdocs/lib"
+#echo "$TRUBANC:/home/htdocs/lib"
+echo "$HUBTB:/usr/local/www/trubanc.com/www/lib"

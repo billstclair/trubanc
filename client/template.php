@@ -20,7 +20,7 @@ if (!@$body) $body = 'This is the template for Trubanc web client pages';
 <link rel="apple-touch-icon" href="../site-icon.ico"/>
 <link rel="shortcut icon" href="../site-icon.ico"/>
 </head>
-<body<?php if ($onload) echo " onload='$onload'"; ?>>
+<body<?php if (@$onload) echo " onload='$onload'"; ?>>
 <p>
 <a href="../">
 <img style="vertical-align: middle;border: 1px white" src="../trubanc-logo-50x49.gif" alt="Trubanc" width="50" height="49"/></a>
