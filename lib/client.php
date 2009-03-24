@@ -3015,7 +3015,7 @@ class client {
         $args = $this->match_bankreq($req);
         if (is_string($args)) return "While matching getoutbox: $args";
         $request = $args[$t->REQUEST];
-        $msgargs = $args[$t->MSG];
+        $msgargs = @$args[$t->MSG];
         $customer = $msgargs[$t->CUSTOMER];
         if ($msgargs && $msgargs[$t->CUSTOMER] != $id) {
           return "Bank wrapped somebody else's ($customer) message: $msg";
