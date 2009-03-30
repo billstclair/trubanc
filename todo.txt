@@ -106,6 +106,7 @@ History features:
     Filter
     Export/Import
     "Show raw history" link
+    Show source and target acct on transfer spends.
 
 URLs for adding a contact and for filling the spend page with info for a sale.
 

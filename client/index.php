@@ -158,7 +158,7 @@ if ($client->showprocess) {
     $client->debugmsg("</td><td>");
     draw_times($times, '=== Totals ===');
   }
-  $client->debugmsg("</tr></table\n");
+  $client->debugmsg("</tr></table>\n");
 }
 
 // Here's where the output happens

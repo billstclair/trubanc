@@ -204,6 +204,8 @@ class parser {
             $dict = $pop[1];
             $start = $pop[2];
             $key = $pop[3];
+            // This dict[] set is a bug, I think. At least the Lisp version
+            // worked better without it
             if ($key) $dict[$key] = $value;
             else $dict[] = $value;
             $needsig = true;
