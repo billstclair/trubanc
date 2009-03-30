@@ -1,3 +1,3 @@
 #!/bin/bash
-rsyncit -av --exclude=settings.php ./
+rsyncit -av --exclude=settings.php --exclude lisp ./
 #ssh $TRUBANC chgrp web /home/public/index.php /home/public/client/index.php

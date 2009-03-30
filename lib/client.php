@@ -1428,13 +1428,13 @@ class client {
                                        $assetid, $amount, $note);
     else $spend = $this->custmsg($t->SPEND, $bankid, $time, $toid, $assetid, $amount);
     $feeandbal = '';
+    $feebal = false;
     if ($tranfee_amt) {
       if ($id != $toid) {
         $feemsg = $this->custmsg
           ($t->TRANFEE, $bankid, $time, $tranfee_asset, $tranfee_amt);
         $feeandbal = $feemsg;
       }
-      $feebal = false;
       if ($need_fee_balance) {
         $feebal = $this->custmsg
           ($t->BALANCE, $bankid, $time, $tranfee_asset, $fee_balance);
