@@ -49,6 +49,8 @@ soon.
 You may view code in progress <a href="viewtext.php">here</a>.
 <br/>
 To discuss, join <a href="irc://irc.freenode.net/#Trubanc">#Trubanc</a> on irc.freenode.net (<a href="http://embed.mibbit.com/?server=irc.freenode.com&channel=%23Trubanc">via mibbit</a>)
+<p>
+Lisp port info at <a href="lisp/">trubanc.com/lisp</a>
 </center>
 Git repositories at <a href="http://repo.or.cz/w/Trubanc.git">repo.or.cz/w/Trubanc.git</a> and <a href="http://github.com/billstclair/trubanc/">github.com/billstclair/trubanc/</a>.
 <p>
