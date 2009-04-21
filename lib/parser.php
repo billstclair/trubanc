@@ -327,7 +327,7 @@ class parser {
     }
     $msgkey = $this->msgkey;
     foreach ($parse as $key => $value) {
-      if ($key != $msgkey && $res[$key] === NULL) return false;
+      if ($key != $msgkey && @$res[$key] === NULL) return false;
     }
     $res[$msgkey] = @$parse[$msgkey];
     return $res;

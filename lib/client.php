@@ -1390,6 +1390,7 @@ class client {
     }
 
     $tranfee = false;
+    $tranfee_amt = false;
     $need_fee_balance = false;
     if ($id != $bankid) {
       $fees = $this->getfees();
@@ -1455,6 +1456,7 @@ class client {
     }
 
     // Compute balancehash
+    $balancehash = false;
     if ($id != $bankid) {
       if ($feebal) {
         if ($t->MAIN == $acct) {
@@ -1825,7 +1827,7 @@ class client {
         $item[$t->TIME] = $time;
         $item[$t->MSGTIME] = $args[$t->TIME];
         $item[$t->NOTE] = @$args[$t->NOTE];
-        if ($request == $t->SPEND || $request = $t->TRANFEE) {
+        if ($request == $t->SPEND || $request == $t->TRANFEE) {
           $assetid = @$args[$t->ASSET];
           $amount = @$args[$t->AMOUNT];
           $asset = $this->getasset($assetid);
@@ -3055,8 +3057,8 @@ class client {
         }
       }
 
-      if (count($outbox) > 0 && !$outboxhash) {
-        return "While procesing getouxbox: outbox items but no outboxhash";
+      if ($id != $bankid && count($outbox) > 0 && !$outboxhash) {
+        return "While procesing getoutbox: outbox items but no outboxhash";
       }
 
       // All is well. Write the data

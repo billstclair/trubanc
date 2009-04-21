@@ -245,18 +245,19 @@ class server {
     return $assetreq[$this->t->ASSETNAME];
   }
 
-  function is_alphanumeric($char) {
-    $ord = ord($char);
-    return ($ord >= ord('0') && $ord <= ord('9')) ||
-      ($ord >= ord('A') && $ord <= ord('Z')) ||
-      ($ord >= ord('a') && $ord <= ord('z'));
+  function is_alphanumeric($str, $allow_space=false) {
+    for ($i=0; $i<strlen($str); $i++) {
+      $char = substr($str, $i, 1);
+      $ord = ord($char);
+      return ($allowspace && ($char == ' ')) ||
+        ($ord >= ord('0') && $ord <= ord('9')) ||
+        ($ord >= ord('A') && $ord <= ord('Z')) ||
+        ($ord >= ord('a') && $ord <= ord('z'));
+    }
   }
 
   function is_acct_name($acct) {
-    for ($i=0; $i<strlen($acct); $i++) {
-      if (!$this->is_alphanumeric(substr($acct, $i, 1))) return false;
-    }
-    return true;
+    return is_alphanumeric($acct);
   }
 
   // Initialize the database, if it needs initializing
@@ -2191,7 +2192,7 @@ class server {
     }
 
     // Don't really need this restriction. Maybe widen it a bit?
-    if (!$this->is_alphanumeric($assetname)) {
+    if (!$this->is_alphanumeric($assetname, true)) {
       return $this->failmsg($msg, "Asset name must contain only letters and digits");
     }
 

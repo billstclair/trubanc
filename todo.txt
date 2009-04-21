@@ -1,3 +1,9 @@
+If we can't redeem a coupon spend, or cancel a regular spend from the outbox,
+there should be some way to remove that item from the outbox. It's a bug
+that this happens at all, but there needs to be a way to clean up.
+
+======================================================================
+
 If inbox has bank fees, the balance could go negative. Don't allow processinbox.
 This happens if the user rejects the initial spend of usage tokens.
 

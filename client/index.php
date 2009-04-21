@@ -404,7 +404,7 @@ function do_asset() {
     $precision = mqpost('precision');
     $assetname = mqpost('assetname');
     $storage = mqpost('storage');
-    if (!((strlen(scale) > 0) && (strlen($precision) > 0) &&
+    if (!((strlen($scale) > 0) && (strlen($precision) > 0) &&
           (strlen($assetname) > 0))) {
       $error = "Scale, Precision, and Asset name must all be specified";
     } elseif (!(is_numeric($scale) && is_numeric($precision))) {
@@ -1093,6 +1093,8 @@ EOT;
 
 EOT;
         $date = datestr($time);
+        $acctcode = '';
+        if ($acctoptions) $acctcode = "\n<td>&nbsp;</td>";
         $inboxcode .= <<<EOT
 $timecode
 <tr>
@@ -1102,8 +1104,7 @@ $timecode
 <td style="border-left-width: 0;">$assetname</td>
 <td>$itemnote</td>
 <td>$selcode</td>
-<td>$reply</td>
-<td>&nbsp;</td>
+<td>$reply</td>$acctcode
 <td>$date</td>
 </tr>
 

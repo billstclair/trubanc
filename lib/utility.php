@@ -236,12 +236,12 @@ class utility {
           $newitems[] = $msg;
           $removed_names[] = $assetid;
         }
-        $hasharray = $this->dirhash($db, "$balancekey/$acct", $unpacker,
-                                    $newitems, $removed_names);
-        if ($hash != '') $hash .= '.';
-        $hash .= $hasharray[$t->HASH];
-        $hashcnt += $hasharray[$t->COUNT];
       }
+      $hasharray = $this->dirhash($db, "$balancekey/$acct", $unpacker,
+                                  $newitems, $removed_names);
+      if ($hash != '') $hash .= '.';
+      $hash .= $hasharray[$t->HASH];
+      $hashcnt += $hasharray[$t->COUNT];
     }
     if ($hashcnt > 1) $hash = sha1($hash);
     return array($t->HASH => $hash, $t->COUNT => $hashcnt);
